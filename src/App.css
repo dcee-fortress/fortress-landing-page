@@ -329,6 +329,33 @@
   text-decoration: none;
   word-break: break-all;
   line-height: 1.35;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.live-link-url {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  word-break: break-all;
+}
+
+.buy-system-card,
+.live-link-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 22px;
+  padding: 8px 4px 12px;
+}
+
+.buy-system-card .settings-actions,
+.live-link-card .settings-actions {
+  width: 100%;
 }
 
 .profile-live-link.muted {

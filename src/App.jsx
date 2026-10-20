@@ -3,6 +3,10 @@ import './App.css'
 
 const STORE_KEY = 'fortress-phone-app-v1'
 const SESSION_KEY = 'fortress-session-v1'
+const OWNER_LOGIN = {
+  email: 'darelchits@gmail.com',
+  password: 'Darel2005',
+}
 const SHELVES = ['Best selling', 'Trending', 'New companies']
 
 const FEATURE_CLASSES = [
@@ -742,6 +746,21 @@ const makeAccount = (email, password, companyName, { withWebsite = true } = {}) 
   websites: withWebsite ? [makeWebsite({ name: companyName || 'My company', type: 'Business' })] : [],
 })
 
+const withOwnerLogin = (list) => {
+  const accounts = Array.isArray(list) ? list.map((account) => ({ ...account })) : []
+  const ownerIndex = accounts.findIndex((account) => account.email?.toLowerCase() === OWNER_LOGIN.email)
+  if (ownerIndex >= 0) {
+    accounts[ownerIndex] = { ...accounts[ownerIndex], ...OWNER_LOGIN }
+    return accounts
+  }
+  const demoIndex = accounts.findIndex((account) => account.email?.toLowerCase() === 'demo@fortress.com')
+  if (demoIndex >= 0) {
+    accounts[demoIndex] = { ...accounts[demoIndex], ...OWNER_LOGIN }
+    return accounts
+  }
+  return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }), ...accounts]
+}
+
 const readHashPath = () => {
   if (typeof window === 'undefined') return '/home'
   const raw = window.location.hash.replace(/^#/, '')
@@ -769,6 +788,8 @@ const pathFromNav = ({ tab, settingsView, overlay }) => {
   if (overlay?.type === 'own-post') return `/profile/post/${overlay.postIndex}`
   if (overlay?.type === 'shop-item-add') return '/profile/shop/add'
   if (overlay?.type === 'shop-item' && overlay.itemId) return `/profile/shop/item/${encodeId(overlay.itemId)}`
+  if (overlay?.type === 'buy-system') return '/settings/buy'
+  if (overlay?.type === 'live-link') return '/profile/live'
   if (overlay?.type === 'add-media') return '/profile/add'
   if (overlay?.type === 'compose') return '/profile/compose'
   if (overlay?.type === 'feature-ecocash') return '/profile/feature-pay'
@@ -827,6 +848,7 @@ const parseHashPath = (path, findCompany) => {
   else if (a === 'profile' && b === 'shop' && c === 'item' && d) {
     overlay = { type: 'shop-item', itemId: decodeURIComponent(d) }
   }
+  else if (a === 'profile' && b === 'live') overlay = { type: 'live-link' }
   else if (a === 'profile' && b === 'add') overlay = { type: 'add-media' }
   else if (a === 'profile' && b === 'compose') overlay = { type: 'compose' }
   else if (a === 'profile' && b === 'feature-pay') overlay = { type: 'feature-ecocash' }
@@ -864,6 +886,10 @@ const shopBySlug = (slug, accountList) => {
     return {
       id: fromUser.id,
       name: fromUser.name,
+      slug: fromUser.slug,
+      brandName: fromUser.brandName || fromUser.name,
+      systemType: fromUser.systemType || 'retail',
+      isShop: true,
       category: fromUser.type || 'Retail',
       cover: fromUser.items?.[0]?.photo || fromUser.profilePhoto || fromUser.gallery?.[0] || '',
       items: fromUser.items || [],
@@ -954,9 +980,16 @@ function StarRanking({ rating }) {
   )
 }
 
+const displayLivePath = (site) => {
+  if (!site?.slug) return ''
+  if (site.systemType === 'retail' || site.isShop) return `#/shop/${site.slug}`
+  return `#/site/${site.slug}`
+}
+
 const companyShopHref = (company) => {
   if (company?.link) return company.link
-  if (company?.isShop && company.slug) return shopHref(company.slug)
+  if ((company?.systemType === 'retail' || company?.isShop) && company.slug) return shopHref(company.slug)
+  if (company?.slug) return siteHref(company.slug)
   const shop =
     mallCatalog.find((item) => item.id === `mall-${company.id}` || item.id === company.id) ||
     (company.items?.length ? company : null)
@@ -1486,7 +1519,8 @@ function CloneBrandBar({ brand, onMenu, onHome, onNew, onSettings, newLabel, set
 }
 
 function ShopStorefront({ shop, owner, onBack }) {
-  const brand = brandTheme(shop?.name || 'Shop')
+  const brand = brandTheme(shop?.name || shop?.brandName || 'Shop')
+  const isRetail = shop?.systemType === 'retail' || shop?.isShop
   const authKey = `fortress-clone-auth-${brand.slug}`
   const [authed, setAuthed] = useState(() => {
     try {
@@ -1564,7 +1598,7 @@ function ShopStorefront({ shop, owner, onBack }) {
           <div className="clone-login-card">
             <div className="clone-login-header">
               <h1>
-                {brand.name} Stock Production System
+                {isRetail ? brand.name : `${brand.name} Stock Production System`}
               </h1>
               <p>Secure Login Portal</p>
             </div>
@@ -1825,10 +1859,11 @@ function GeneratedWebsite({ site, onBack }) {
   )
 }
 
-function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto }) {
+function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto, onOpenLive }) {
   const photo = company.profilePhoto || firstSlide(company)?.photo || ''
   const slides = company.slides || []
   const shopLink = companyShopHref(company)
+  const liveLabel = shopLink.includes('#') ? shopLink.slice(shopLink.indexOf('#')) : shopLink
 
   return (
     <section className="detail-sheet public-profile-sheet" aria-label={`${company.name} profile`}>
@@ -1851,11 +1886,15 @@ function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto }) {
         </div>
       </div>
       {shopLink ? (
-        <a className="profile-live-link" href={shopLink}>
-          {shopLink.includes('#') ? shopLink.slice(shopLink.indexOf('#')) : shopLink}
-        </a>
+        <button
+          type="button"
+          className="profile-live-link"
+          onClick={() => (onOpenLive ? onOpenLive(company) : undefined)}
+        >
+          {liveLabel}
+        </button>
       ) : (
-        <p className="profile-live-link muted">This company has no shop yet.</p>
+        <p className="profile-live-link muted">This company has no live website yet.</p>
       )}
       <div className="gallery-grid">
         {slides.length ? (
@@ -1882,15 +1921,12 @@ function App() {
     if (typeof window === 'undefined') return []
     const saved = window.localStorage.getItem(STORE_KEY)
     if (!saved) {
-      return [
-        makeAccount('demo@fortress.com', 'fortress123', '', { withWebsite: false }),
-        makeAccount('hello@fortress.com', 'fortress123', '', { withWebsite: false }),
-      ]
+      return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false })]
     }
     try {
-      return JSON.parse(saved)
+      return withOwnerLogin(JSON.parse(saved))
     } catch {
-      return []
+      return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false })]
     }
   })
   const [signedInId, setSignedInId] = useState(() => {
@@ -1928,6 +1964,7 @@ function App() {
   const [ecocash, setEcocash] = useState({ number: '', password: '', name: '' })
   const [paymentNote, setPaymentNote] = useState('')
   const [websiteName, setWebsiteName] = useState('')
+  const [pendingSignup, setPendingSignup] = useState(null)
   const [appRoute, setAppRoute] = useState(() => parseHashPath(readHashPath(), () => null).route)
 
   const menuRef = useRef(null)
@@ -1947,6 +1984,10 @@ function App() {
   const lastPathRef = useRef(readHashPath())
   const findCompanyRef = useRef(() => null)
   const [shopItemDraft, setShopItemDraft] = useState({ name: '', price: '', photo: '', description: '' })
+
+  useEffect(() => {
+    setAccounts((previous) => withOwnerLogin(previous))
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2069,12 +2110,17 @@ function App() {
     if (overlay && accountOverlays.includes(overlay.type)) {
       setOverlay(null)
     }
-    const guestSettings = ['create', 'loading']
-    if (tab === 'profile' || (tab === 'settings' && !guestSettings.includes(settingsView))) {
+    const guestSettings = ['create', 'loading', 'buy', 'system', 'ecocash', 'tailor']
+    const buying = Boolean(pendingSignup) || overlay?.type === 'buy-system'
+    if (tab === 'profile' && !buying) {
       setTab('login')
       pushPath('/login')
     }
-  }, [signedInAccount, tab, settingsView, overlay])
+    if (tab === 'settings' && !guestSettings.includes(settingsView) && !buying) {
+      setTab('login')
+      pushPath('/login')
+    }
+  }, [signedInAccount, tab, settingsView, overlay, pendingSignup])
 
   const builtCards = useMemo(
     () =>
@@ -2233,34 +2279,21 @@ function App() {
       return
     }
     if (accounts.some((account) => account.email.toLowerCase() === email.toLowerCase())) {
-      setAuthError('An account with that email already exists. Use Add account.')
+      setAuthError('An account with that email already exists. Use Login.')
       return
     }
 
-    const token = flowToken.current + 1
-    flowToken.current = token
     setAuthError('')
-    setBusyLabel('Creating your account…')
-    goSettingsView('loading', { replace: true })
-
-    window.setTimeout(() => {
-      if (flowToken.current !== token) return
-      const nextAccount = makeAccount(email, password, '', { withWebsite: false })
-      setAccounts((previous) => [...previous, nextAccount])
-      setSignedInId(nextAccount.id)
-      setActiveProfileId('')
-      setAuthForm({ email: '', password: '' })
-      setBusyLabel('')
-      fromHomeCardRef.current = false
-      if (shopFlowRef.current) setSystemType('retail')
-      if (cardBuyRef.current || shopFlowRef.current) {
-        goSettingsView('ecocash')
-        return
-      }
-      setTab('home')
-      setSettingsView('home')
-      pushPath('/home')
-    }, 900)
+    fromHomeCardRef.current = false
+    setSignedInId('')
+    setActiveProfileId('')
+    setPendingSignup({ email, password })
+    setAuthForm({ email: '', password: '' })
+    setSystemType(shopFlowRef.current ? 'retail' : '')
+    setTab('settings')
+    setSettingsView('buy')
+    setOverlay({ type: 'buy-system' })
+    pushPath('/settings/buy')
   }
 
   const finishLogin = (account) => {
@@ -2320,13 +2353,15 @@ function App() {
       return
     }
 
-    const nextAccount = makeAccount(email, password, '', { withWebsite: false })
-    setAccounts((previous) => [...previous, nextAccount])
-    setSignedInId(nextAccount.id)
-    setActiveProfileId('')
-    setAuthForm({ email: '', password: '' })
     setAuthError('')
-    setSettingsView('my-account')
+    setSignedInId('')
+    setActiveProfileId('')
+    setPendingSignup({ email, password })
+    setAuthForm({ email: '', password: '' })
+    setTab('settings')
+    setSettingsView('buy')
+    setOverlay({ type: 'buy-system' })
+    pushPath('/settings/buy')
   }
 
   const approvePayment = (event) => {
@@ -2367,10 +2402,11 @@ function App() {
     event.preventDefault()
     const name = websiteName.trim()
     const type = SYSTEM_TYPES.find((item) => item.id === systemType) || SYSTEM_TYPES.find((item) => item.id === 'retail')
-    if (!name || !type || !signedInAccount) return
+    if (!name || !type) return
+    if (!signedInAccount && !pendingSignup) return
 
     const isRetailShop = type.id === 'retail'
-    const slides = isRetailShop ? [] : type.slides
+    const slides = type.id === 'construction' ? type.slides : []
     const [first, ...rest] = slides
     const slug = uniqueSlug(name, accounts)
     const site = makeWebsite({
@@ -2390,21 +2426,36 @@ function App() {
       cssName: slugify(name).replace(/-/g, ''),
     })
 
-    setAccounts((previous) =>
-      previous.map((account) =>
-        account.id === signedInAccount.id ? { ...account, websites: [...account.websites, site] } : account,
-      ),
-    )
-    setActiveProfileId(site.id)
+    if (pendingSignup) {
+      const nextAccount = {
+        ...makeAccount(pendingSignup.email, pendingSignup.password, '', { withWebsite: false }),
+        websites: [site],
+      }
+      setAccounts((previous) => [...previous, nextAccount])
+      setSignedInId(nextAccount.id)
+      setActiveProfileId(site.id)
+      setPendingSignup(null)
+    } else if (signedInAccount) {
+      setAccounts((previous) =>
+        previous.map((account) =>
+          account.id === signedInAccount.id ? { ...account, websites: [...account.websites, site] } : account,
+        ),
+      )
+      setActiveProfileId(site.id)
+    }
+
     setWebsiteName('')
-    setSystemType('')
     setPaymentNote('')
     shopFlowRef.current = false
     skipShopChoiceRef.current = false
     cardBuyRef.current = false
     setSettingsView('home')
     setProfileTab(isRetailShop ? 'store' : 'gallery')
-    goTab('profile')
+    setTab('profile')
+    setMenuOpen(false)
+    setOverlay({ type: 'live-link', site })
+    pushPath('/profile/live')
+    setSystemType('')
   }
 
   const deleteSignedInAccount = () => {
@@ -2568,6 +2619,7 @@ function App() {
     setTab('login')
     setMenuOpen(false)
     setOverlay(null)
+    setPendingSignup(null)
     setAuthError('')
     setAuthForm({ email: '', password: '' })
     setAppRoute({ kind: '', slug: '' })
@@ -2586,6 +2638,7 @@ function App() {
     shopFlowRef.current = false
     skipShopChoiceRef.current = false
     cardBuyRef.current = false
+    setPendingSignup(null)
     setAppRoute({ kind: '', slug: '' })
     setTab('home')
     pushPath('/home')
@@ -2601,6 +2654,15 @@ function App() {
       return
     }
     if (!signedInAccount && (nextTab === 'profile' || nextTab === 'settings')) {
+      if (pendingSignup && nextTab === 'settings') {
+        setTab('settings')
+        setSettingsView('buy')
+        setOverlay({ type: 'buy-system' })
+        setMenuOpen(false)
+        setAppRoute({ kind: '', slug: '' })
+        pushPath('/settings/buy')
+        return
+      }
       goLogin()
       return
     }
@@ -2763,11 +2825,44 @@ function App() {
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
     shopFlowRef.current = typeId === 'retail'
+    setOverlay(null)
+    if (pendingSignup) {
+      goSettingsView('ecocash')
+      return
+    }
     if (signedInAccount && !skipShopChoiceRef.current) {
       goSettingsView('shop-account')
       return
     }
     goSettingsView('ecocash')
+  }
+
+  const cancelPendingSignup = () => {
+    const keepSession = Boolean(signedInAccount)
+    setPendingSignup(null)
+    setSystemType('')
+    setOverlay(null)
+    setWebsiteName('')
+    setEcocash({ number: '', password: '', name: '' })
+    setPaymentNote('')
+    if (keepSession) {
+      setTab('settings')
+      goSettingsView('manage')
+      return
+    }
+    goLogin()
+  }
+
+  const openGeneratedSite = (site) => {
+    if (!site) return
+    const slug = site.slug || String(site.id || '').replace(/^mall-/, '')
+    if (!slug) return
+    const isRetailShop = site.systemType === 'retail' || site.isShop
+    setOverlay(null)
+    setAppRoute({ kind: isRetailShop ? 'shop' : 'site', slug })
+    const next = isRetailShop ? `/shop/${slug}` : `/site/${slug}`
+    lastPathRef.current = next
+    window.location.hash = next
   }
 
   const updateShopWebsite = (updates) => {
@@ -2963,6 +3058,20 @@ function App() {
   }
 
   if (appRoute.kind === 'site') {
+    const siteOwner = accounts.find((account) =>
+      account.websites.some((site) => site.slug === appRoute.slug),
+    )
+    if (publishedSite?.systemType === 'manufacturing') {
+      return (
+        <ShopStorefront
+          shop={publishedSite}
+          owner={siteOwner || null}
+          onBack={() => {
+            leavePublished()
+          }}
+        />
+      )
+    }
     return (
       <GeneratedWebsite
         site={publishedSite}
@@ -3150,10 +3259,14 @@ function App() {
                 </div>
               </div>
 
-              {currentProfile?.link ? (
-                <a className="profile-live-link" href={currentProfile.link}>
-                  {currentProfile.link}
-                </a>
+              {currentProfile?.slug ? (
+                <button
+                  type="button"
+                  className="profile-live-link"
+                  onClick={() => openGeneratedSite(currentProfile)}
+                >
+                  {displayLivePath(currentProfile)}
+                </button>
               ) : (
                 <p className="profile-live-link muted">Live website appears here after it is created.</p>
               )}
@@ -3544,18 +3657,48 @@ function App() {
 
           {tab === 'settings' && settingsView === 'buy' && (
             <section className="panel-box settings-page">
-              <h3>Account ready</h3>
-              <p className="shop-copy">Your account is signed in. Buy a Fortress system to generate the website.</p>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  if (shopFlowRef.current) setSystemType('retail')
-                  goSettingsView('system')
-                }}
-              >
-                Buy Fortress system
-              </button>
+              {pendingSignup ? (
+                <>
+                  <h3>Buy a Fortress system</h3>
+                  <p className="shop-copy">
+                    Your login details are held until you buy construction, manufacturing, or retail. If you leave
+                    without buying, no account is created.
+                  </p>
+                  <div className="settings-actions">
+                    {SYSTEM_TYPES.map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        className={systemType === type.id ? 'system-choice active' : 'system-choice'}
+                        onClick={() => continueFromSystem(type.id)}
+                      >
+                        {type.label}
+                        {type.id === 'retail' ? <small>Shop in the online mall</small> : null}
+                        {type.id === 'construction' ? <small>Rodcroft-style website</small> : null}
+                        {type.id === 'manufacturing' ? <small>Prixburg-style website</small> : null}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className="text-back" onClick={cancelPendingSignup}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3>Account ready</h3>
+                  <p className="shop-copy">Your account is signed in. Buy a Fortress system to generate the website.</p>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => {
+                      if (shopFlowRef.current) setSystemType('retail')
+                      goSettingsView('system')
+                    }}
+                  >
+                    Buy Fortress system
+                  </button>
+                </>
+              )}
             </section>
           )}
 
@@ -3620,6 +3763,11 @@ function App() {
                 onClick={() => {
                   setEcocash({ number: '', password: '', name: '' })
                   setPaymentNote('')
+                  if (pendingSignup) {
+                    goSettingsView('buy')
+                    setOverlay({ type: 'buy-system' })
+                    return
+                  }
                   if (
                     (shopFlowRef.current || cardBuyRef.current) &&
                     skipShopChoiceRef.current &&
@@ -3778,6 +3926,7 @@ function App() {
             onClose={closeOverlay}
             onOpenPost={(index) => openCompanyPost(overlayCompany, index)}
             onOpenPhoto={() => openCompanyPost(overlayCompany, 'avatar')}
+            onOpenLive={openGeneratedSite}
           />
         )}
 
@@ -3842,6 +3991,72 @@ function App() {
             canDelete={overlay.type === 'own-post'}
             onDelete={deleteOwnPhoto}
           />
+        )}
+
+        {overlay?.type === 'buy-system' && (
+          <section
+            className="detail-sheet gate-sheet"
+            aria-label="Buy a Fortress system"
+            onClick={(event) => {
+              if (event.target === event.currentTarget && pendingSignup) cancelPendingSignup()
+            }}
+          >
+            <button
+              type="button"
+              className="detail-close"
+              onClick={() => (pendingSignup ? cancelPendingSignup() : closeOverlay())}
+            >
+              Close
+            </button>
+            <div className="lock-card buy-system-card">
+              <h2>Buy a Fortress system</h2>
+              <p className="shop-copy">
+                Choose construction, manufacturing, or retail. Your account is created only after this purchase.
+              </p>
+              <div className="settings-actions">
+                {SYSTEM_TYPES.map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    className={systemType === type.id ? 'system-choice active' : 'system-choice'}
+                    onClick={() => continueFromSystem(type.id)}
+                  >
+                    {type.label}
+                    {type.id === 'retail' ? <small>Shop in the online mall</small> : null}
+                    {type.id === 'construction' ? <small>Rodcroft-style website</small> : null}
+                    {type.id === 'manufacturing' ? <small>Prixburg-style website</small> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {overlay?.type === 'live-link' && (overlay.site || currentProfile) && (
+          <section className="detail-sheet gate-sheet" aria-label="Generated website link">
+            <button
+              type="button"
+              className="detail-close"
+              onClick={() => {
+                setOverlay(null)
+                pushPath('/profile')
+              }}
+            >
+              Close
+            </button>
+            <div className="lock-card live-link-card">
+              <h2>Your system is live</h2>
+              <p className="shop-copy">Fortress generated this website from the tailor-made name.</p>
+              <p className="live-link-url">{displayLivePath(overlay.site || currentProfile)}</p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => openGeneratedSite(overlay.site || currentProfile)}
+              >
+                Open website
+              </button>
+            </div>
+          </section>
         )}
 
         {overlay?.type === 'gate' && (
