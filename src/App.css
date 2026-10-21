@@ -138,6 +138,12 @@
   box-shadow: 0 8px 20px rgba(247, 178, 104, 0.24);
 }
 
+.primary-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .top-tabs {
   margin-top: 18px;
   gap: 8px;

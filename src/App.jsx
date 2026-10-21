@@ -7,6 +7,9 @@ const OWNER_LOGIN = {
   email: 'darelchits@gmail.com',
   password: 'Darel2005',
 }
+const PHASE1_COMPLETE = false
+const PHASE1_ECOCASH_NOTE =
+  'Phase 1 of Fortress is not complete yet. EcoCash will open after phase 1.'
 const SHELVES = ['Best selling', 'Trending', 'New companies']
 
 const FEATURE_CLASSES = [
@@ -2122,6 +2125,16 @@ function App() {
     }
   }, [signedInAccount, tab, settingsView, overlay, pendingSignup])
 
+  useEffect(() => {
+    if (PHASE1_COMPLETE) return
+    if (tab === 'settings' && (settingsView === 'tailor' || settingsView === 'loading')) {
+      setBusyLabel('')
+      setSettingsView('ecocash')
+      setPaymentNote(PHASE1_ECOCASH_NOTE)
+      pushPath('/settings/ecocash', { replace: true })
+    }
+  }, [tab, settingsView])
+
   const builtCards = useMemo(
     () =>
       accounts.flatMap((account, accountIndex) =>
@@ -2366,6 +2379,10 @@ function App() {
 
   const approvePayment = (event) => {
     event.preventDefault()
+    if (!PHASE1_COMPLETE) {
+      setPaymentNote(PHASE1_ECOCASH_NOTE)
+      return
+    }
     const number = ecocash.number.replace(/\s/g, '')
     const name = ecocash.name.trim()
     const password = ecocash.password
@@ -2556,6 +2573,10 @@ function App() {
 
   const submitFeatureEcoCash = (event) => {
     event.preventDefault()
+    if (!PHASE1_COMPLETE) {
+      setPaymentNote(PHASE1_ECOCASH_NOTE)
+      return
+    }
     const number = ecocash.number.replace(/\s/g, '')
     const name = ecocash.name.trim()
     const password = ecocash.password
@@ -3789,6 +3810,7 @@ function App() {
               <form className="ecocash-card" onSubmit={approvePayment}>
                 <p className="ecocash-kicker">EcoCash</p>
                 <h3>{chosenSystem ? `${chosenSystem.label} system` : 'Fortress system'}</h3>
+                {!PHASE1_COMPLETE ? <p className="shop-copy">{PHASE1_ECOCASH_NOTE}</p> : null}
                 <label>
                   EcoCash number
                   <input
@@ -3797,6 +3819,7 @@ function App() {
                     autoComplete="off"
                     placeholder="07xxxxxxxx"
                     value={ecocash.number}
+                    disabled={!PHASE1_COMPLETE}
                     onChange={(event) => setEcocash((value) => ({ ...value, number: event.target.value }))}
                   />
                 </label>
@@ -3807,6 +3830,7 @@ function App() {
                     autoComplete="off"
                     placeholder="Password"
                     value={ecocash.password}
+                    disabled={!PHASE1_COMPLETE}
                     onChange={(event) => setEcocash((value) => ({ ...value, password: event.target.value }))}
                   />
                 </label>
@@ -3817,11 +3841,12 @@ function App() {
                     autoComplete="name"
                     placeholder="Name on EcoCash"
                     value={ecocash.name}
+                    disabled={!PHASE1_COMPLETE}
                     onChange={(event) => setEcocash((value) => ({ ...value, name: event.target.value }))}
                   />
                 </label>
                 {paymentNote && <p className="form-error">{paymentNote}</p>}
-                <button type="submit" className="primary-button">
+                <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
                   Approve payment
                 </button>
               </form>
@@ -4125,6 +4150,7 @@ function App() {
               <p className="shop-copy">
                 {compose.feePlan === 'month' ? '$20/month' : '$200/year'} for the Best selling card.
               </p>
+              {!PHASE1_COMPLETE ? <p className="shop-copy">{PHASE1_ECOCASH_NOTE}</p> : null}
               <label>
                 EcoCash number
                 <input
@@ -4133,6 +4159,7 @@ function App() {
                   autoComplete="off"
                   placeholder="07xxxxxxxx"
                   value={ecocash.number}
+                  disabled={!PHASE1_COMPLETE}
                   onChange={(event) => setEcocash((value) => ({ ...value, number: event.target.value }))}
                 />
               </label>
@@ -4143,6 +4170,7 @@ function App() {
                   autoComplete="off"
                   placeholder="Password"
                   value={ecocash.password}
+                  disabled={!PHASE1_COMPLETE}
                   onChange={(event) => setEcocash((value) => ({ ...value, password: event.target.value }))}
                 />
               </label>
@@ -4153,11 +4181,12 @@ function App() {
                   autoComplete="name"
                   placeholder="Name on EcoCash"
                   value={ecocash.name}
+                  disabled={!PHASE1_COMPLETE}
                   onChange={(event) => setEcocash((value) => ({ ...value, name: event.target.value }))}
                 />
               </label>
               {paymentNote && <p className="form-error">{paymentNote}</p>}
-              <button type="submit" className="primary-button">
+              <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
                 Approve payment
               </button>
             </form>
