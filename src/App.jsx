@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
-const STORE_KEY = 'fortress-phone-app-v1'
-const SESSION_KEY = 'fortress-session-v1'
+const STORE_KEY = 'fortress-phone-app-phase1'
+const SESSION_KEY = 'fortress-session-phase1'
 const OWNER_LOGIN = {
   email: 'darelchits@gmail.com',
   password: 'Darel2005',
@@ -10,6 +10,10 @@ const OWNER_LOGIN = {
 const PHASE1_COMPLETE = false
 const PHASE1_ECOCASH_NOTE =
   'Phase 1 of Fortress is not complete yet. EcoCash will open after phase 1.'
+const PHASE1_LOGIN_NOTE =
+  'Only the Fortress owner can sign in until phase 1 is complete.'
+const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
+const isOwnerCredentials = (email, password) => isOwnerEmail(email) && password === OWNER_LOGIN.password
 const SHELVES = ['Best selling', 'Trending', 'New companies']
 
 const FEATURE_CLASSES = [
@@ -2011,8 +2015,11 @@ function App() {
   }, [signedInId])
 
   useEffect(() => {
-    if (signedInId && !accounts.some((account) => account.id === signedInId)) {
+    const account = accounts.find((item) => item.id === signedInId)
+    if (!signedInId) return
+    if (!account || !isOwnerEmail(account.email)) {
       setSignedInId('')
+      setActiveProfileId('')
     }
   }, [accounts, signedInId])
 
@@ -2334,16 +2341,16 @@ function App() {
       setAuthError('Enter your email and password.')
       return
     }
-    const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
-    if (!existing) {
-      setAuthError('No account with that email. Create an account.')
+    if (!isOwnerCredentials(email, password)) {
+      setAuthError(isOwnerEmail(email) ? 'That password does not match this account.' : PHASE1_LOGIN_NOTE)
       return
     }
-    if (existing.password !== password) {
-      setAuthError('That password does not match this account.')
+    const owner = accounts.find((account) => isOwnerEmail(account.email))
+    if (!owner) {
+      setAuthError(PHASE1_LOGIN_NOTE)
       return
     }
-    finishLogin(existing)
+    finishLogin({ ...owner, ...OWNER_LOGIN })
   }
 
   const handleAddAccount = (event) => {
@@ -2358,8 +2365,8 @@ function App() {
 
     const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
     if (existing) {
-      if (existing.password !== password) {
-        setAuthError('That password does not match this account.')
+      if (!isOwnerCredentials(email, password)) {
+        setAuthError(isOwnerEmail(email) ? 'That password does not match this account.' : PHASE1_LOGIN_NOTE)
         return
       }
       finishLogin(existing)
@@ -3167,7 +3174,10 @@ function App() {
             <section className="panel-box settings-page">
               <form className="create-account-form" onSubmit={handleLogin}>
                 <h3>Login</h3>
-                <p className="shop-copy">Enter your account email and password.</p>
+                <p className="shop-copy">
+                  Enter your account email and password. Until phase 1 is complete, only the Fortress owner can open a
+                  profile.
+                </p>
                 <input
                   type="email"
                   placeholder="Email"
