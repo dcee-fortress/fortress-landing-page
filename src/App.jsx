@@ -8,10 +8,8 @@ const OWNER_LOGIN = {
   password: 'Darel2005',
 }
 const PHASE1_COMPLETE = false
-const PHASE1_ECOCASH_NOTE =
-  'Phase 1 of Fortress is not complete yet. EcoCash will open after phase 1.'
-const PHASE1_LOGIN_NOTE =
-  'Only the Fortress owner can sign in until phase 1 is complete.'
+const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
+const PHASE1_LOGIN_NOTE = 'Login will be opened for exclusive users soon.'
 const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
 const isOwnerCredentials = (email, password) => isOwnerEmail(email) && password === OWNER_LOGIN.password
 const SHELVES = ['Best selling', 'Trending', 'New companies']
@@ -28,85 +26,206 @@ const FEATURE_CLASSES = [
 
 const shot = (id) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1400&q=80`
+const pexel = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1400`
 
-const COMMENTS_KEY = 'fortress-comments-v1'
+const COMMENTS_KEY = 'fortress-comments-v4'
 const VIDEO_SECONDS = 10
 
 const REEL = {
   mill: 'https://videos.pexels.com/video-files/2795405/2795405-hd_1920_1080_25fps.mp4',
   weld: 'https://videos.pexels.com/video-files/4483138/4483138-hd_1920_1080_25fps.mp4',
   crane: 'https://videos.pexels.com/video-files/3994446/3994446-uhd_2560_1440_25fps.mp4',
-  crew: 'https://videos.pexels.com/video-files/8488593/8488593-hd_1920_1080_30fps.mp4',
   factory: 'https://videos.pexels.com/video-files/7578544/7578544-hd_1920_1080_30fps.mp4',
-  timber: 'https://videos.pexels.com/video-files/8961305/8961305-uhd_2560_1440_25fps.mp4',
+}
+
+const MEDIA = {
+  rodcroft1: '/media/rodcroft/rodcroft1.mp4',
+  rodcroftPhoto1: '/media/rodcroft/rodcroft-1.jpeg',
+  rodcroftPhoto2: '/media/rodcroft/rodcroft-2.jpeg',
+  rodcroftPhoto3: '/media/rodcroft/rodcroft-3.jpeg',
+  rodcroftPhoto4: '/media/rodcroft/rodcroft-4.jpeg',
+  prixburg1: '/media/prixburg/prixburg1.jpeg',
+  prixburg2: '/media/prixburg/prixburg2.jpeg',
+  prixburg3: '/media/prixburg/prixburg3.jpeg',
+  prixburg4: '/media/prixburg/prixburg4.jpeg',
+  prixburg5: '/media/prixburg/prixburg5.jpeg',
+  prixburg6: '/media/prixburg/prixburg6.mp4',
 }
 
 const catalog = [
   {
-    id: 'apex',
-    name: 'Apex Steelworks',
+    id: 'rodcroft',
+    name: 'Rodcroft',
+    category: 'Construction',
+    shelf: 'Best selling',
+    rating: 4.9,
+    hue: '#9a3412',
+    showOnGrid: true,
+    nativeFrame: true,
+    featurePhotos: true,
+    featurePhotoCount: 2,
+    video: MEDIA.rodcroft1,
+    videoCaption: 'Rodcroft site reel.',
+    location: 'Zimbabwe',
+    about:
+      'Fortress cut QS and engineering admin at Rodcroft, grew sites and tenders, and gave the CEO a live view of every site.',
+    slides: [
+      {
+        photo: MEDIA.rodcroftPhoto1,
+        testimonial:
+          'I’m the CEO. Fortress cut the paperwork for our QS and engineers — ndatenda. Measurements and claims now sit pano on one website.',
+      },
+      {
+        photo: MEDIA.rodcroftPhoto2,
+        testimonial:
+          'With that time back we took on more sites and more tenders. Zvinhu zviri kufamba, and the same team runs a bigger book from the phone. — Patrick Mbizvo, CEO',
+      },
+      {
+        photo: MEDIA.rodcroftPhoto3,
+        testimonial:
+          'Theft is down because Fortress tracks storeroom stock. Zvechokwadi, cement and fuel now have a log before they leave the yard. — Patrick Mbizvo, CEO',
+      },
+      {
+        photo: MEDIA.rodcroftPhoto4,
+        testimonial:
+          'Valuations land on a cumulative dashboard with SHEQ. Ndinoona every site from the phone without calling the trailer. — Patrick Mbizvo, CEO',
+      },
+      {
+        video: MEDIA.rodcroft1,
+        testimonial:
+          'From the gate to the storeroom, this is our live picture of the job. Zvakanaka — QS, engineers, and I finally share one site. — Patrick Mbizvo, CEO',
+      },
+    ],
+  },
+  {
+    id: 'prixburg',
+    name: 'Prixburg',
     category: 'Manufacturing',
     shelf: 'Best selling',
     rating: 4.9,
     hue: '#1f4d45',
+    showOnGrid: true,
+    nativeFrame: true,
+    featurePhotos: true,
+    featurePhotoCount: 2,
+    location: 'Zimbabwe',
+    about:
+      'Prixburg is a chemical manufacturing factory. Fortress tracks storeroom materials, consumed stock, and sales of dishwasher, toilet cleaner, and fabric softener.',
+    slides: [
+      {
+        photo: MEDIA.prixburg1,
+        testimonial:
+          'I’m the CEO of this chemical plant. Fortress keeps the floor and the office on one website so production is not chasing paper. Ndatenda. — Tawanda Chitukutuku, CEO',
+      },
+      {
+        photo: MEDIA.prixburg2,
+        testimonial:
+          'Raw materials sit in the storeroom. Fortress calculates consumed stock as batches run, so we always know what left the shelf. — Tawanda Chitukutuku, CEO',
+      },
+      {
+        photo: MEDIA.prixburg3,
+        testimonial:
+          'The system tracks those materials from delivery to mix. Stock is managed by live counts, not a book that is a week behind.',
+      },
+      {
+        photo: MEDIA.prixburg4,
+        testimonial:
+          'Sales dashboards track dishwasher, toilet cleaner, and fabric softener as they leave. The market grew — zvinhu zviri kufamba. — Tawanda Chitukutuku, CEO',
+      },
+      {
+        photo: MEDIA.prixburg5,
+        testimonial:
+          'For a factory like this, the calculating system that keeps formulas intact is the asset. Fortress holds the recipes while output keeps rising. — Tawanda Chitukutuku, CEO',
+      },
+      {
+        video: MEDIA.prixburg6,
+        testimonial:
+          'Ndinoona the storeroom, the formulas, and sales pano on one site. Zvakanaka for a chemical plant. — Tawanda Chitukutuku, CEO',
+      },
+    ],
+  },
+  {
+    id: 'apex',
+    name: 'PaChikonaz Pvt',
+    category: 'Manufacturing',
+    shelf: 'Best selling',
+    rating: 4.9,
+    hue: '#1f4d45',
+    showOnGrid: true,
+    featurePhotos: true,
+    featurePhotoCount: 2,
     video: REEL.mill,
     videoCaption: 'Mill-floor reel from the current run.',
-    location: 'Pittsburgh, PA',
-    about: 'Structural steel crews keep punch lists, coil counts, and bay photos on one card.',
+    location: 'Zimbabwe',
+    about: 'PaChikonaz Pvt uses Fortress to track mill stock, consumed steel, and sales from the same dashboard.',
     slides: [
       {
         photo: shot('photo-1504917595217-d4dc5ebe6122'),
-        testimonial: 'The punch list lives on the phone now, not in the trailer binder.',
+        testimonial:
+          'I’m the mill CEO. Fortress cut paperwork for the engineers so beams and heat numbers live pano on one website. Ndatenda. — Nyasha Mutasa, CEO',
       },
       {
         photo: shot('photo-1565043589221-1a6fd9ae45c7'),
-        testimonial: 'Bay three sent this coil photo before the shift change.',
+        testimonial:
+          'Raw steel sits in the storeroom. Fortress calculates consumed stock as I-beams and plate leave the rack. Zvakanaka — shortages show before a bay runs dry. — Nyasha Mutasa, CEO',
       },
       {
-        photo: shot('photo-1581091226825-a6a2a5aee158'),
-        testimonial: 'Weld stations check in with one picture and the count.',
+        photo: pexel(3912981),
+        testimonial:
+          'The system tracks those materials from delivery to mill. Stock is managed pano by live counts, not a book that is a week behind. Ndatenda. — Nyasha Mutasa, CEO',
       },
       {
         photo: shot('photo-1504328345606-18bbc8c9d7d1'),
-        testimonial: 'Night crew left the booth photo on the card for the morning handoff.',
+        testimonial:
+          'Sales dashboards update as steel leaves the plant. Ndinoona the mill from the phone. — Nyasha Mutasa, CEO',
       },
       {
         photo: shot('photo-1565008447742-97f6f38c985c'),
-        testimonial: 'The floor lead uses this shot when sales asks what shipped.',
+        testimonial:
+          'For a mill like this, the calculating system is the asset. Zvechokwadi, counts and output now sit in one place. — Nyasha Mutasa, CEO',
       },
     ],
   },
   {
     id: 'ridgeline',
-    name: 'Ridgeline Contractors',
+    name: 'it Wasu Contractors',
     category: 'Construction',
     shelf: 'Best selling',
     rating: 4.8,
     hue: '#9a3412',
+    showOnGrid: true,
+    featurePhotos: true,
+    featurePhotoCount: 2,
     video: REEL.weld,
     videoCaption: 'Deck reel from the crew on site.',
-    location: 'Denver, CO',
-    about: 'Foremen post deck, crane, and gate photos before they leave the site.',
+    location: 'Zimbabwe',
+    about: 'it Wasu Contractors QS and engineers work from Fortress, with storeroom tracking and live site valuations.',
     slides: [
       {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
-        testimonial: 'Foremen send site photos before they leave the deck. Owners see the same day.',
+        photo: shot('photo-1621905252507-b35492cc74b4'),
+        testimonial:
+          'I’m the CEO. Fortress cut the paperwork for QS and engineers. Ndatenda — claims now sit pano instead of in the trailer. — Tawanda Ncube, CEO',
       },
       {
-        photo: shot('photo-1503387762-592deb58ef4e'),
-        testimonial: 'This framing shot closed the owner’s question about the east wall.',
+        photo: pexel(8487367),
+        testimonial:
+          'With that time back, it Wasu Contractors took on more sites and more tenders. Zvinhu zviri kufamba — the same crew runs a bigger book from the phone. — Tawanda Ncube, CEO',
       },
       {
-        photo: shot('photo-1504307651254-35680f356dfd'),
-        testimonial: 'The crew photo is how we prove who was on the deck at pour time.',
+        photo: pexel(27647858),
+        testimonial:
+          'Theft is down because Fortress tracks storeroom stock. Zvechokwadi, cement and fuel have a log before they leave the yard. — Tawanda Ncube, CEO',
       },
       {
         photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'Crane day stays on the card so the next trade knows the lift is done.',
+        testimonial:
+          'Valuations land pano on a cumulative dashboard. SHEQ files sit on the same system. Ndatenda. — Tawanda Ncube, CEO',
       },
       {
         photo: shot('photo-1517581177682-a085bb7ffb15'),
-        testimonial: 'Gate photo plus a note replaced the Friday trailer meeting.',
+        testimonial:
+          'I open Fortress and ndinoona every deck — stock, valuations, and SHEQ — without calling the trailer. Zvakanaka. — Tawanda Ncube, CEO',
       },
     ],
   },
@@ -118,27 +237,32 @@ const catalog = [
     rating: 4.7,
     hue: '#3f3f46',
     location: 'Gary, IN',
-    about: 'Mill leads attach line photos to the same card sales already sends.',
+    about: 'Ironleaf tracks mill materials, consumed stock, and sales estimates on Fortress dashboards.',
     slides: [
       {
-        photo: shot('photo-1581094794329-c8112a89af12'),
-        testimonial: 'Coil counts and line photos land in one card the crew already trusts.',
+        photo: pexel(1181519),
+        testimonial:
+          'I’m the CEO of this coil mill. Fortress cut the paperwork so engineers post the run pano. Ndatenda. — Chiedza Dube, CEO',
       },
       {
-        photo: shot('photo-1581092160562-40aa08e78837'),
-        testimonial: 'This press photo answered a shop-drawing question before lunch.',
+        photo: pexel(3184292),
+        testimonial:
+          'Coil and sheet sit in the storeroom. Fortress calculates consumed stock as the press runs, so the mill always knows what left the rack.',
       },
       {
         photo: shot('photo-1581092918056-0c4c3acd3789'),
-        testimonial: 'The line lead uploads the count with the picture. No second system.',
+        testimonial:
+          'The system tracks those materials from yard to press. Stock is managed by live counts, not a weekly walk.',
       },
       {
         photo: shot('photo-1504917595217-d4dc5ebe6122'),
-        testimonial: 'Yard steel stays visible to the office without a walk-down.',
+        testimonial:
+          'It estimates sales on dashboards as coil and formed parts leave the plant. The mill and the office read one number for what shipped.',
       },
       {
         photo: shot('photo-1565043666747-69f6646db940'),
-        testimonial: 'End-of-shift photo is the record that the run finished clean.',
+        testimonial:
+          'SHEQ and I open Fortress and see the floor without a walk-down. Zvechokwadi, the records stay intact. — Chiedza Dube, CEO',
       },
     ],
   },
@@ -150,27 +274,32 @@ const catalog = [
     rating: 4.8,
     hue: '#1e3a5f',
     location: 'Austin, TX',
-    about: 'Weekly proof is the card: structure, site, and close-out photos together.',
+    about: 'Pylon uses Fortress for QS workload, site valuations, and storeroom control on every job.',
     slides: [
       {
-        photo: shot('photo-1504307651254-35680f356dfd'),
-        testimonial: 'We stopped mailing site binders. The card is the weekly proof.',
+        photo: pexel(8487724),
+        testimonial:
+          'I’m the CEO. Fortress cut QS paperwork. Measures and claims sit pano — ndatenda. — Simba Mhlanga, CEO',
       },
       {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
-        testimonial: 'Structure photo went to the lender with the draw request.',
+        photo: shot('photo-1621905252472-943afaa20e20'),
+        testimonial:
+          'With that time back, Pylon has taken on more sites and more tenders. Valuations are recorded on site and the cumulative dashboard is already up to date.',
       },
       {
         photo: shot('photo-1486406146926-c627a92ad1ab'),
-        testimonial: 'This elevation shot is what the owner opens on Monday.',
+        testimonial:
+          'Theft is down because Fortress tracks storeroom stock. Cement and fuel movements are logged before they leave the yard.',
       },
       {
         photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'Lift day is on the card so the next crew does not guess.',
+        testimonial:
+          'SHEQ files live next to the lift photos. Safety and production stopped using two different folders.',
       },
       {
-        photo: shot('photo-1503387762-592deb58ef4e'),
-        testimonial: 'Close-out started from this photo, not from a shared drive.',
+        photo: pexel(8487371),
+        testimonial:
+          'Ndinoona the structure, the stock, and the valuation from the phone. Handichafona the trailer. — Simba Mhlanga, CEO',
       },
     ],
   },
@@ -184,27 +313,32 @@ const catalog = [
     video: REEL.crane,
     videoCaption: 'Site reel from the pour.',
     location: 'Seattle, WA',
-    about: 'Clients approve the next pour from the same photos the superintendent posts.',
+    about: 'Harbor & Beam runs pours, tenders, and storeroom stock from the Fortress website.',
     slides: [
       {
-        photo: shot('photo-1503387762-592deb58ef4e'),
-        testimonial: 'Clients open the card, see the site, and approve the next pour from their phone.',
+        photo: pexel(8487363),
+        testimonial:
+          'I’m the CEO. Fortress cut QS paperwork, and clients approve the next pour from the same site. Zvakanaka. — Rudo Nyathi, CEO',
       },
       {
         photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'The crane shot is the one clients screenshot for their board.',
+        testimonial:
+          'With that time back, Harbor has taken on more sites and more tenders. Valuations sit on a cumulative dashboard, not in email.',
       },
       {
         photo: shot('photo-1429497419816-9ca5cfb4571a'),
-        testimonial: 'Timber went up and the photo was on the card before we left the site.',
+        testimonial:
+          'Theft is down because Fortress tracks storeroom stock. Cement and fuel movements are on the website before the gate closes.',
       },
       {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
-        testimonial: 'Foundation day is the photo we send with the inspection note.',
+        photo: pexel(8487760),
+        testimonial:
+          'The website records pour valuations on site and rolls them into the dashboard. SHEQ files live with the same records.',
       },
       {
         photo: shot('photo-1517581177682-a085bb7ffb15'),
-        testimonial: 'Street view of the site replaced the weekly progress email.',
+        testimonial:
+          'Ndinoona the deck, the stock, and the valuation from the phone. Fortress is the control room for the site. — Rudo Nyathi, CEO',
       },
     ],
   },
@@ -218,127 +352,32 @@ const catalog = [
     video: REEL.factory,
     videoCaption: 'Line reel from the bay.',
     location: 'Detroit, MI',
-    about: 'Line leads and sales share one card for counts, booths, and finished runs.',
+    about: 'Voltform tracks consumed stock, line output, and sales estimates on Fortress.',
     slides: [
       {
-        photo: shot('photo-1581092160562-40aa08e78837'),
-        testimonial: 'Line leads upload a photo with the count. Sales uses the same card.',
+        photo: shot('photo-1621905251918-48416bd8575a'),
+        testimonial:
+          'I’m the plant CEO. Line leads post the bay pano instead of a second spreadsheet. Ndatenda. — Tafadzwa Sibanda, CEO',
       },
       {
-        photo: shot('photo-1581091226825-a6a2a5aee158'),
-        testimonial: 'This bench photo is what purchasing checks before reordering.',
+        photo: pexel(3912981),
+        testimonial:
+          'Paint, parts, and solvents sit in the storeroom. Fortress calculates consumed stock as the booth runs, so purchasing reorders from the site.',
       },
       {
-        photo: shot('photo-1581094794329-c8112a89af12'),
-        testimonial: 'The aisle shot shows the run is staged, not still on the line.',
+        photo: pexel(27647858),
+        testimonial:
+          'The system tracks those materials from delivery to booth. Stock is managed by live counts, not a guess at shift change.',
       },
       {
         photo: shot('photo-1565008447742-97f6f38c985c'),
-        testimonial: 'Floor photo closed a quality question without a plant visit.',
+        testimonial:
+          'It estimates sales on dashboards as finished work leaves the plant. Quality and production share one formula file, and the market for the line has grown.',
       },
       {
         photo: shot('photo-1504328345606-18bbc8c9d7d1'),
-        testimonial: 'Weld booth check-in is a picture, then the card moves on.',
-      },
-    ],
-  },
-  {
-    id: 'summit',
-    name: 'Summit Siteworks',
-    category: 'Construction',
-    shelf: 'Trending',
-    rating: 4.8,
-    hue: '#3f6212',
-    video: REEL.crew,
-    videoCaption: 'Crew reel from the gate.',
-    location: 'Boise, ID',
-    about: 'Weather, gate, and crew notes stay attached to the photos from that day.',
-    slides: [
-      {
-        photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'Weather delays, gate photos, and crew notes stay on one card.',
-      },
-      {
-        photo: shot('photo-1504307651254-35680f356dfd'),
-        testimonial: 'Crew check-in photo is the attendance the super actually trusts.',
-      },
-      {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
-        testimonial: 'Slab morning is documented here before anyone asks for it.',
-      },
-      {
-        photo: shot('photo-1517581177682-a085bb7ffb15'),
-        testimonial: 'The muddy gate shot explained the delay better than a text.',
-      },
-      {
-        photo: shot('photo-1531834685032-c34bf0d84c77'),
-        testimonial: 'This progress photo is the one we pin for the owner call.',
-      },
-    ],
-  },
-  {
-    id: 'northline',
-    name: 'Northline Fabrication',
-    category: 'Manufacturing',
-    shelf: 'New companies',
-    rating: 4.5,
-    hue: '#134e4a',
-    location: 'Milwaukee, WI',
-    about: 'Shop photos on the card answer drawing questions before a meeting is booked.',
-    slides: [
-      {
-        photo: shot('photo-1581092918056-0c4c3acd3789'),
-        testimonial: 'Shop photos on the card already close shop-drawing questions.',
-      },
-      {
-        photo: shot('photo-1504917595217-d4dc5ebe6122'),
-        testimonial: 'Fit-up photo went to the detailer the hour it was taken.',
-      },
-      {
-        photo: shot('photo-1581094794329-c8112a89af12'),
-        testimonial: 'The bay looks like this when a job is ready to ship.',
-      },
-      {
-        photo: shot('photo-1565043589221-1a6fd9ae45c7'),
-        testimonial: 'Press line photo is the proof we send with the pack list.',
-      },
-      {
-        photo: shot('photo-1581092160562-40aa08e78837'),
-        testimonial: 'New booth, first run, already on the company card.',
-      },
-    ],
-  },
-  {
-    id: 'cedar',
-    name: 'Cedar Span Builders',
-    category: 'Construction',
-    shelf: 'New companies',
-    rating: 4.8,
-    hue: '#92400e',
-    video: REEL.timber,
-    videoCaption: 'Build reel from the rooms we closed.',
-    location: 'Portland, OR',
-    about: 'Homeowners scroll the card and see every room the crew has closed.',
-    slides: [
-      {
-        photo: shot('photo-1429497419816-9ca5cfb4571a'),
-        testimonial: 'Homeowners scroll the card like a store listing and see every room we closed.',
-      },
-      {
-        photo: shot('photo-1600585154340-be6161a56a0c'),
-        testimonial: 'Front elevation is the photo they send their family.',
-      },
-      {
-        photo: shot('photo-1600607687939-ce8a6c25118c'),
-        testimonial: 'Kitchen close-out lives on the card, not in a text thread.',
-      },
-      {
-        photo: shot('photo-1600566753086-00f18fb6b3ea'),
-        testimonial: 'This room photo is what sold the next phase.',
-      },
-      {
-        photo: shot('photo-1503387762-592deb58ef4e'),
-        testimonial: 'Frame walk happened on the phone with this picture open.',
+        testimonial:
+          'I open Fortress and ndinoona booth, stock, and sales. Zvechokwadi, the process records stay intact. — Tafadzwa Sibanda, CEO',
       },
     ],
   },
@@ -350,27 +389,32 @@ const catalog = [
     rating: 4.7,
     hue: '#365314',
     location: 'Nashville, TN',
-    about: 'A new Fortress shop whose phone is already the job trailer.',
+    about: 'Fieldnote started on Fortress so QS, stock, and the CEO already share one site.',
     slides: [
       {
-        photo: shot('photo-1531834685032-c34bf0d84c77'),
-        testimonial: 'New on Fortress and the phone is already the job trailer.',
+        photo: pexel(8487371),
+        testimonial:
+          'I’m the CEO. From day one the phone is the job trailer. Ndatenda. — Tatenda Chirwa, CEO',
       },
       {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
-        testimonial: 'First pour is on the card for the owner who could not be there.',
+        photo: pexel(8487724),
+        testimonial:
+          'With that time back, Fieldnote can grow first pours and first tenders without growing paperwork.',
       },
       {
         photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'Crane set documented before the operator left the street.',
+        testimonial:
+          'Theft has nowhere to hide because Fortress tracks storeroom stock. Cement and fuel have a log from the first delivery.',
       },
       {
-        photo: shot('photo-1504307651254-35680f356dfd'),
-        testimonial: 'Crew photo from day one, so the card never starts empty.',
+        photo: pexel(8487760),
+        testimonial:
+          'Valuations are recorded on site and roll into a cumulative dashboard. Monday meetings now open that same screen.',
       },
       {
         photo: shot('photo-1517581177682-a085bb7ffb15'),
-        testimonial: 'Site overview is the picture we open in the Monday meeting.',
+        testimonial:
+          'SHEQ and my CEO view were built in from the start. Ndinoona whatever is happening on site. Zvakanaka. — Tatenda Chirwa, CEO',
       },
     ],
   },
@@ -379,7 +423,7 @@ const catalog = [
 const mallGood = (id, name, photo, price) => ({
   id,
   name,
-  photo: shot(photo),
+  photo: photo.startsWith('http') ? photo : shot(photo),
   price,
 })
 
@@ -410,27 +454,22 @@ const mallCatalog = [
   shopFromHome('apex', [
     mallGood('apex-plate', 'Steel plate pack', 'photo-1504917595217-d4dc5ebe6122', 86),
     mallGood('apex-bolt', 'Structural bolt set', 'photo-1504148455328-c376907d081c', 24),
-    mallGood('apex-angle', 'Angle iron length', 'photo-1581091226825-a6a2a5aee158', 41),
+    mallGood('apex-angle', 'Angle iron length', pexel(3912981), 41),
   ]),
   shopFromHome('harbor', [
-    mallGood('harbor-beam', 'Framed beam cut', 'photo-1503387762-592deb58ef4e', 95),
-    mallGood('harbor-sheet', 'Plywood sheet', 'photo-1503387762-592deb58ef4e', 32),
+    mallGood('harbor-beam', 'Framed beam cut', pexel(8487363), 95),
+    mallGood('harbor-sheet', 'Plywood sheet', 'photo-1517581177682-a085bb7ffb15', 32),
     mallGood('harbor-fastener', 'Site fastener tin', 'photo-1517581177682-a085bb7ffb15', 18),
   ]),
   shopFromHome('ridgeline', [
-    mallGood('ridge-helmet', 'Site helmet', 'photo-1504307651254-35680f356dfd', 29),
-    mallGood('ridge-vest', 'Crew vest', 'photo-1541888946425-d81bb19240f5', 22),
+    mallGood('ridge-helmet', 'Site helmet', shot('photo-1621905252472-943afaa20e20'), 29),
+    mallGood('ridge-vest', 'Crew vest', pexel(8487367), 22),
     mallGood('ridge-boot', 'Work boot pair', 'photo-1590496793929-36417d3117de', 74),
   ]),
   shopFromHome('voltform', [
-    mallGood('volt-cable', 'Cable drum', 'photo-1519389950473-47ba0277781c', 58),
-    mallGood('volt-switch', 'Switch gear pack', 'photo-1581092160562-40aa08e78837', 46),
+    mallGood('volt-cable', 'Cable drum', shot('photo-1621905251918-48416bd8575a'), 58),
+    mallGood('volt-switch', 'Switch gear pack', pexel(3184292), 46),
     mallGood('volt-lamp', 'Bay lamp', 'photo-1504328345606-18bbc8c9d7d1', 37),
-  ]),
-  shopFromHome('cedar', [
-    mallGood('cedar-door', 'Interior door', 'photo-1600585154340-be6161a56a0c', 120),
-    mallGood('cedar-tile', 'Kitchen tile crate', 'photo-1600607687939-ce8a6c25118c', 64),
-    mallGood('cedar-paint', 'Room paint set', 'photo-1562259949-e8e7689d7828', 39),
   ]),
   retailShop('lantern-home', 'Lantern Home Goods', 'photo-1555041469-a586c61ea9bc', [
     mallGood('lantern-lamp', 'Floor lamp', 'photo-1507473885765-e6ed057f782c', 54),
@@ -443,7 +482,7 @@ const mallCatalog = [
     mallGood('market-oil', 'Bottle of oil', 'photo-1474979266404-7ea641234fb7', 9),
   ]),
   retailShop('thread-needle', 'Thread & Needle', 'photo-1441986300917-64674bd600d8', [
-    mallGood('thread-shirt', 'Cotton shirt', 'photo-1521572163474-6864f9cf17ab', 28),
+    mallGood('thread-shirt', 'Cotton shirt', 'photo-1441984904996-e0b6ba687e04', 28),
     mallGood('thread-denim', 'Denim pair', 'photo-1441984904996-e0b6ba687e04', 45),
     mallGood('thread-tote', 'Canvas tote', 'photo-1544816155-12df9643f363', 19),
   ]),
@@ -453,6 +492,99 @@ const mallCatalog = [
     mallGood('kettle-jar', 'Spice jar set', 'photo-1596040033229-a9821ebd058d', 15),
   ]),
 ]
+
+const seedNote = (id, author, text, replies = []) => ({
+  id,
+  authorId: 'seed',
+  author,
+  text,
+  replies: replies.map((reply, index) => ({
+    id: `${id}-r${index}`,
+    authorId: 'seed',
+    author: reply.author,
+    text: reply.text,
+  })),
+})
+
+const DEMO_COMMENTS = {
+  'photo:rodcroft:0': [
+    seedNote('rc0a', 'Patrick Mbizvo, CEO', 'Ndatenda. This is the picture I open every mangwanani before I call anyone.'),
+    seedNote(
+      'rc0b',
+      'Rudo Nyathi, CEO',
+      'Makorokoto to the QS team. Zvakanaka — the site is already on the website.',
+      [{ author: 'Tawanda Chitukutuku, CEO', text: 'Tinotenda. We run the same habit at the plant.' }],
+    ),
+  ],
+  'photo:rodcroft:2': [
+    seedNote('rc2a', 'Patrick Mbizvo, CEO', 'Zvechokwadi, cement and fuel now have a log. Theft has nowhere to hide.'),
+  ],
+  'photo:prixburg:0': [
+    seedNote('pb0a', 'Tawanda Chitukutuku, CEO', 'Ndatenda. Floor and office finally share one site. Zvinhu zviri kufamba.'),
+    seedNote('pb0b', 'Nyasha Mutasa, CEO', 'Same for our mill. Ndinoona the run without walking the bay.'),
+  ],
+  'photo:prixburg:3': [
+    seedNote('pb3a', 'Tawanda Chitukutuku, CEO', 'Dishwasher and softener sales sit pano. Makorokoto to the mixing team.'),
+  ],
+  'photo:apex:0': [
+    seedNote('ap0a', 'Nyasha Mutasa, CEO', 'Ndatenda. Heat numbers live pano now, not on clipboards.'),
+    seedNote('ap0b', 'Tawanda Chitukutuku, CEO', 'Makorokoto. Same habit as Prixburg — ndinoona the mill from the phone.'),
+  ],
+  'photo:apex:1': [
+    seedNote('ap1a', 'Nyasha Mutasa, CEO', 'Storeroom steel is on the website. Zvakanaka — shortages show before the bay runs dry.'),
+  ],
+  'photo:ridgeline:0': [
+    seedNote('rg0a', 'Tawanda Ncube, CEO', 'I’m the CEO of it Wasu Contractors. Ndatenda — claims sit pano instead of in the trailer.'),
+    seedNote('rg0b', 'Patrick Mbizvo, CEO', 'Makorokoto. Rodcroft and Wasu now run the same basa from the phone.'),
+  ],
+  'photo:ridgeline:1': [
+    seedNote('rg1a', 'Tawanda Ncube, CEO', 'More sites, more tenders. Zvinhu zviri kufamba at it Wasu Contractors.'),
+    seedNote('rg1b', 'Rudo Nyathi, CEO', 'Zvakanaka. The crew already updates the website before I call.'),
+  ],
+  'photo:ridgeline:2': [
+    seedNote('rg2a', 'Tawanda Ncube, CEO', 'Zvechokwadi, cement and fuel now have a log. Theft has nowhere to hide.'),
+  ],
+  'photo:ridgeline:3': [
+    seedNote('rg3a', 'Tawanda Ncube, CEO', 'Valuations sit pano with SHEQ. Ndatenda.'),
+  ],
+  'photo:ridgeline:4': [
+    seedNote('rg4a', 'Tawanda Ncube, CEO', 'Ndinoona every deck from the phone. Handichafona the trailer.'),
+    seedNote('rg4b', 'Patrick Mbizvo, CEO', 'Tinotenda. Same picture we wanted at Rodcroft.'),
+  ],
+  'photo:ironleaf:0': [
+    seedNote('il0a', 'Chiedza Dube, CEO', 'Engineers post the run pano. Ndatenda — clipboards are done.'),
+  ],
+  'photo:pylon:0': [
+    seedNote('py0a', 'Simba Mhlanga, CEO', 'Makorokoto. Measures and claims sit pano. Handichafona the trailer.'),
+  ],
+  'photo:harbor:0': [
+    seedNote('hb0a', 'Rudo Nyathi, CEO', 'Clients approve the next pour from this picture. Zvakanaka.'),
+  ],
+  'photo:voltform:0': [
+    seedNote('vf0a', 'Tafadzwa Sibanda, CEO', 'Line leads post the bay pano. Ndatenda.'),
+  ],
+  'photo:fieldnote:0': [
+    seedNote('fn0a', 'Tatenda Chirwa, CEO', 'From day one the phone is the trailer. Zvakanaka.'),
+    seedNote('fn0b', 'Patrick Mbizvo, CEO', 'Makorokoto. Start like this and the basa stays clean.'),
+  ],
+  'item:mall-apex:apex-plate': [
+    seedNote('itap', 'Nyasha Mutasa, CEO', 'This plate pack is what left the rack nhasi. Ndatenda.'),
+  ],
+  'item:mall-ridgeline:ridge-vest': [
+    seedNote('itrg', 'Tawanda Ncube, CEO', 'Crew vest from the yard. Zvakanaka for the mall card.'),
+  ],
+  'item:market-street:market-bread': [
+    seedNote('itmb', 'Chiedza Dube, CEO', 'Fresh loaf pano. Ndatenda to the baker.'),
+  ],
+}
+
+const withDemoComments = (saved) => {
+  const next = { ...DEMO_COMMENTS }
+  Object.entries(saved || {}).forEach(([key, thread]) => {
+    if (Array.isArray(thread) && thread.length) next[key] = thread
+  })
+  return next
+}
 
 const formatPrice = (price) =>
   `$${Number(price).toLocaleString('en-US', {
@@ -595,15 +727,15 @@ const SYSTEM_TYPES = [
     label: 'Construction',
     slides: [
       {
-        photo: shot('photo-1541888946425-d81bb19240f5'),
+        photo: pexel(8487367),
         testimonial: 'The site card is the daily record the crew already checks.',
       },
       {
-        photo: shot('photo-1503387762-592deb58ef4e'),
+        photo: pexel(8487724),
         testimonial: 'Framing photos land on the website the same day they are taken.',
       },
       {
-        photo: shot('photo-1504307651254-35680f356dfd'),
+        photo: pexel(27647858),
         testimonial: 'Owners see who was on the deck without calling the trailer.',
       },
       {
@@ -629,7 +761,7 @@ const SYSTEM_TYPES = [
         testimonial: 'The line lead uploads the run before the shift changes.',
       },
       {
-        photo: shot('photo-1581091226825-a6a2a5aee158'),
+        photo: pexel(3912981),
         testimonial: 'Sales opens the same site the floor already updated.',
       },
       {
@@ -659,7 +791,7 @@ const SYSTEM_TYPES = [
         testimonial: 'Customers see what is on the floor today.',
       },
       {
-        photo: shot('photo-1483985988355-763728e1935b'),
+        photo: shot('photo-1531123897727-8f129e1688ce'),
         testimonial: 'The window display is the first picture on the site.',
       },
       {
@@ -934,32 +1066,50 @@ const firstSlide = (company) => company.slides?.[0] || null
 
 const withVideoSlides = (company) => {
   if (!company) return company
-  if (!company.video) return company
   const slides = [...(company.slides || [])]
-  if (slides.some((slide) => slide.video === company.video)) return company
-  slides.splice(Math.min(1, slides.length), 0, {
-    video: company.video,
-    testimonial: company.videoCaption || 'Ten-second clip from the company card.',
+  const extraVideos = [
+    ...(company.videos || []),
+    ...(company.video ? [{ src: company.video, caption: company.videoCaption }] : []),
+  ]
+  extraVideos.forEach((clip) => {
+    if (!clip?.src || slides.some((slide) => slide.video === clip.src)) return
+    slides.splice(Math.min(1, slides.length), 0, {
+      video: clip.src,
+      testimonial: clip.caption || 'Ten-second clip from the company card.',
+    })
   })
-  return { ...company, slides }
+  return slides === company.slides ? company : { ...company, slides }
 }
 
-const featureMedia = (companies) =>
-  companies.flatMap((company) => {
-    const items = []
-    const frame = firstSlide(company)
-    if (frame?.photo) items.push({ company, kind: 'photo', src: frame.photo, caption: frame.testimonial })
-    if (company.video) {
-      items.push({
-        company,
-        kind: 'video',
-        src: company.video,
-        poster: frame?.photo || '',
-        caption: company.videoCaption,
-      })
+const featureMedia = (companies) => {
+  const seen = new Set()
+  const items = []
+
+  companies.forEach((company) => {
+    const photos = (company.slides || []).filter((slide) => slide.photo)
+    const poster = photos[0]?.photo || ''
+    const push = (kind, src, caption) => {
+      if (!src || seen.has(src)) return
+      seen.add(src)
+      items.push({ company, kind, src, poster: kind === 'video' ? poster : '', caption })
     }
-    return items
+
+    if (company.featurePhotos) {
+      const limit = Number.isFinite(company.featurePhotoCount) ? company.featurePhotoCount : photos.length
+      photos.slice(0, Math.max(limit, 0)).forEach((slide) => push('photo', slide.photo, slide.testimonial))
+      return
+    }
+
+    if (company.video) {
+      push('video', company.video, company.videoCaption)
+      return
+    }
+
+    if (photos[0]) push('photo', photos[0].photo, photos[0].testimonial)
   })
+
+  return items
+}
 
 function GoldStar({ rating }) {
   if (rating < 4.8) return null
@@ -1023,27 +1173,34 @@ function FeatureFlip({ companies, onOpen }) {
   const companyKey = companies.map((company) => company.id).join('|')
   const media = useMemo(() => featureMedia(companies), [companyKey])
   const [index, setIndex] = useState(0)
+  const [dir, setDir] = useState(1)
   const videoRef = useRef(null)
+  const count = media.length
 
   const go = (step) => {
-    if (media.length < 2) return
-    setIndex((current) => (current + step + media.length) % media.length)
+    if (count < 2) return
+    const nextDir = step >= 0 ? 1 : -1
+    setDir(nextDir)
+    setIndex((current) => current + nextDir)
   }
 
   useEffect(() => {
     setIndex(0)
+    setDir(1)
   }, [companyKey])
 
   useEffect(() => {
-    if (media.length < 2) return undefined
+    if (count < 2) return undefined
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
-    const current = media[index]
+    const activeIndex = ((index % count) + count) % count
+    const current = media[activeIndex]
     const wait = current?.kind === 'video' ? VIDEO_SECONDS * 1000 : 8000
     const timer = window.setTimeout(() => {
-      setIndex((currentIndex) => (currentIndex + 1) % media.length)
+      setDir(1)
+      setIndex((currentIndex) => currentIndex + 1)
     }, wait)
     return () => window.clearTimeout(timer)
-  }, [companyKey, index, media.length])
+  }, [companyKey, index, count, media])
 
   useEffect(() => {
     const node = videoRef.current
@@ -1063,27 +1220,34 @@ function FeatureFlip({ companies, onOpen }) {
 
   if (!media.length) return null
 
-  const visible = media[index] || media[0]
+  const active = ((index % count) + count) % count
+  const visible = media[active] || media[0]
   const visibleCompany = visible.company
+  const slideOffset = (slideIndex) => {
+    let delta = slideIndex - active
+    if (dir >= 0 && delta < 0) delta += count
+    if (dir < 0 && delta > 0) delta -= count
+    return delta
+  }
 
   return (
     <div className="feature-card">
-      <div className="feature-shot">
+      <div className={visibleCompany.nativeFrame ? 'feature-shot feature-shot-fill' : 'feature-shot'}>
         {media.map((item, slideIndex) => (
           <div
             className="feature-slide"
             key={`${item.company.id}-${item.kind}-${slideIndex}`}
-            style={{ transform: `translate3d(${(slideIndex - index) * 100}%, 0, 0)` }}
+            style={{ transform: `translate3d(${slideOffset(slideIndex) * 100}%, 0, 0)` }}
           >
             {item.kind === 'video' ? (
               <video
-                ref={slideIndex === index ? videoRef : null}
+                ref={slideIndex === active ? videoRef : null}
                 src={item.src}
                 poster={item.poster || undefined}
                 muted
                 playsInline
-                autoPlay={slideIndex === index}
-                preload={slideIndex === index ? 'auto' : 'metadata'}
+                autoPlay={slideIndex === active}
+                preload={slideIndex === active ? 'auto' : 'metadata'}
               />
             ) : (
               <img src={item.src} alt="" />
@@ -1103,11 +1267,11 @@ function FeatureFlip({ companies, onOpen }) {
         <button
           className="feature-shot-hit"
           type="button"
-          onClick={() => onOpen(withVideoSlides(visibleCompany))}
+          onClick={() => onOpen(visibleCompany, visible.src)}
           aria-label={visibleCompany.name}
         />
       </div>
-      <button className="feature-meta" type="button" onClick={() => onOpen(withVideoSlides(visibleCompany))}>
+      <button className="feature-meta" type="button" onClick={() => onOpen(visibleCompany, visible.src)}>
         <span className="store-logo" style={{ background: visibleCompany.hue }}>
           {visibleCompany.name.slice(0, 1)}
         </span>
@@ -1117,6 +1281,7 @@ function FeatureFlip({ companies, onOpen }) {
         </div>
         <GoldStar rating={visibleCompany.rating} />
       </button>
+      {visible.caption ? <p className="feature-quote">{visible.caption}</p> : null}
     </div>
   )
 }
@@ -1138,6 +1303,18 @@ function HomeTile({ company, onOpen }) {
       {reel ? <span className="reel-mark">Reel</span> : null}
       <span className="home-tile-name">{company.name}</span>
     </button>
+  )
+}
+
+function PhaseSeal({ kicker, title, message }) {
+  return (
+    <div className="phase-seal" role="status">
+      <span className="phase-seal-drops" aria-hidden="true" />
+      <span className="phase-seal-mark">Sealed</span>
+      {kicker ? <p className="phase-seal-kicker">{kicker}</p> : null}
+      <p className="phase-seal-title">{title}</p>
+      <p className="phase-seal-copy">{message}</p>
+    </div>
   )
 }
 
@@ -1253,27 +1430,28 @@ function OpenedCard({
   onDelete,
 }) {
   const slides = company.slides || []
-  const [index, setIndex] = useState(() => {
-    const max = Math.max(slides.length - 1, 0)
-    return Math.min(Math.max(Number(startIndex) || 0, 0), max)
-  })
-
-  useEffect(() => {
-    const max = Math.max((company.slides || []).length - 1, 0)
-    setIndex(Math.min(Math.max(Number(startIndex) || 0, 0), max))
-  }, [company.id, startIndex])
+  const count = slides.length
+  const [index, setIndex] = useState(() => Number(startIndex) || 0)
+  const [dir, setDir] = useState(1)
   const startX = useRef(0)
   const dragging = useRef(false)
 
+  useEffect(() => {
+    setIndex(Number(startIndex) || 0)
+    setDir(1)
+  }, [company.id, startIndex])
+
   const go = (step) => {
-    if (slides.length < 2) return
-    setIndex((current) => (current + step + slides.length) % slides.length)
+    if (count < 2) return
+    const nextDir = step >= 0 ? 1 : -1
+    setDir(nextDir)
+    setIndex((current) => current + nextDir)
   }
 
   const onPointerDown = (event) => {
+    if (event.target.closest('button')) return
     dragging.current = true
     startX.current = event.clientX
-    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   const onPointerUp = (event) => {
@@ -1284,7 +1462,14 @@ function OpenedCard({
     if (delta >= 40) go(-1)
   }
 
-  const slide = slides[index]
+  const active = count ? ((index % count) + count) % count : 0
+  const slide = slides[active]
+  const slideOffset = (slideIndex) => {
+    let delta = slideIndex - active
+    if (dir >= 0 && delta < 0) delta += count
+    if (dir < 0 && delta > 0) delta -= count
+    return delta
+  }
 
   return (
     <section
@@ -1294,7 +1479,7 @@ function OpenedCard({
     >
       <div className="opened-card" onClick={(event) => event.stopPropagation()}>
         <div
-          className="opened-stage"
+          className={company.nativeFrame ? 'opened-stage opened-stage-fill' : 'opened-stage'}
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
           onPointerCancel={() => {
@@ -1313,17 +1498,43 @@ function OpenedCard({
           >
             ×
           </button>
-          {slide?.video ? (
-            <video src={slide.video} muted playsInline autoPlay controls={false} />
-          ) : slide?.photo ? (
-            <img src={slide.photo} alt={`${company.name} photo ${index + 1}`} />
-          ) : null}
-          {slides.length > 1 && (
+          {slides.map((entry, slideIndex) => (
+            <div
+              className="opened-slide"
+              key={`${company.id}-open-${slideIndex}`}
+              style={{ transform: `translate3d(${slideOffset(slideIndex) * 100}%, 0, 0)` }}
+            >
+              {entry.video ? (
+                <video src={entry.video} muted playsInline autoPlay={slideIndex === active} controls={false} />
+              ) : entry.photo ? (
+                <img src={entry.photo} alt={`${company.name} photo ${slideIndex + 1}`} />
+              ) : null}
+            </div>
+          ))}
+          {count > 1 && (
             <>
-              <button className="card-arrow left" type="button" aria-label="Previous" onClick={() => go(-1)}>
+              <button
+                className="card-arrow left"
+                type="button"
+                aria-label="Previous"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  go(-1)
+                }}
+              >
                 ‹
               </button>
-              <button className="card-arrow right" type="button" aria-label="Next" onClick={() => go(1)}>
+              <button
+                className="card-arrow right"
+                type="button"
+                aria-label="Next"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  go(1)
+                }}
+              >
                 ›
               </button>
             </>
@@ -1333,7 +1544,7 @@ function OpenedCard({
           {company.shelf ? <p className="card-class">{company.shelf}</p> : null}
           <h2>{company.name}</h2>
           <p className="opened-count">
-            {slides.length ? `${index + 1} / ${slides.length}` : '0 / 0'}
+            {count ? `${active + 1} / ${count}` : '0 / 0'}
           </p>
           {slide?.testimonial ? (
             <p className="detail-quote card-caption">{slide.testimonial}</p>
@@ -1342,7 +1553,7 @@ function OpenedCard({
           )}
         </div>
         {canDelete ? (
-          <button type="button" className="danger-button card-delete" onClick={() => onDelete(index)}>
+          <button type="button" className="danger-button card-delete" onClick={() => onDelete(active)}>
             Delete picture
           </button>
         ) : null}
@@ -1362,7 +1573,7 @@ function OpenedCard({
         ) : null}
         {comments && onAddComment ? (
           <CommentThread
-            targetId={`photo:${company.id}:${index}`}
+            targetId={`photo:${company.id}:${active}`}
             comments={comments}
             viewer={viewer}
             onAdd={onAddComment}
@@ -1909,10 +2120,15 @@ function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto, onOpe
             <button
               key={`${company.id}-grid-${index}`}
               type="button"
-              className="gallery-tile"
+              className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
               onClick={() => onOpenPost(index)}
             >
-              <img src={slide.photo} alt={slide.testimonial || `${company.name} photo ${index + 1}`} />
+              {slide.video ? (
+                <video src={slide.video} muted playsInline preload="metadata" />
+              ) : (
+                <img src={slide.photo} alt={slide.testimonial || `${company.name} photo ${index + 1}`} />
+              )}
+              {slide.video ? <span className="reel-mark">Reel</span> : null}
             </button>
           ))
         ) : (
@@ -1946,11 +2162,11 @@ function App() {
   const [mallQuery, setMallQuery] = useState('')
   const [homeQuery, setHomeQuery] = useState('')
   const [comments, setComments] = useState(() => {
-    if (typeof window === 'undefined') return {}
+    if (typeof window === 'undefined') return { ...DEMO_COMMENTS }
     try {
-      return JSON.parse(window.localStorage.getItem(COMMENTS_KEY) || '{}')
+      return withDemoComments(JSON.parse(window.localStorage.getItem(COMMENTS_KEY) || '{}'))
     } catch {
-      return {}
+      return { ...DEMO_COMMENTS }
     }
   })
   const [profileTab, setProfileTab] = useState('gallery')
@@ -2257,9 +2473,9 @@ function App() {
         company.featured &&
         !catalog.some((item) => item.id === company.id || item.name === company.name),
     )
-    return [...catalog.filter((company) => company.shelf !== 'Best selling'), ...extras].filter((company) =>
-      companyMatchesQuery(company, homeQuery),
-    )
+    const showcase = catalog.filter((company) => company.showOnGrid)
+    const rest = catalog.filter((company) => company.shelf !== 'Best selling' && !company.showOnGrid)
+    return [...showcase, ...rest, ...extras].filter((company) => companyMatchesQuery(company, homeQuery))
   }, [builtCards, homeQuery])
 
   const updateCurrentWebsite = (updates) => {
@@ -2717,10 +2933,16 @@ function App() {
     pushPath('/home')
   }
 
-  const openGallery = (company) => {
+  const openGallery = (company, mediaSrc) => {
     const source =
       catalog.find((item) => item.id === company.id || item.name === company.name) || company
-    setOverlay({ type: 'gallery', company: withVideoSlides(source) })
+    const opened = withVideoSlides(source)
+    const startIndex = opened.slides?.findIndex((slide) => slide.photo === mediaSrc || slide.video === mediaSrc)
+    setOverlay({
+      type: 'gallery',
+      company: opened,
+      postIndex: startIndex >= 0 ? startIndex : 0,
+    })
     pushPath(`/${tab}/card/${encodeId(source.id)}`)
   }
 
@@ -3174,10 +3396,8 @@ function App() {
             <section className="panel-box settings-page">
               <form className="create-account-form" onSubmit={handleLogin}>
                 <h3>Login</h3>
-                <p className="shop-copy">
-                  Enter your account email and password. Until phase 1 is complete, only the Fortress owner can open a
-                  profile.
-                </p>
+                <p className="phase-banner">{PHASE1_LOGIN_NOTE}</p>
+                <p className="shop-copy">Only one Fortress account is accepted. Other logins are locked.</p>
                 <input
                   type="email"
                   placeholder="Email"
@@ -3817,10 +4037,12 @@ function App() {
               >
                 Back
               </button>
-              <form className="ecocash-card" onSubmit={approvePayment}>
+              <form className={`ecocash-card${!PHASE1_COMPLETE ? ' is-sealed' : ''}`} onSubmit={approvePayment}>
+                {!PHASE1_COMPLETE ? (
+                  <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
+                ) : null}
                 <p className="ecocash-kicker">EcoCash</p>
                 <h3>{chosenSystem ? `${chosenSystem.label} system` : 'Fortress system'}</h3>
-                {!PHASE1_COMPLETE ? <p className="shop-copy">{PHASE1_ECOCASH_NOTE}</p> : null}
                 <label>
                   EcoCash number
                   <input
@@ -3944,6 +4166,7 @@ function App() {
         {overlay?.type === 'gallery' && overlayCompany && (
           <OpenedCard
             company={overlayCompany}
+            startIndex={overlay.postIndex || 0}
             onClose={closeOverlay}
             onViewProfile={() => viewCompanyProfile(overlayCompany)}
             onBuySystem={() => startBuySystem(overlayCompany)}
@@ -4154,13 +4377,15 @@ function App() {
             >
               Close
             </button>
-            <form className="add-media-card ecocash-card" onSubmit={submitFeatureEcoCash}>
+            <form className={`add-media-card ecocash-card${!PHASE1_COMPLETE ? ' is-sealed' : ''}`} onSubmit={submitFeatureEcoCash}>
+              {!PHASE1_COMPLETE ? (
+                <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
+              ) : null}
               <p className="ecocash-kicker">EcoCash</p>
               <h2>Best selling exclusive</h2>
               <p className="shop-copy">
                 {compose.feePlan === 'month' ? '$20/month' : '$200/year'} for the Best selling card.
               </p>
-              {!PHASE1_COMPLETE ? <p className="shop-copy">{PHASE1_ECOCASH_NOTE}</p> : null}
               <label>
                 EcoCash number
                 <input
