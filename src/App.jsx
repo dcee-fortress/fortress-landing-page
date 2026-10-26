@@ -7,11 +7,9 @@ const OWNER_LOGIN = {
   email: 'darelchits@gmail.com',
   password: 'Darel2005',
 }
-const PHASE1_COMPLETE = false
+const PHASE1_COMPLETE = true
 const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
-const PHASE1_LOGIN_NOTE = 'Login will be opened for exclusive users soon.'
 const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
-const isOwnerCredentials = (email, password) => isOwnerEmail(email) && password === OWNER_LOGIN.password
 const SHELVES = ['Best selling', 'Trending', 'New companies']
 
 const FEATURE_CLASSES = [
@@ -68,6 +66,7 @@ const catalog = [
     video: MEDIA.rodcroft1,
     videoCaption: 'Rodcroft site reel.',
     location: 'Zimbabwe',
+    ceo: 'Patrick Mbizvo',
     about:
       'Fortress cut QS and engineering admin at Rodcroft, grew sites and tenders, and gave the CEO a live view of every site.',
     slides: [
@@ -110,6 +109,7 @@ const catalog = [
     featurePhotos: true,
     featurePhotoCount: 2,
     location: 'Zimbabwe',
+    ceo: 'Tawanda Chitukutuku',
     about:
       'Prixburg is a chemical manufacturing factory. Fortress tracks storeroom materials, consumed stock, and sales of dishwasher, toilet cleaner, and fabric softener.',
     slides: [
@@ -158,6 +158,7 @@ const catalog = [
     video: REEL.mill,
     videoCaption: 'Mill-floor reel from the current run.',
     location: 'Zimbabwe',
+    ceo: 'Nyasha Mutasa',
     about: 'PaChikonaz Pvt uses Fortress to track mill stock, consumed steel, and sales from the same dashboard.',
     slides: [
       {
@@ -200,6 +201,7 @@ const catalog = [
     video: REEL.weld,
     videoCaption: 'Deck reel from the crew on site.',
     location: 'Zimbabwe',
+    ceo: 'Tawanda Ncube',
     about: 'it Wasu Contractors QS and engineers work from Fortress, with storeroom tracking and live site valuations.',
     slides: [
       {
@@ -313,6 +315,7 @@ const catalog = [
     video: REEL.crane,
     videoCaption: 'Site reel from the pour.',
     location: 'Seattle, WA',
+    ceo: 'Rudo Nyathi',
     about: 'Harbor & Beam runs pours, tenders, and storeroom stock from the Fortress website.',
     slides: [
       {
@@ -352,6 +355,7 @@ const catalog = [
     video: REEL.factory,
     videoCaption: 'Line reel from the bay.',
     location: 'Detroit, MI',
+    ceo: 'Tafadzwa Sibanda',
     about: 'Voltform tracks consumed stock, line output, and sales estimates on Fortress.',
     slides: [
       {
@@ -420,11 +424,12 @@ const catalog = [
   },
 ]
 
-const mallGood = (id, name, photo, price) => ({
+const mallGood = (id, name, photo, price, description = '') => ({
   id,
   name,
   photo: photo.startsWith('http') ? photo : shot(photo),
   price,
+  description,
 })
 
 const shopFromHome = (id, items) => {
@@ -452,44 +457,44 @@ const retailShop = (id, name, cover, items) => ({
 
 const mallCatalog = [
   shopFromHome('apex', [
-    mallGood('apex-plate', 'Steel plate pack', 'photo-1504917595217-d4dc5ebe6122', 86),
-    mallGood('apex-bolt', 'Structural bolt set', 'photo-1504148455328-c376907d081c', 24),
-    mallGood('apex-angle', 'Angle iron length', pexel(3912981), 41),
+    mallGood('apex-plate', 'Steel plate pack', 'photo-1504917595217-d4dc5ebe6122', 86, 'Mild steel plates for mill and yard work.'),
+    mallGood('apex-bolt', 'Structural bolt set', 'photo-1504148455328-c376907d081c', 24, 'Grade 8.8 bolts with washers for frames.'),
+    mallGood('apex-angle', 'Angle iron length', pexel(3912981), 41, '6 m angle iron cut for lintels and racks.'),
   ]),
   shopFromHome('harbor', [
-    mallGood('harbor-beam', 'Framed beam cut', pexel(8487363), 95),
-    mallGood('harbor-sheet', 'Plywood sheet', 'photo-1517581177682-a085bb7ffb15', 32),
-    mallGood('harbor-fastener', 'Site fastener tin', 'photo-1517581177682-a085bb7ffb15', 18),
+    mallGood('harbor-beam', 'Framed beam cut', pexel(8487363), 95, 'Framed timber beam ready for a site pour.'),
+    mallGood('harbor-sheet', 'Plywood sheet', 'photo-1517581177682-a085bb7ffb15', 32, '18 mm shuttering plywood, one full sheet.'),
+    mallGood('harbor-fastener', 'Site fastener tin', 'photo-1517581177682-a085bb7ffb15', 18, 'Mixed nails and screws for formwork.'),
   ]),
   shopFromHome('ridgeline', [
-    mallGood('ridge-helmet', 'Site helmet', shot('photo-1621905252472-943afaa20e20'), 29),
-    mallGood('ridge-vest', 'Crew vest', pexel(8487367), 22),
-    mallGood('ridge-boot', 'Work boot pair', 'photo-1590496793929-36417d3117de', 74),
+    mallGood('ridge-helmet', 'Site helmet', shot('photo-1621905252472-943afaa20e20'), 29, 'Hard hat for crew on the scaffold.'),
+    mallGood('ridge-vest', 'Crew vest', pexel(8487367), 22, 'Hi-vis vest with reflective bands.'),
+    mallGood('ridge-boot', 'Work boot pair', 'photo-1590496793929-36417d3117de', 74, 'Steel-toe boots sized for site crews.'),
   ]),
   shopFromHome('voltform', [
-    mallGood('volt-cable', 'Cable drum', shot('photo-1621905251918-48416bd8575a'), 58),
-    mallGood('volt-switch', 'Switch gear pack', pexel(3184292), 46),
-    mallGood('volt-lamp', 'Bay lamp', 'photo-1504328345606-18bbc8c9d7d1', 37),
+    mallGood('volt-cable', 'Cable drum', shot('photo-1621905251918-48416bd8575a'), 58, 'Armoured cable on a drum for plant rooms.'),
+    mallGood('volt-switch', 'Switch gear pack', pexel(3184292), 46, 'Breakers and switches for a small board.'),
+    mallGood('volt-lamp', 'Bay lamp', 'photo-1504328345606-18bbc8c9d7d1', 37, 'High-bay lamp for mill and warehouse lighting.'),
   ]),
   retailShop('lantern-home', 'Lantern Home Goods', 'photo-1555041469-a586c61ea9bc', [
-    mallGood('lantern-lamp', 'Floor lamp', 'photo-1507473885765-e6ed057f782c', 54),
-    mallGood('lantern-throw', 'Wool throw', 'photo-1555041469-a586c61ea9bc', 36),
-    mallGood('lantern-vase', 'Ceramic vase', 'photo-1484101403633-562f891dc89a', 21),
+    mallGood('lantern-lamp', 'Floor lamp', 'photo-1507473885765-e6ed057f782c', 54, 'Standing lamp with a linen shade.'),
+    mallGood('lantern-throw', 'Wool throw', 'photo-1555041469-a586c61ea9bc', 36, 'Warm throw for a lounge or guest room.'),
+    mallGood('lantern-vase', 'Ceramic vase', 'photo-1484101403633-562f891dc89a', 21, 'Hand-glazed vase for a table or shelf.'),
   ]),
   retailShop('market-street', 'Market Street Grocers', 'photo-1542838132-92c53300491e', [
-    mallGood('market-crate', 'Produce crate', 'photo-1542838132-92c53300491e', 16),
-    mallGood('market-bread', 'Bakery loaf', 'photo-1509440159596-0249088772ff', 4),
-    mallGood('market-oil', 'Bottle of oil', 'photo-1474979266404-7ea641234fb7', 9),
+    mallGood('market-crate', 'Produce crate', 'photo-1542838132-92c53300491e', 16, 'Mixed vegetables packed for the week.'),
+    mallGood('market-bread', 'Bakery loaf', 'photo-1509440159596-0249088772ff', 4, 'Fresh loaf from the morning bake.'),
+    mallGood('market-oil', 'Bottle of oil', 'photo-1474979266404-7ea641234fb7', 9, 'Cooking oil in a 750 ml bottle.'),
   ]),
   retailShop('thread-needle', 'Thread & Needle', 'photo-1441986300917-64674bd600d8', [
-    mallGood('thread-shirt', 'Cotton shirt', 'photo-1441984904996-e0b6ba687e04', 28),
-    mallGood('thread-denim', 'Denim pair', 'photo-1441984904996-e0b6ba687e04', 45),
-    mallGood('thread-tote', 'Canvas tote', 'photo-1544816155-12df9643f363', 19),
+    mallGood('thread-shirt', 'Cotton shirt', 'photo-1441984904996-e0b6ba687e04', 28, 'Plain cotton shirt, regular fit.'),
+    mallGood('thread-denim', 'Denim pair', 'photo-1441984904996-e0b6ba687e04', 45, 'Mid-wash jeans for everyday wear.'),
+    mallGood('thread-tote', 'Canvas tote', 'photo-1544816155-12df9643f363', 19, 'Sturdy tote for market and site runs.'),
   ]),
   retailShop('kettle-pantry', 'Copper Kettle Pantry', 'photo-1495474472287-4d71bcdd2085', [
-    mallGood('kettle-coffee', 'Roast bag', 'photo-1495474472287-4d71bcdd2085', 12),
-    mallGood('kettle-mug', 'Stone mug', 'photo-1514228742587-6b1558fcc303', 11),
-    mallGood('kettle-jar', 'Spice jar set', 'photo-1596040033229-a9821ebd058d', 15),
+    mallGood('kettle-coffee', 'Roast bag', 'photo-1495474472287-4d71bcdd2085', 12, '250 g roasted beans for the office pot.'),
+    mallGood('kettle-mug', 'Stone mug', 'photo-1514228742587-6b1558fcc303', 11, 'Heavy mug that keeps tea hot.'),
+    mallGood('kettle-jar', 'Spice jar set', 'photo-1596040033229-a9821ebd058d', 15, 'Six jars with lids for a kitchen shelf.'),
   ]),
 ]
 
@@ -592,16 +597,22 @@ const formatPrice = (price) =>
     maximumFractionDigits: 2,
   })}`
 
+const MENU_ACTIONS = [
+  { id: 'buy', label: 'Buy a CEO website' },
+]
+
 const NAV = [
   { id: 'home', label: 'Home' },
   { id: 'profile', label: 'Profile' },
-  { id: 'settings', label: 'Settings' },
   { id: 'mall', label: 'Online mall' },
+  ...MENU_ACTIONS,
+  { id: 'settings', label: 'Settings' },
 ]
 
 const GUEST_NAV = [
   { id: 'home', label: 'Home' },
   { id: 'mall', label: 'Online mall' },
+  ...MENU_ACTIONS,
   { id: 'login', label: 'Login' },
 ]
 
@@ -668,6 +679,28 @@ function IconLogout() {
   )
 }
 
+function IconCalc() {
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 3v4h10V6H7zm0 6h3v2H7v-2zm5 0h5v2h-5v-2zm-5 3h3v3H7v-3zm5 0h5v3h-5v-3z"
+      />
+    </svg>
+  )
+}
+
+function IconBuy() {
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm7.4 9h-3.1a15 15 0 0 0-1.4-5.4A8.1 8.1 0 0 1 19.4 11zM12 4.1c.9 1.2 1.7 3.3 2 6.9H10c.3-3.6 1.1-5.7 2-6.9zM4.6 13h3.1a15 15 0 0 0 1.4 5.4A8.1 8.1 0 0 1 4.6 13zm3.1-2H4.6A8.1 8.1 0 0 1 9.1 5.6 15 15 0 0 0 7.7 11zM12 19.9c-.9-1.2-1.7-3.3-2-6.9h4c-.3 3.6-1.1 5.7-2 6.9zm2.9-1.5A15 15 0 0 0 16.3 13h3.1a8.1 8.1 0 0 1-4.5 5.4z"
+      />
+    </svg>
+  )
+}
+
 const NAV_ICONS = {
   home: IconHome,
   profile: IconProfile,
@@ -675,6 +708,8 @@ const NAV_ICONS = {
   mall: IconMall,
   login: IconLogin,
   logout: IconLogout,
+  calc: IconCalc,
+  buy: IconBuy,
 }
 
 function IconGrid() {
@@ -721,82 +756,227 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file)
   })
 
+const isVideoSrc = (src = '') =>
+  /^data:video\/|^blob:|\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(src))
+
+const compressImageFile = (file, maxEdge = 1400, quality = 0.78) =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      const scale = Math.min(1, maxEdge / Math.max(image.width, image.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(image.width * scale))
+      canvas.height = Math.max(1, Math.round(image.height * scale))
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      readFileAsDataUrl(file).then(resolve, reject)
+    }
+    image.src = url
+  })
+
+const readMediaFile = async (file) => {
+  if (!file) return null
+  if (file.type.startsWith('video/') || isVideoSrc(file.name)) {
+    if (file.size > 3.5 * 1024 * 1024) {
+      throw new Error('Choose a shorter video (about 3 MB or less).')
+    }
+    return { kind: 'video', src: await readFileAsDataUrl(file) }
+  }
+  return { kind: 'photo', src: await compressImageFile(file) }
+}
+
+const gallerySlides = (site) => {
+  const fromSlides = (site?.slides || []).filter((slide) => slide.photo || slide.video)
+  if (fromSlides.length) return fromSlides
+  return (site?.gallery || []).map((photo, index) => ({
+    photo,
+    video: isVideoSrc(photo) ? photo : '',
+    testimonial: site.photoCaptions?.[index] || site.testimonial || '',
+  }))
+}
+
+const FAB_PLANS = [
+  { id: 'week', label: '1 week', price: 1, days: 7 },
+  { id: 'month', label: '1 month', price: 3.5, days: 30 },
+  { id: 'year', label: '1 year', price: 22, days: 365 },
+]
+
+const GATE_COMPLEXITY = [
+  { id: 'simple', label: 'Simple design', rate: 45, copy: 'Straight frame, rails, and standard infill.' },
+  { id: 'medium', label: 'Medium design', rate: 78, copy: 'Spears, mixed panels, and extra rails.' },
+  { id: 'laser', label: 'Complex design', rate: 128, copy: 'Laser-cut or decorative ironwork on this gate type.' },
+]
+
+const GATE_TYPES = [
+  { id: 'sliding', name: 'Sliding gate', copy: 'Leaf rolls aside on a track.' },
+  { id: 'swing', name: 'Swing gate', copy: 'Leaves hinge open like a door.' },
+  { id: 'cantilever', name: 'Cantilever gate', copy: 'Hangs on rollers. No track across the driveway.' },
+  { id: 'bifold', name: 'Bi-fold gate', copy: 'Panels fold in half to save swing space.' },
+  { id: 'telescopic', name: 'Telescopic gate', copy: 'Leaves stack into each other as they open.' },
+  { id: 'pedestrian', name: 'Pedestrian gate', copy: 'A person-sized side gate with a latch.' },
+  { id: 'automatic', name: 'Automatic electric gate', copy: 'Motor, rack, and safety beams on the leaf.' },
+  { id: 'wrought', name: 'Wrought iron decorative gate', copy: 'Scrolls, rings, and spear tops in iron.' },
+]
+
+const GATE_CONSTRUCTIONS = [
+  { id: 'bars', label: 'Simple gate with vertical bars', copy: 'Middle bars after every interval you enter.' },
+  { id: 'infill', label: 'Simple gate with infill cladding', copy: 'IBR sheet or square-tube palisade.' },
+]
+
+const GATE_DESIGNS = [
+  { id: 'spear', name: 'Spear-top driveway', photo: pexel(277572) },
+  { id: 'scroll', name: 'Scroll iron double leaf', photo: pexel(277559) },
+  { id: 'palisade', name: 'Palisade yard gate', photo: pexel(206172) },
+  { id: 'pedestrian', name: 'Pedestrian side gate', photo: pexel(1301856) },
+  { id: 'tube', name: 'Tube-frame sliding', photo: pexel(1115804) },
+  { id: 'arch', name: 'Arch-top entrance', photo: pexel(221433) },
+  { id: 'laser-leaf', name: 'Laser leaf panel', photo: shot('photo-1505843513577-22bb7d21e007') },
+  { id: 'steel-sheet', name: 'Steel sheet sliding', photo: shot('photo-1472220625704-91e1462799b2') },
+]
+
+const HOME_ADS = [
+  {
+    id: 'ad-fab',
+    kicker: 'Ad',
+    title: 'Fabrication calculator',
+    copy: '$1 a week · $3.50 a month · $22 a year',
+  },
+  {
+    id: 'ad-site',
+    kicker: 'Ad',
+    title: 'Buy a Fortress website',
+    copy: 'Construction, manufacturing, or a shop in the online mall.',
+  },
+]
+
 const SYSTEM_TYPES = [
   {
+    id: 'fabrication',
+    label: 'Fabrication calculator',
+    style: 'Free to open',
+    how: 'Open the calculator webpage. Pick a gate design, enter width and height, then choose simple, medium, or complex laser cut. Use it for $1 a week, $3.50 a month, or $22 a year.',
+    preview: GATE_DESIGNS.slice(0, 4).map((gate) => gate.photo),
+    slides: GATE_DESIGNS.slice(0, 5).map((gate, index) => ({
+      photo: gate.photo,
+      testimonial: [
+        'A fabricator quotes from memory and loses jobs. This calculator starts with a gate design so the customer sees the same picture you will build.',
+        'Width and height in metres turn into area. The quote is not a guess — it is the size of the gate times the design rate.',
+        'Simple, medium, or laser-cut complexity changes the rate. A spear-top driveway is not priced like a laser leaf.',
+        'Saved quotations sit on your fabrication webpage so the workshop can open the same numbers on the phone.',
+        'Pay $1 a week, $3.50 a month, or $22 a year. The exclusive calculator link stays on the owner profile; other people do not see it.',
+      ][index],
+    })),
+  },
+  {
     id: 'construction',
-    label: 'Construction',
+    label: 'Construction website',
+    style: 'Rodcroft style',
+    how: 'A private Rodcroft-style website for the CEO. The phone shows sites, valuations, storeroom stock, and SHEQ. Crews enter the live numbers on the domain Fortress gives you after EcoCash. Nobody else can open this link.',
+    preview: [MEDIA.rodcroftPhoto1, MEDIA.rodcroftPhoto2, MEDIA.rodcroftPhoto3, MEDIA.rodcroftPhoto4],
     slides: [
       {
-        photo: pexel(8487367),
-        testimonial: 'The site card is the daily record the crew already checks.',
+        photo: MEDIA.rodcroftPhoto1,
+        testimonial:
+          'On a construction company, QS and engineers lose days to paper. This website puts measurements and claims on one phone so the job is not waiting on a trailer file.',
       },
       {
-        photo: pexel(8487724),
-        testimonial: 'Framing photos land on the website the same day they are taken.',
+        photo: MEDIA.rodcroftPhoto2,
+        testimonial:
+          'That time back lets the same crew take more sites and more tenders. The construction website grows the book without growing the admin team.',
       },
       {
-        photo: pexel(27647858),
-        testimonial: 'Owners see who was on the deck without calling the trailer.',
+        photo: MEDIA.rodcroftPhoto3,
+        testimonial:
+          'Theft hides in an open storeroom. Cement and fuel get a log before they leave the yard, so shortages show on the CEO phone, not after the pour.',
       },
       {
-        photo: shot('photo-1590496793929-36417d3117de'),
-        testimonial: 'Lift day stays on the site so the next trade is not guessing.',
+        photo: MEDIA.rodcroftPhoto4,
+        testimonial:
+          'Valuations and SHEQ used to live in email. They now land on a live dashboard so the CEO sees every site without calling the foreman.',
       },
       {
-        photo: shot('photo-1517581177682-a085bb7ffb15'),
-        testimonial: 'The gate photo replaced the Friday progress email.',
+        photo: MEDIA.rodcroftPhoto3,
+        video: MEDIA.rodcroft1,
+        testimonial:
+          'From the gate to the storeroom, this is the live picture of a construction company. The exclusive link stays on the owner’s profile. Other people only see posts.',
       },
     ],
   },
   {
     id: 'manufacturing',
-    label: 'Manufacturing',
+    label: 'Manufacturing website',
+    style: 'Prixburg style',
+    how: 'A private Prixburg-style website for the CEO. The phone shows storeroom materials, consumed stock, and sales. The plant enters those numbers on the live domain. Nobody else can open this link.',
+    preview: [MEDIA.prixburg1, MEDIA.prixburg2, MEDIA.prixburg3, MEDIA.prixburg4, MEDIA.prixburg5],
     slides: [
       {
-        photo: shot('photo-1504917595217-d4dc5ebe6122'),
-        testimonial: 'Bay photos and counts now live on the company website.',
+        photo: MEDIA.prixburg1,
+        testimonial:
+          'A chemical plant loses product when the floor and the office keep two books. This manufacturing website puts mixing and the CEO view on one phone.',
       },
       {
-        photo: shot('photo-1565043589221-1a6fd9ae45c7'),
-        testimonial: 'The line lead uploads the run before the shift changes.',
+        photo: MEDIA.prixburg2,
+        testimonial:
+          'Raw materials sit in the storeroom. Fortress calculates consumed stock as batches run, so a shortage shows before a line stops.',
       },
       {
-        photo: pexel(3912981),
-        testimonial: 'Sales opens the same site the floor already updated.',
+        photo: MEDIA.prixburg3,
+        testimonial:
+          'The system tracks those materials from delivery to mix. Stock is managed by live counts, not a book that is a week behind.',
       },
       {
-        photo: shot('photo-1504328345606-18bbc8c9d7d1'),
-        testimonial: 'Booth check-in is a photo, then the site moves on.',
+        photo: MEDIA.prixburg4,
+        testimonial:
+          'Sales of dishwasher, toilet cleaner, and fabric softener update as goods leave the plant. The CEO sees output without walking the bay.',
       },
       {
-        photo: shot('photo-1565008447742-97f6f38c985c'),
-        testimonial: 'End-of-shift proof is already on the website.',
+        photo: MEDIA.prixburg5,
+        testimonial:
+          'Formulas stay intact on the live domain. For a factory like this, the calculating system is the asset — exclusive to the owner, not on a public profile.',
       },
     ],
   },
   {
     id: 'retail',
-    label: 'Retail',
+    label: 'Retail website',
+    style: 'Shop inside Fortress',
+    how: 'This is not an outside website. It is your shop control inside Fortress. Add items and prices here. Buyers see them on the online mall and pay with EcoCash.',
+    preview: [
+      shot('photo-1441986300917-64674bd600d8'),
+      shot('photo-1441984904996-e0b6ba687e04'),
+      shot('photo-1472851294608-062f824d29cc'),
+    ],
     slides: [
       {
         photo: shot('photo-1441986300917-64674bd600d8'),
-        testimonial: 'The shop floor is on the website before the doors open.',
+        testimonial:
+          'A shop that only lives on WhatsApp loses prices and photos. This retail system is shop control inside Fortress, not an outside website.',
       },
       {
         photo: shot('photo-1441984904996-e0b6ba687e04'),
-        testimonial: 'New stock photos replace the group chat.',
+        testimonial:
+          'You add the product, the price, and a short description. Buyers see those cards on the online mall instead of hunting a shop name.',
       },
       {
         photo: shot('photo-1472851294608-062f824d29cc'),
-        testimonial: 'Customers see what is on the floor today.',
-      },
-      {
-        photo: shot('photo-1531123897727-8f129e1688ce'),
-        testimonial: 'The window display is the first picture on the site.',
+        testimonial:
+          'When a buyer searches the mall they find the item, the shop name, and the EcoCash price in one grid.',
       },
       {
         photo: shot('photo-1555529669-e69e7aa0ba9a'),
-        testimonial: 'The counter close is posted with the day’s note.',
+        testimonial:
+          'Payment is EcoCash from the product card. Sold notes stay on the shop so the owner sees what left the shelf.',
+      },
+      {
+        photo: shot('photo-1555041469-a586c61ea9bc'),
+        testimonial:
+          'The exclusive shop link stays on your profile. Other people browsing Fortress only see public posts, not your shop control.',
       },
     ],
   },
@@ -860,6 +1040,9 @@ const makeWebsite = ({
   items = [],
   brandName = '',
   cssName = '',
+  fabPlan = '',
+  paidUntil = 0,
+  drawings = [],
 }) => ({
   id: makeId('site'),
   name,
@@ -876,6 +1059,9 @@ const makeWebsite = ({
   items,
   brandName: brandName || name,
   cssName: cssName || slugify(brandName || name).replace(/-/g, ''),
+  fabPlan,
+  paidUntil,
+  drawings,
 })
 
 const makeAccount = (email, password, companyName, { withWebsite = true } = {}) => ({
@@ -923,6 +1109,9 @@ const pathFromNav = ({ tab, settingsView, overlay }) => {
   if (overlay?.type === 'shop' && overlay.company?.id) {
     return `/mall/open/${encodeId(overlay.company.id)}`
   }
+  if (overlay?.type === 'product' && overlay.company?.id && overlay.item?.id) {
+    return `/mall/item/${encodeId(overlay.company.id)}/${encodeId(overlay.item.id)}`
+  }
   if (overlay?.type === 'own-photo') return '/profile/photo'
   if (overlay?.type === 'own-post') return `/profile/post/${overlay.postIndex}`
   if (overlay?.type === 'shop-item-add') return '/profile/shop/add'
@@ -960,6 +1149,14 @@ const parseHashPath = (path, findCompany) => {
       route: { kind: 'shop', slug: decodeURIComponent(b) },
     }
   }
+  if (a === 'calc') {
+    return {
+      tab: 'home',
+      settingsView: 'home',
+      overlay: null,
+      route: { kind: 'calc' },
+    }
+  }
 
   const tab = ['home', 'profile', 'settings', 'mall', 'login'].includes(a) ? a : 'home'
   let settingsView = tab === 'settings' && b ? decodeURIComponent(b) : 'home'
@@ -979,7 +1176,18 @@ const parseHashPath = (path, findCompany) => {
   } else if (a === 'mall' && b === 'open' && c) {
     const shop = findCompany(decodeURIComponent(c))
     if (shop) overlay = { type: 'shop', company: shop }
-  }   else if (a === 'profile' && b === 'photo') overlay = { type: 'own-photo' }
+  } else if (a === 'mall' && b === 'item' && c && d) {
+    const shop = findCompany(decodeURIComponent(c))
+    const itemId = decodeURIComponent(d)
+    const item = shop?.items?.find((entry) => entry.id === itemId)
+    if (shop && item) {
+      overlay = {
+        type: 'product',
+        company: shop,
+        item: { ...item, shopId: shop.id, shopName: shop.name, shop },
+      }
+    }
+  } else if (a === 'profile' && b === 'photo') overlay = { type: 'own-photo' }
   else if (a === 'profile' && b === 'post' && c !== undefined) {
     overlay = { type: 'own-post', postIndex: Number(c) || 0 }
   }
@@ -1042,22 +1250,28 @@ const shopBySlug = (slug, accountList) => {
 
 const slidesForSite = (site) => {
   const slides = [...(site.slides || [])]
-  const seen = new Set(slides.map((slide) => slide.photo).filter(Boolean))
+  const seen = new Set(slides.flatMap((slide) => [slide.photo, slide.video].filter(Boolean)))
   if (site.profilePhoto && !seen.has(site.profilePhoto)) {
-    slides.unshift({
+    slides.push({
       photo: site.profilePhoto,
       testimonial: site.testimonial || 'Profile photo from the company card.',
     })
     seen.add(site.profilePhoto)
   }
   ;(site.gallery || []).forEach((photo, index) => {
-    if (photo && !seen.has(photo)) {
-      slides.push({
-        photo,
-        testimonial: site.photoCaptions?.[index] || site.testimonial || 'Site photo from the company card.',
-      })
-      seen.add(photo)
-    }
+    if (!photo || seen.has(photo)) return
+    slides.push(
+      isVideoSrc(photo)
+        ? {
+            video: photo,
+            testimonial: site.photoCaptions?.[index] || site.testimonial || 'Site video from the company card.',
+          }
+        : {
+            photo,
+            testimonial: site.photoCaptions?.[index] || site.testimonial || 'Site photo from the company card.',
+          },
+    )
+    seen.add(photo)
   })
   return slides
 }
@@ -1139,8 +1353,150 @@ function StarRanking({ rating }) {
 
 const displayLivePath = (site) => {
   if (!site?.slug) return ''
-  if (site.systemType === 'retail' || site.isShop) return `#/shop/${site.slug}`
+  if (site.systemType === 'retail' || site.isShop) return 'Shop control'
+  if (site.systemType === 'fabrication') return site.slug ? `#/site/${site.slug}` : '#/calc'
   return `#/site/${site.slug}`
+}
+
+const liveDomain = (site) => {
+  const slug = site?.slug || slugify(site?.name || 'site')
+  return `${slug}.fortress.site`
+}
+
+const ceoFigures = (name = '') => {
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 33 + name.charCodeAt(i)) >>> 0
+  const pick = (mod, base) => base + (hash % mod)
+  return {
+    sites: pick(6, 3),
+    valuation: pick(80, 40) * 1000,
+    sheq: pick(12, 4),
+    stock: pick(20, 8),
+    consumed: pick(15, 5),
+    sales: pick(90, 20) * 100,
+  }
+}
+
+const PRICING_KEY = 'fortress-fab-pricing-v1'
+const emptyFabPricing = () => ({
+  steelPerMeter: '12',
+  sheetPerM2: '18',
+  hardware: '40',
+  consumables: '15',
+  labour: '80',
+  profit: '50',
+})
+const emptyDrawingDraft = () => ({
+  photo: '',
+  name: '',
+  gateType: '',
+  gateId: '',
+  complexity: '',
+  construction: '',
+  barInterval: '',
+  infillMaterial: '',
+  palisadeGap: '',
+  tubeDiameter: '',
+  width: '',
+  height: '',
+  qty: '1',
+})
+const loadFabPricing = () => {
+  if (typeof window === 'undefined') return emptyFabPricing()
+  try {
+    return { ...emptyFabPricing(), ...JSON.parse(window.localStorage.getItem(PRICING_KEY) || '{}') }
+  } catch {
+    return emptyFabPricing()
+  }
+}
+
+const fabQuote = (draft, pricing = emptyFabPricing()) => {
+  const width = Number(draft.width)
+  const height = Number(draft.height || draft.length)
+  const qty = Number(draft.qty) || 1
+  const complexity = GATE_COMPLEXITY.find((item) => item.id === draft.complexity)
+  const rate = complexity?.rate || Number(draft.rate)
+  if (![width, height, qty].every((value) => Number.isFinite(value) && value > 0)) return null
+  const area = width * height
+  const frame = 2 * width + 2 * height
+  const channel = draft.gateType === 'sliding' ? width : 0
+  const money = (value) => {
+    const n = Number(value)
+    return Number.isFinite(n) && n >= 0 ? n : 0
+  }
+  const steelPerMeter = money(pricing.steelPerMeter)
+  const sheetPerM2 = money(pricing.sheetPerM2)
+  const hardware = money(pricing.hardware)
+  const consumables = money(pricing.consumables)
+  const labour = money(pricing.labour)
+  const profit = money(pricing.profit)
+
+  let infillMeters = 0
+  let infillCount = 0
+  let sheetArea = 0
+  let pitch = 0
+  const construction = draft.construction
+  if (draft.complexity === 'simple' && construction === 'bars') {
+    const interval = Number(draft.barInterval)
+    if (!(interval > 0)) return null
+    infillCount = width / interval
+    infillMeters = infillCount * height
+  } else if (draft.complexity === 'simple' && construction === 'infill' && draft.infillMaterial === 'ibr') {
+    sheetArea = width * height
+  } else if (draft.complexity === 'simple' && construction === 'infill' && draft.infillMaterial === 'palisade') {
+    const gapM = Number(draft.palisadeGap) / 1000
+    const diaM = Number(draft.tubeDiameter) / 1000
+    pitch = gapM + diaM
+    if (!(pitch > 0)) return null
+    infillCount = width / pitch
+    infillMeters = infillCount * height
+  } else if (draft.complexity === 'simple') {
+    return null
+  } else if (rate > 0) {
+    const areaQuote = area * rate * qty
+    return {
+      area,
+      measure: area,
+      rate,
+      frame,
+      channel,
+      infillMeters: 0,
+      infillCount: 0,
+      sheetArea: 0,
+      pitch: 0,
+      steelMeters: frame + channel,
+      materials: areaQuote * 0.55,
+      consumables,
+      labour,
+      profit,
+      quote: areaQuote,
+      breakdown: 'area',
+    }
+  } else {
+    return null
+  }
+
+  const steelMeters = frame + infillMeters + channel
+  const materials = steelMeters * steelPerMeter + sheetArea * sheetPerM2 + hardware
+  const total = materials + consumables + labour + profit
+  return {
+    area,
+    measure: area,
+    rate: steelPerMeter,
+    frame,
+    channel,
+    infillMeters,
+    infillCount,
+    sheetArea,
+    pitch,
+    steelMeters,
+    materials,
+    consumables,
+    labour,
+    profit,
+    quote: total * qty,
+    breakdown: 'build',
+  }
 }
 
 const companyShopHref = (company) => {
@@ -1288,7 +1644,7 @@ function FeatureFlip({ companies, onOpen }) {
 
 function HomeTile({ company, onOpen }) {
   const slide = firstSlide(company)
-  const reel = company.video
+  const reel = slide?.video || company.video
   return (
     <button type="button" className={`gallery-tile home-tile${reel ? ' is-reel' : ''}`} onClick={() => onOpen(company)}>
       {reel ? (
@@ -1415,11 +1771,115 @@ function IconLock() {
   )
 }
 
+function SystemExplainCards({ system }) {
+  const slides = system.slides?.length
+    ? system.slides
+    : (system.preview || []).map((photo) => ({ photo, testimonial: system.how }))
+  const count = slides.length
+  const [index, setIndex] = useState(0)
+  const [dir, setDir] = useState(1)
+  const startX = useRef(0)
+  const dragging = useRef(false)
+
+  useEffect(() => {
+    setIndex(0)
+    setDir(1)
+  }, [system.id])
+
+  const go = (step) => {
+    if (count < 2) return
+    const nextDir = step >= 0 ? 1 : -1
+    setDir(nextDir)
+    setIndex((current) => current + nextDir)
+  }
+
+  const onPointerDown = (event) => {
+    if (event.target.closest('button')) return
+    dragging.current = true
+    startX.current = event.clientX
+  }
+
+  const onPointerUp = (event) => {
+    if (!dragging.current) return
+    dragging.current = false
+    const delta = event.clientX - startX.current
+    if (delta <= -40) go(1)
+    if (delta >= 40) go(-1)
+  }
+
+  const active = count ? ((index % count) + count) % count : 0
+  const slide = slides[active]
+  const slideOffset = (slideIndex) => {
+    let delta = slideIndex - active
+    if (dir >= 0 && delta < 0) delta += count
+    if (dir < 0 && delta > 0) delta -= count
+    return delta
+  }
+
+  if (!count) return <p className="shop-copy">{system.how}</p>
+
+  return (
+    <div className="explain-cards">
+      <div
+        className="explain-stage"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          dragging.current = false
+        }}
+      >
+        {slides.map((entry, slideIndex) => (
+          <div
+            className="explain-slide"
+            key={`${system.id}-explain-${slideIndex}`}
+            style={{ transform: `translate3d(${slideOffset(slideIndex) * 100}%, 0, 0)` }}
+          >
+            {entry.video ? (
+              <video src={entry.video} muted playsInline autoPlay={slideIndex === active} controls={false} />
+            ) : (
+              <img src={entry.photo} alt="" />
+            )}
+          </div>
+        ))}
+        {count > 1 ? (
+          <>
+            <button
+              className="card-arrow left"
+              type="button"
+              aria-label="Previous"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                go(-1)
+              }}
+            >
+              ‹
+            </button>
+            <button
+              className="card-arrow right"
+              type="button"
+              aria-label="Next"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                go(1)
+              }}
+            >
+              ›
+            </button>
+          </>
+        ) : null}
+      </div>
+      <p className="explain-count">{active + 1} / {count}</p>
+      <p className="explain-copy">{slide?.testimonial || system.how}</p>
+    </div>
+  )
+}
+
 function OpenedCard({
   company,
   onClose,
   onViewProfile,
-  onBuySystem,
   startIndex = 0,
   comments,
   onAddComment,
@@ -1557,18 +2017,11 @@ function OpenedCard({
             Delete picture
           </button>
         ) : null}
-        {onViewProfile || onBuySystem ? (
+        {onViewProfile ? (
           <div className="card-actions opened-actions">
-            {onViewProfile ? (
-              <button className="view-profile-button" type="button" onClick={onViewProfile}>
-                View profile
-              </button>
-            ) : null}
-            {onBuySystem ? (
-              <button className="buy-system-button" type="button" onClick={onBuySystem}>
-                Buy system
-              </button>
-            ) : null}
+            <button className="view-profile-button" type="button" onClick={onViewProfile}>
+              View profile
+            </button>
           </div>
         ) : null}
         {comments && onAddComment ? (
@@ -1653,6 +2106,37 @@ function ShopItemSheet({ draft, isNew, onClose, onChange, onSave, onPickPhoto })
   )
 }
 
+function MallProductSheet({ product, onClose, comments, onAddComment, onReplyComment, viewer, onNeedAccount }) {
+  if (!product) return null
+  return (
+    <section className="detail-sheet shop-sheet" aria-label={product.name} onClick={onClose}>
+      <div className="opened-card shop-item-card" onClick={(event) => event.stopPropagation()}>
+        <div className="opened-stage shop-item-stage">
+          <button type="button" className="card-x" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+          {product.photo ? <img src={product.photo} alt={product.name} /> : null}
+        </div>
+        <div className="shop-item-fields">
+          <p className="eyebrow">{product.shopName}</p>
+          <h2>{product.name}</h2>
+          <p className="fab-quote">{formatPrice(product.price)}</p>
+          {product.description ? <p className="shop-copy">{product.description}</p> : null}
+          <MallEcoCash item={product} />
+          <CommentThread
+            targetId={`item:${product.shopId}:${product.id}`}
+            comments={comments}
+            viewer={viewer}
+            onAdd={onAddComment}
+            onReply={onReplyComment}
+            onNeedAccount={onNeedAccount}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function MallShopSheet({ shop, onClose, comments, onAddComment, onReplyComment, viewer, onNeedAccount }) {
   const items = shop.items || []
   return (
@@ -1676,6 +2160,7 @@ function MallShopSheet({ shop, onClose, comments, onAddComment, onReplyComment, 
                 <strong>{item.name}</strong>
                 <span>{formatPrice(item.price)}</span>
                 {item.description ? <p>{item.description}</p> : null}
+                <MallEcoCash item={item} />
               </div>
               <CommentThread
                 targetId={`item:${shop.id}:${item.id}`}
@@ -1692,6 +2177,960 @@ function MallShopSheet({ shop, onClose, comments, onAddComment, onReplyComment, 
         )}
       </div>
     </section>
+  )
+}
+
+function MallEcoCash({ item }) {
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({ number: '', password: '', name: '' })
+  const [note, setNote] = useState('')
+  const [sold, setSold] = useState(false)
+
+  const pay = (event) => {
+    event.preventDefault()
+    const number = form.number.replace(/\s/g, '')
+    if (!/^07\d{8}$/.test(number)) {
+      setNote('Enter a 10-digit EcoCash number starting with 07.')
+      return
+    }
+    if (!form.password.trim() || !form.name.trim()) {
+      setNote('Enter the EcoCash password and the name on the account.')
+      return
+    }
+    setNote('')
+    setSold(true)
+    setOpen(false)
+  }
+
+  if (sold) return <p className="sold-note">Sold via EcoCash · {formatPrice(item.price)}</p>
+
+  return (
+    <div className="mall-pay">
+      <button type="button" className="primary-button" onClick={() => setOpen((value) => !value)}>
+        Buy with EcoCash
+      </button>
+      {open && (
+        <form className="ecocash-card mall-ecocash" onSubmit={pay}>
+          <p className="ecocash-kicker">EcoCash</p>
+          <input
+            type="tel"
+            placeholder="07xxxxxxxx"
+            value={form.number}
+            onChange={(event) => setForm((value) => ({ ...value, number: event.target.value }))}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={(event) => setForm((value) => ({ ...value, password: event.target.value }))}
+          />
+          <input
+            type="text"
+            placeholder="Name on EcoCash"
+            value={form.name}
+            onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
+          />
+          {note ? <p className="form-error">{note}</p> : null}
+          <button type="submit" className="primary-button">
+            Pay {formatPrice(item.price)}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
+function CeoDashboard({ site, onBack, embedded = false }) {
+  const brand = brandTheme(site?.brandName || site?.name || 'Company')
+  const figures = ceoFigures(brand.name)
+  const manufacturing = site?.systemType === 'manufacturing'
+  const domain = liveDomain(site)
+  const body = (
+    <main className="clone-page ceo-page">
+      <p className="eyebrow">{manufacturing ? 'Prixburg style' : 'Rodcroft style'}</p>
+      <h1>{brand.name}</h1>
+      <p className="clone-muted">
+        CEO control area. Live data entry stays on {domain}. This page only shows the dashboards.
+      </p>
+      <div className="ceo-grid">
+        {manufacturing ? (
+          <>
+            <article>
+              <span>Storeroom lines</span>
+              <strong>{figures.stock}</strong>
+            </article>
+            <article>
+              <span>Consumed today</span>
+              <strong>{figures.consumed}</strong>
+            </article>
+            <article>
+              <span>Sales</span>
+              <strong>{formatPrice(figures.sales)}</strong>
+            </article>
+          </>
+        ) : (
+          <>
+            <article>
+              <span>Live sites</span>
+              <strong>{figures.sites}</strong>
+            </article>
+            <article>
+              <span>Valuations</span>
+              <strong>{formatPrice(figures.valuation)}</strong>
+            </article>
+            <article>
+              <span>SHEQ files</span>
+              <strong>{figures.sheq}</strong>
+            </article>
+            <article>
+              <span>Storeroom lines</span>
+              <strong>{figures.stock}</strong>
+            </article>
+          </>
+        )}
+      </div>
+      <p className="clone-muted">Domain for data entry: {domain}</p>
+      {onBack ? (
+        <button type="button" className="clone-text-btn" onClick={onBack}>
+          Back to Fortress
+        </button>
+      ) : null}
+    </main>
+  )
+
+  if (embedded) return <div className="ceo-embedded">{body}</div>
+
+  return (
+    <div className={`clone-app ${manufacturing ? 'clone-prixburg' : 'clone-rodcroft'}`} style={brand.vars}>
+      <header className="clone-topbar">
+        <div className="clone-topbar-inner">
+          <button type="button" className="clone-brand" onClick={onBack}>
+            <span className="clone-brand-mark">{brand.mark}</span>
+            <span className="clone-brand-name">{brand.name}</span>
+          </button>
+        </div>
+      </header>
+      {body}
+    </div>
+  )
+}
+
+function FabMenuIcon({ name }) {
+  const paths = {
+    home: ['M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z'],
+    subscriptions: ['M4 7h16v10H4z', 'M4 11h16', 'M8 15h4'],
+    documents: ['M7 3h7l5 5v13H7z', 'M14 3v5h5'],
+    pricing: ['M12 3v18', 'M16.5 7.5H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H7'],
+  }
+  return (
+    <svg className="fab-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {(paths[name] || []).map((d) => (
+        <path key={d} fill="currentColor" d={d} />
+      ))}
+    </svg>
+  )
+}
+
+function DrawingPaper({ caption, children }) {
+  return (
+    <svg className="fab-drawing" viewBox="0 0 320 228" aria-hidden="true">
+      <rect className="fab-drawing-sheet" x="6" y="6" width="308" height="216" rx="10" />
+      <text className="fab-drawing-caption" x="18" y="24">
+        {caption}
+      </text>
+      <line x1="36" y1="36" x2="284" y2="36" />
+      <line x1="36" y1="32" x2="36" y2="40" />
+      <line x1="284" y1="32" x2="284" y2="40" />
+      <text x="160" y="34" textAnchor="middle">
+        W
+      </text>
+      {children}
+    </svg>
+  )
+}
+
+function bars(xs, y1, y2, spear) {
+  return xs.map((x) => (
+    <g key={x}>
+      <line x1={x} y1={y1} x2={x} y2={y2} />
+      {spear ? <path d={`M${x - 6} ${y1} L${x} ${y1 - 14} L${x + 6} ${y1}`} /> : null}
+    </g>
+  ))
+}
+
+function scrolls(points) {
+  return points.map(([x, y], index) => (
+    <path key={`${x}-${y}-${index}`} d={`M${x} ${y} c12 -16 28 16 8 22 c-22 8 -18 -28 6 -22`} />
+  ))
+}
+
+function GateEngineeringDrawing({ type, kind }) {
+  const fancy = kind === 'laser'
+  const mid = kind === 'medium' || fancy
+  const caption =
+    kind === 'laser' ? 'COMPLEX' : kind === 'medium' ? 'MEDIUM' : 'SIMPLE'
+
+  const leaf = (x, w, y = 48, h = 132) => (
+    <>
+      <rect x={x} y={y} width={w} height={h} />
+      <line x1={x} y1={y + 16} x2={x + w} y2={y + 16} />
+      <line x1={x} y1={y + h - 16} x2={x + w} y2={y + h - 16} />
+      {bars(
+        Array.from({ length: Math.max(3, Math.round(w / 22)) }, (_, i) => x + 12 + i * (w / Math.max(3, Math.round(w / 22)))),
+        y + 16,
+        y + h - 16,
+        mid,
+      )}
+      {fancy ? scrolls([[x + 18, y + 70], [x + w - 34, y + 88]]) : null}
+    </>
+  )
+
+  if (type === 'swing') {
+    return (
+      <DrawingPaper caption={`SWING · ${caption}`}>
+        <rect x="28" y="48" width="14" height="140" />
+        <rect x="278" y="48" width="14" height="140" />
+        {leaf(46, 110)}
+        {leaf(164, 110)}
+        <circle cx="46" cy="70" r="4" />
+        <circle cx="46" cy="160" r="4" />
+        <circle cx="274" cy="70" r="4" />
+        <circle cx="274" cy="160" r="4" />
+        <path d="M156 180 A70 36 0 0 1 46 196" />
+        <path d="M164 180 A70 36 0 0 0 274 196" />
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          HINGE
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'cantilever') {
+    return (
+      <DrawingPaper caption={`CANTILEVER · ${caption}`}>
+        <rect x="40" y="48" width="14" height="132" />
+        <rect x="118" y="48" width="14" height="132" />
+        <rect x="54" y="56" width="230" height="116" />
+        <line x1="54" y1="72" x2="284" y2="72" />
+        <line x1="54" y1="156" x2="284" y2="156" />
+        {bars([74, 98, 122, 146, 170, 194, 218, 242, 266], 72, 156, mid)}
+        {fancy ? scrolls([[80, 100], [200, 118]]) : null}
+        <rect x="54" y="56" width="70" height="116" className="fab-drawing-hatch" />
+        <circle cx="47" cy="168" r="8" />
+        <circle cx="125" cy="168" r="8" />
+        <line x1="36" y1="188" x2="200" y2="188" />
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          ROLLERS · NO GROUND TRACK
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'bifold') {
+    return (
+      <DrawingPaper caption={`BI-FOLD · ${caption}`}>
+        <rect x="30" y="48" width="12" height="140" />
+        <rect x="278" y="48" width="12" height="140" />
+        <rect x="48" y="56" width="52" height="124" />
+        <rect x="100" y="62" width="48" height="118" transform="rotate(-18 100 180)" />
+        <rect x="172" y="62" width="48" height="118" transform="rotate(18 220 180)" />
+        <rect x="220" y="56" width="52" height="124" />
+        {mid ? bars([58, 72, 86], 72, 164, true) : bars([62, 82], 72, 164, false)}
+        {fancy ? scrolls([[56, 110], [230, 118]]) : null}
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          FOLD
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'telescopic') {
+    return (
+      <DrawingPaper caption={`TELESCOPIC · ${caption}`}>
+        <rect x="36" y="54" width="90" height="120" />
+        <rect x="86" y="62" width="90" height="112" />
+        <rect x="136" y="70" width="90" height="104" />
+        {fancy ? <rect x="186" y="78" width="80" height="96" /> : null}
+        {bars([50, 70, 100, 120, 150, 170], 78, 160, mid)}
+        {fancy ? scrolls([[148, 112]]) : null}
+        <path d="M40 190 H250" />
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          LEAVES STACK
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'pedestrian') {
+    return (
+      <DrawingPaper caption={`PEDESTRIAN · ${caption}`}>
+        <rect x="88" y="44" width="16" height="148" />
+        <rect x="216" y="44" width="16" height="148" />
+        <rect x="104" y="52" width="112" height="132" />
+        <line x1="104" y1="68" x2="216" y2="68" />
+        <line x1="104" y1="168" x2="216" y2="168" />
+        {bars([120, 138, 156, 174, 192], 68, 168, mid)}
+        {fancy ? scrolls([[118, 108]]) : null}
+        <circle cx="200" cy="118" r="7" />
+        <line x1="104" y1="118" x2="200" y2="118" />
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          LATCH
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'automatic') {
+    return (
+      <DrawingPaper caption={`AUTOMATIC · ${caption}`}>
+        <rect x="28" y="50" width="18" height="128" />
+        <rect x="46" y="58" width="200" height="112" />
+        <line x1="46" y1="74" x2="246" y2="74" />
+        <line x1="46" y1="154" x2="246" y2="154" />
+        {bars([66, 90, 114, 138, 162, 186, 210, 232], 74, 154, mid)}
+        {fancy ? scrolls([[70, 104], [180, 120]]) : null}
+        <rect x="28" y="86" width="36" height="28" />
+        <line x1="46" y1="170" x2="246" y2="170" />
+        {[70, 100, 130, 160, 190, 220].map((x) => (
+          <path key={x} d={`M${x} 170 L${x + 8} 176 L${x} 182`} />
+        ))}
+        <circle cx="40" cy="196" r="5" />
+        <circle cx="250" cy="196" r="5" />
+        <line x1="40" y1="196" x2="250" y2="196" />
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          MOTOR · RACK · BEAM
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  if (type === 'wrought') {
+    return (
+      <DrawingPaper caption={`WROUGHT IRON · ${caption}`}>
+        <rect x="40" y="52" width="12" height="136" />
+        <rect x="268" y="52" width="12" height="136" />
+        <path d="M52 58 Q160 18 268 58" />
+        {leaf(52, 216, 58, 122)}
+        <circle cx="100" cy="118" r="12" />
+        <circle cx="160" cy="118" r="12" />
+        <circle cx="220" cy="118" r="12" />
+        {fancy ? scrolls([[70, 90], [140, 140], [210, 90]]) : mid ? scrolls([[90, 100], [190, 100]]) : null}
+        <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+          SCROLLS · SPEARS
+        </text>
+      </DrawingPaper>
+    )
+  }
+
+  return (
+    <DrawingPaper caption={`SLIDING · ${caption}`}>
+      <rect x="24" y="52" width="16" height="128" />
+      <rect x="44" y="60" width="220" height="108" />
+      <line x1="44" y1="76" x2="264" y2="76" />
+      <line x1="44" y1="152" x2="264" y2="152" />
+      {bars([64, 88, 112, 136, 160, 184, 208, 232, 252], 76, 152, mid)}
+      {fancy ? scrolls([[72, 108], [190, 120]]) : null}
+      <line x1="36" y1="176" x2="280" y2="176" />
+      <line x1="36" y1="184" x2="280" y2="184" />
+      <circle cx="70" cy="180" r="6" />
+      <circle cx="130" cy="180" r="6" />
+      <circle cx="190" cy="180" r="6" />
+      <path d="M250 112 H290 M278 104 L290 112 L278 120" />
+      <text className="fab-drawing-caption" x="160" y="216" textAnchor="middle">
+        TRACK · ROLLERS
+      </text>
+    </DrawingPaper>
+  )
+}
+
+function FabricationCalculator({ site, draft, onChange, onSave, onRenew, onBack, pricing, onSavePricing }) {
+  const [view, setView] = useState('home')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [quoted, setQuoted] = useState(false)
+  const [priceForm, setPriceForm] = useState(pricing || emptyFabPricing())
+  const quote = fabQuote(draft, pricing)
+  const complexity = GATE_COMPLEXITY.find((item) => item.id === draft.complexity)
+  const gateType = GATE_TYPES.find((item) => item.id === draft.gateType)
+  const drawings = site?.drawings || []
+  const isSimple = draft.complexity === 'simple'
+
+  const goView = (next) => {
+    setView(next)
+    setMenuOpen(false)
+  }
+
+  const resetGate = (extra = {}) => {
+    onChange({
+      ...draft,
+      gateType: '',
+      complexity: '',
+      gateId: '',
+      name: '',
+      construction: '',
+      barInterval: '',
+      infillMaterial: '',
+      palisadeGap: '',
+      tubeDiameter: '',
+      ...extra,
+    })
+  }
+
+  const calculate = () => {
+    if (!draft.gateType) {
+      setQuoted(false)
+      setNote('Choose the type of gate first.')
+      return
+    }
+    if (!draft.complexity) {
+      setQuoted(false)
+      setNote('Choose a simple, medium, or complex design.')
+      return
+    }
+    if (!Number(draft.width) || !Number(draft.height)) {
+      setQuoted(false)
+      setNote('Enter width and height of the gate.')
+      return
+    }
+    if (isSimple && !draft.construction) {
+      setQuoted(false)
+      setNote('Choose vertical bars or infill cladding.')
+      return
+    }
+    if (isSimple && draft.construction === 'bars' && !(Number(draft.barInterval) > 0)) {
+      setQuoted(false)
+      setNote('Enter the vertical bars interval width in metres.')
+      return
+    }
+    if (isSimple && draft.construction === 'infill' && !draft.infillMaterial) {
+      setQuoted(false)
+      setNote('Choose IBR sheet or square tubes palisade.')
+      return
+    }
+    if (
+      isSimple &&
+      draft.construction === 'infill' &&
+      draft.infillMaterial === 'palisade' &&
+      (!(Number(draft.palisadeGap) > 0) || !(Number(draft.tubeDiameter) > 0))
+    ) {
+      setQuoted(false)
+      setNote('Enter the palisade gap and the tube diameter in millimetres.')
+      return
+    }
+    const nextQuote = fabQuote(draft, pricing)
+    if (!nextQuote) {
+      setQuoted(false)
+      setNote('Open Pricing and enter steel, hardware, labour, and profit amounts.')
+      return
+    }
+    setNote('')
+    setQuoted(true)
+  }
+
+  return (
+    <div className="fab-app">
+      <header className="fab-app-bar">
+        <button type="button" className="fab-menu-btn" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+          ☰
+        </button>
+        <div>
+          <p className="eyebrow">Fabrication calculator</p>
+          <strong>{site?.name || 'Fabrication calculator'}</strong>
+        </div>
+        {onBack ? (
+          <button type="button" className="text-back" onClick={onBack}>
+            Fortress
+          </button>
+        ) : (
+          <span />
+        )}
+      </header>
+
+      {menuOpen ? (
+        <div className="fab-menu-sheet" onClick={() => setMenuOpen(false)}>
+          <nav className="fab-menu" aria-label="Calculator menu" onClick={(event) => event.stopPropagation()}>
+            <p className="eyebrow">Menu</p>
+            <button
+              type="button"
+              className={view === 'home' ? 'active' : ''}
+              onClick={() => {
+                resetGate()
+                goView('home')
+              }}
+            >
+              <FabMenuIcon name="home" />
+              Home
+            </button>
+            <button
+              type="button"
+              className={view === 'pricing' ? 'active' : ''}
+              onClick={() => {
+                setPriceForm(pricing || emptyFabPricing())
+                goView('pricing')
+              }}
+            >
+              <FabMenuIcon name="pricing" />
+              Pricing
+            </button>
+            <button
+              type="button"
+              className={view === 'subscriptions' ? 'active' : ''}
+              onClick={() => goView('subscriptions')}
+            >
+              <FabMenuIcon name="subscriptions" />
+              Subscriptions
+            </button>
+            <button type="button" className={view === 'documents' ? 'active' : ''} onClick={() => goView('documents')}>
+              <FabMenuIcon name="documents" />
+              Documents
+            </button>
+          </nav>
+        </div>
+      ) : null}
+
+      {view === 'home' && !gateType ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>What type of gate do you want to quote?</h1>
+            <p>Choose the gate first. Next you pick a simple, medium, or complex drawing of that type.</p>
+            <div className="fab-type-list">
+              {GATE_TYPES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setQuoted(false)
+                    setNote('')
+                    onChange({
+                      ...draft,
+                      gateType: item.id,
+                      complexity: '',
+                      gateId: '',
+                      name: item.name,
+                      construction: '',
+                      barInterval: '',
+                      infillMaterial: '',
+                      palisadeGap: '',
+                      tubeDiameter: '',
+                    })
+                  }}
+                >
+                  <strong>{item.name}</strong>
+                  <small>{item.copy}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
+      ) : null}
+
+      {view === 'home' && gateType ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <button
+              type="button"
+              className="text-back"
+              onClick={() => {
+                setQuoted(false)
+                resetGate()
+              }}
+            >
+              Change gate type
+            </button>
+            <h1>Choose a gate design</h1>
+            <p>
+              {gateType.name}. Pick simple, medium, or complex. Each drawing is an engineering view of this gate type.
+            </p>
+            <div className="fab-complexity">
+              {GATE_COMPLEXITY.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={draft.complexity === item.id ? 'active' : ''}
+                  onClick={() => {
+                    setQuoted(false)
+                    onChange({
+                      ...draft,
+                      complexity: item.id,
+                      gateId: `${gateType.id}-${item.id}`,
+                      name: `${gateType.name} · ${item.label}`,
+                      photo: '',
+                      construction: item.id === 'simple' ? draft.construction : '',
+                    })
+                  }}
+                >
+                  <GateEngineeringDrawing type={gateType.id} kind={item.id} />
+                  <strong>{item.label}</strong>
+                  <small>{item.copy}</small>
+                  <span>{formatPrice(item.rate)} / m²</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {isSimple ? (
+            <section className="fab-section">
+              <h2>Type of gate construction</h2>
+              <p>Choose how the leaf is filled.</p>
+              <div className="fab-type-list">
+                {GATE_CONSTRUCTIONS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={draft.construction === item.id ? 'active' : ''}
+                    onClick={() => {
+                      setQuoted(false)
+                      onChange({
+                        ...draft,
+                        construction: item.id,
+                        infillMaterial: item.id === 'infill' ? draft.infillMaterial : '',
+                      })
+                    }}
+                  >
+                    <strong>{item.label}</strong>
+                    <small>{item.copy}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {isSimple && draft.construction === 'infill' ? (
+            <section className="fab-section">
+              <h2>Infill cladding material</h2>
+              <div className="fab-type-list">
+                <button
+                  type="button"
+                  className={draft.infillMaterial === 'ibr' ? 'active' : ''}
+                  onClick={() => {
+                    setQuoted(false)
+                    onChange({ ...draft, infillMaterial: 'ibr' })
+                  }}
+                >
+                  <strong>IBR sheet</strong>
+                  <small>Sheet area = length × height.</small>
+                </button>
+                <button
+                  type="button"
+                  className={draft.infillMaterial === 'palisade' ? 'active' : ''}
+                  onClick={() => {
+                    setQuoted(false)
+                    onChange({ ...draft, infillMaterial: 'palisade' })
+                  }}
+                >
+                  <strong>Square tubes palisade style</strong>
+                  <small>Gap plus tube diameter sets how many infill tubes fit.</small>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="fab-section">
+            <h2>Width and height</h2>
+            <p>Enter the finished size of the gate in metres.</p>
+            <div className="fab-size-row">
+              <label>
+                Width (m)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.width}
+                  onChange={(event) => {
+                    setQuoted(false)
+                    onChange({ ...draft, width: event.target.value })
+                  }}
+                />
+              </label>
+              <label>
+                Height (m)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.height}
+                  onChange={(event) => {
+                    setQuoted(false)
+                    onChange({ ...draft, height: event.target.value })
+                  }}
+                />
+              </label>
+            </div>
+            {isSimple && draft.construction === 'bars' ? (
+              <label className="fab-field">
+                Vertical bars interval width (m)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.barInterval}
+                  onChange={(event) => {
+                    setQuoted(false)
+                    onChange({ ...draft, barInterval: event.target.value })
+                  }}
+                />
+                <small>Middle vertical bars occur after every written metres. Number of bars = width ÷ interval.</small>
+              </label>
+            ) : null}
+            {isSimple && draft.construction === 'infill' && draft.infillMaterial === 'palisade' ? (
+              <div className="fab-size-row">
+                <label>
+                  Gap length (mm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={draft.palisadeGap}
+                    onChange={(event) => {
+                      setQuoted(false)
+                      onChange({ ...draft, palisadeGap: event.target.value })
+                    }}
+                  />
+                </label>
+                <label>
+                  Tube diameter (mm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={draft.tubeDiameter}
+                    onChange={(event) => {
+                      setQuoted(false)
+                      onChange({ ...draft, tubeDiameter: event.target.value })
+                    }}
+                  />
+                </label>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="fab-section fab-actions">
+            <button type="button" className="primary-button" onClick={calculate}>
+              Calculate quotation
+            </button>
+            {quoted && quote ? (
+              <div className="fab-quote-sheet">
+                <p className="fab-quote">
+                  {gateType.name} · {complexity?.label} · {draft.width}m × {draft.height}m
+                </p>
+                {quote.breakdown === 'build' ? (
+                  <>
+                    <div>
+                      <span>Frame (2 × width + 2 × height)</span>
+                      <span>{quote.frame.toFixed(2)} m</span>
+                    </div>
+                    {draft.construction === 'bars' ? (
+                      <div>
+                        <span>
+                          Vertical bars ({quote.infillCount.toFixed(2)} × height)
+                        </span>
+                        <span>{quote.infillMeters.toFixed(2)} m</span>
+                      </div>
+                    ) : null}
+                    {draft.construction === 'infill' && draft.infillMaterial === 'ibr' ? (
+                      <div>
+                        <span>IBR sheet area (length × height)</span>
+                        <span>{quote.sheetArea.toFixed(2)} m²</span>
+                      </div>
+                    ) : null}
+                    {draft.construction === 'infill' && draft.infillMaterial === 'palisade' ? (
+                      <div>
+                        <span>
+                          Palisade tubes ({quote.infillCount.toFixed(2)} × height)
+                        </span>
+                        <span>{quote.infillMeters.toFixed(2)} m</span>
+                      </div>
+                    ) : null}
+                    {quote.channel > 0 ? (
+                      <div>
+                        <span>Bottom channel for sliding</span>
+                        <span>{quote.channel.toFixed(2)} m</span>
+                      </div>
+                    ) : null}
+                    <div>
+                      <span>Total steel</span>
+                      <span>{quote.steelMeters.toFixed(2)} m</span>
+                    </div>
+                    <div>
+                      <span>Materials (steel + hardware{quote.sheetArea ? ' + sheet' : ''})</span>
+                      <span>{formatPrice(quote.materials)}</span>
+                    </div>
+                    <div>
+                      <span>Consumables</span>
+                      <span>{formatPrice(quote.consumables)}</span>
+                    </div>
+                    <div>
+                      <span>Labour</span>
+                      <span>{formatPrice(quote.labour)}</span>
+                    </div>
+                    <div>
+                      <span>Profit</span>
+                      <span>{formatPrice(quote.profit)}</span>
+                    </div>
+                    <div className="fab-quote-total">
+                      <span>Total price</span>
+                      <span>{formatPrice(quote.quote)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="fab-quote">
+                    Area {quote.area.toFixed(2)} m² · Quotation {formatPrice(quote.quote)}
+                  </p>
+                )}
+              </div>
+            ) : null}
+            {note ? <p className="form-error">{note}</p> : null}
+            {quoted && quote && onSave ? (
+              <button type="button" className="primary-button" onClick={onSave}>
+                Save quotation
+              </button>
+            ) : null}
+          </section>
+        </main>
+      ) : null}
+
+      {view === 'subscriptions' ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>Subscriptions</h1>
+            <p>Payment terms for the fabrication calculator.</p>
+            <div className="fab-subs">
+              {FAB_PLANS.map((plan) => (
+                <article key={plan.id}>
+                  <strong>{plan.label}</strong>
+                  <p>{formatPrice(plan.price)}</p>
+                  <small>
+                    {plan.id === 'week' ? '$1 / week' : plan.id === 'month' ? '$3.50 / month' : '$22 / year'}
+                  </small>
+                  {onRenew ? (
+                    <button type="button" className="primary-button" onClick={() => onRenew(plan.id)}>
+                      Pay with EcoCash
+                    </button>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+      ) : null}
+
+      {view === 'pricing' ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>Pricing</h1>
+            <p>These rates feed the quotation. Materials = total steel metres × price per metre + hardware. Total = materials + consumables + labour + profit.</p>
+            <div className="fab-size-row">
+              <label>
+                Steel price per metre
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.steelPerMeter}
+                  onChange={(event) => setPriceForm({ ...priceForm, steelPerMeter: event.target.value })}
+                />
+              </label>
+              <label>
+                IBR sheet price per m²
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.sheetPerM2}
+                  onChange={(event) => setPriceForm({ ...priceForm, sheetPerM2: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
+                Hardware
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.hardware}
+                  onChange={(event) => setPriceForm({ ...priceForm, hardware: event.target.value })}
+                />
+              </label>
+              <label>
+                Consumables
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.consumables}
+                  onChange={(event) => setPriceForm({ ...priceForm, consumables: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
+                Labour
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.labour}
+                  onChange={(event) => setPriceForm({ ...priceForm, labour: event.target.value })}
+                />
+              </label>
+              <label>
+                Profit
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceForm.profit}
+                  onChange={(event) => setPriceForm({ ...priceForm, profit: event.target.value })}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                onSavePricing?.(priceForm)
+                setQuoted(false)
+                goView('home')
+              }}
+            >
+              Save prices
+            </button>
+          </section>
+        </main>
+      ) : null}
+
+      {view === 'documents' ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>Documents</h1>
+            <p>Saved gate quotations live here.</p>
+            {drawings.length ? (
+              <div className="fab-saved">
+                {drawings.map((drawing) => (
+                  <article key={drawing.id}>
+                    {drawing.photo ? <img src={drawing.photo} alt="" /> : null}
+                    <div>
+                      <strong>{drawing.name}</strong>
+                      <span>
+                        {drawing.gateType
+                          ? `${GATE_TYPES.find((item) => item.id === drawing.gateType)?.name || drawing.gateType} · `
+                          : ''}
+                        {drawing.width}m × {drawing.height || drawing.length}m
+                        {drawing.complexity ? ` · ${drawing.complexity}` : ''}
+                      </span>
+                    </div>
+                    <span>{formatPrice(drawing.quote)}</span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-note">No quotations yet. Calculate a gate on Home, then save it.</p>
+            )}
+          </section>
+        </main>
+      ) : null}
+    </div>
   )
 }
 
@@ -2077,11 +3516,19 @@ function GeneratedWebsite({ site, onBack }) {
   )
 }
 
-function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto, onOpenLive }) {
+function PublicCompanyProfile({
+  company,
+  comments = {},
+  onClose,
+  onOpenPost,
+  onOpenPhoto,
+  viewer,
+  onAddComment,
+  onReplyComment,
+  onNeedAccount,
+}) {
   const photo = company.profilePhoto || firstSlide(company)?.photo || ''
   const slides = company.slides || []
-  const shopLink = companyShopHref(company)
-  const liveLabel = shopLink.includes('#') ? shopLink.slice(shopLink.indexOf('#')) : shopLink
 
   return (
     <section className="detail-sheet public-profile-sheet" aria-label={`${company.name} profile`}>
@@ -2099,21 +3546,13 @@ function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto, onOpe
         </button>
         <div className="profile-copy">
           <h3>{company.name}</h3>
+          <p>{company.ceo || company.name}</p>
+          <p>CEO</p>
           <p>{company.category}</p>
+          {company.location ? <p>{company.location}</p> : null}
           <StarRanking rating={company.rating} />
         </div>
       </div>
-      {shopLink ? (
-        <button
-          type="button"
-          className="profile-live-link"
-          onClick={() => (onOpenLive ? onOpenLive(company) : undefined)}
-        >
-          {liveLabel}
-        </button>
-      ) : (
-        <p className="profile-live-link muted">This company has no live website yet.</p>
-      )}
       <div className="gallery-grid">
         {slides.length ? (
           slides.map((slide, index) => (
@@ -2134,6 +3573,24 @@ function PublicCompanyProfile({ company, onClose, onOpenPost, onOpenPhoto, onOpe
         ) : (
           <p className="empty-note gallery-empty">No photos on this profile yet.</p>
         )}
+      </div>
+      <div className="public-comments">
+        <h4>Comments</h4>
+        {slides.map((slide, index) => (
+          <div key={`${company.id}-thread-${index}`} className="public-post-comments">
+            <button type="button" className="text-back" onClick={() => onOpenPost(index)}>
+              {slide.testimonial ? slide.testimonial.slice(0, 72) : `Post ${index + 1}`}
+            </button>
+            <CommentThread
+              targetId={`photo:${company.id}:${index}`}
+              comments={comments}
+              viewer={viewer}
+              onAdd={onAddComment}
+              onReply={onReplyComment}
+              onNeedAccount={onNeedAccount}
+            />
+          </div>
+        ))}
       </div>
     </section>
   )
@@ -2184,6 +3641,10 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [busyLabel, setBusyLabel] = useState('')
   const [systemType, setSystemType] = useState('')
+  const [fabPlan, setFabPlan] = useState('month')
+  const [dashCursor, setDashCursor] = useState(0)
+  const [drawingDraft, setDrawingDraft] = useState(emptyDrawingDraft)
+  const [fabPricing, setFabPricing] = useState(loadFabPricing)
   const [ecocash, setEcocash] = useState({ number: '', password: '', name: '' })
   const [paymentNote, setPaymentNote] = useState('')
   const [websiteName, setWebsiteName] = useState('')
@@ -2203,6 +3664,7 @@ function App() {
   const skipShopChoiceRef = useRef(false)
   const cardBuyRef = useRef(false)
   const shopItemInputRef = useRef(null)
+  const drawingInputRef = useRef(null)
   const skipPushRef = useRef(false)
   const lastPathRef = useRef(readHashPath())
   const findCompanyRef = useRef(() => null)
@@ -2213,8 +3675,15 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (profileTab === 'buy') setProfileTab('gallery')
+  }, [profileTab])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
       window.localStorage.setItem(STORE_KEY, JSON.stringify(accounts))
+    } catch {
+      /* Photos stay on this session if the phone storage is full. */
     }
   }, [accounts])
 
@@ -2229,15 +3698,6 @@ function App() {
     if (signedInId) window.localStorage.setItem(SESSION_KEY, signedInId)
     else window.localStorage.removeItem(SESSION_KEY)
   }, [signedInId])
-
-  useEffect(() => {
-    const account = accounts.find((item) => item.id === signedInId)
-    if (!signedInId) return
-    if (!account || !isOwnerEmail(account.email)) {
-      setSignedInId('')
-      setActiveProfileId('')
-    }
-  }, [accounts, signedInId])
 
   useEffect(() => {
     const sync = () => {
@@ -2363,24 +3823,27 @@ function App() {
       accounts.flatMap((account, accountIndex) =>
         account.websites.map((site) => {
           const slides = slidesForSite(site)
+          const latest = slides[0]
 
           return {
             id: site.id,
             name: site.name,
             category: site.type || 'Business',
-            shelf: 'Your shops',
+            shelf: site.shelf || 'New companies',
             rating: 5,
             hue: accountIndex % 2 === 0 ? '#ff7b54' : '#51b6a0',
             location: 'On Fortress',
             about: site.testimonial || `${site.name} keeps its site photos on this card.`,
             slides,
-            featured: (site.slides || []).some((slide) => slide.photo || slide.video),
+            featured: slides.some((slide) => slide.photo || slide.video),
+            video: latest?.video || '',
+            videoCaption: latest?.video ? latest.testimonial : '',
             isShop: Boolean(site.isShop && site.systemType === 'retail'),
             slug: site.slug,
             link: site.link,
             systemType: site.systemType,
             items: site.items || [],
-            cover: slides[0]?.photo || site.profilePhoto || '',
+            cover: latest?.photo || site.profilePhoto || '',
             accountIndex,
             ownerId: account.id,
             kind: 'profile',
@@ -2436,16 +3899,32 @@ function App() {
 
   const shopProfile =
     signedInAccount?.websites.find((site) => site.isShop && site.systemType === 'retail') || null
+  const privateSystems = (signedInAccount?.websites || []).filter((site) =>
+    ['construction', 'manufacturing', 'retail', 'fabrication'].includes(site.systemType),
+  )
+  const dashSite = privateSystems[dashCursor % Math.max(privateSystems.length, 1)] || null
+  const canSwitchDash =
+    privateSystems.some((site) => site.systemType === 'retail') &&
+    privateSystems.some((site) => site.systemType === 'construction' || site.systemType === 'manufacturing')
 
-  const mallShops = useMemo(() => {
+  const mallProducts = useMemo(() => {
     const needle = mallQuery.trim().toLowerCase()
     const userShops = builtCards.filter((company) => company.isShop)
     const source = [...mallCatalog, ...userShops]
-    if (!needle) return source
-    return source.filter((shop) => {
-      const itemText = (shop.items || []).map((item) => item.name).join(' ')
-      return `${shop.name} ${shop.category} ${itemText}`.toLowerCase().includes(needle)
-    })
+    const products = source.flatMap((shop) =>
+      (shop.items || []).map((item) => ({
+        ...item,
+        shopId: shop.id,
+        shopName: shop.name,
+        shop,
+      })),
+    )
+    if (!needle) return products
+    return products.filter((product) =>
+      `${product.name} ${product.shopName} ${product.description || ''} ${product.price}`
+        .toLowerCase()
+        .includes(needle),
+    )
   }, [builtCards, mallQuery])
 
   const companyMatchesQuery = (company, query) => {
@@ -2469,9 +3948,7 @@ function App() {
 
   const homeGridCards = useMemo(() => {
     const extras = builtCards.filter(
-      (company) =>
-        company.featured &&
-        !catalog.some((item) => item.id === company.id || item.name === company.name),
+      (company) => company.featured && !catalog.some((item) => item.id === company.id),
     )
     const showcase = catalog.filter((company) => company.showOnGrid)
     const rest = catalog.filter((company) => company.shelf !== 'Best selling' && !company.showOnGrid)
@@ -2557,16 +4034,12 @@ function App() {
       setAuthError('Enter your email and password.')
       return
     }
-    if (!isOwnerCredentials(email, password)) {
-      setAuthError(isOwnerEmail(email) ? 'That password does not match this account.' : PHASE1_LOGIN_NOTE)
+    const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
+    if (!existing || existing.password !== password) {
+      setAuthError('That email or password does not match an account.')
       return
     }
-    const owner = accounts.find((account) => isOwnerEmail(account.email))
-    if (!owner) {
-      setAuthError(PHASE1_LOGIN_NOTE)
-      return
-    }
-    finishLogin({ ...owner, ...OWNER_LOGIN })
+    finishLogin(existing)
   }
 
   const handleAddAccount = (event) => {
@@ -2581,8 +4054,8 @@ function App() {
 
     const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
     if (existing) {
-      if (!isOwnerCredentials(email, password)) {
-        setAuthError(isOwnerEmail(email) ? 'That password does not match this account.' : PHASE1_LOGIN_NOTE)
+      if (existing.password !== password) {
+        setAuthError('That email or password does not match an account.')
         return
       }
       finishLogin(existing)
@@ -2646,7 +4119,9 @@ function App() {
     if (!signedInAccount && !pendingSignup) return
 
     const isRetailShop = type.id === 'retail'
-    const slides = type.id === 'construction' ? type.slides : []
+    const isFabrication = type.id === 'fabrication'
+    const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[1]
+    const slides = type.id === 'construction' || type.id === 'manufacturing' ? type.slides : []
     const [first, ...rest] = slides
     const slug = uniqueSlug(name, accounts)
     const site = makeWebsite({
@@ -2654,16 +4129,19 @@ function App() {
       type: type.label,
       systemType: type.id,
       slug,
-      link: isRetailShop ? shopHref(slug) : siteHref(slug),
+      link: isRetailShop ? '' : siteHref(slug),
       profilePhoto: first?.photo || '',
-      testimonial: first?.testimonial || '',
-      gallery: rest.map((slide) => slide.photo),
+      testimonial: first?.testimonial || type.how,
+      gallery: rest.map((slide) => slide.photo).filter(Boolean),
       photoCaptions: rest.map((slide) => slide.testimonial),
       slides,
       isShop: isRetailShop,
       items: [],
       brandName: name,
       cssName: slugify(name).replace(/-/g, ''),
+      fabPlan: isFabrication ? plan.id : '',
+      paidUntil: isFabrication ? Date.now() + plan.days * 86400000 : 0,
+      drawings: [],
     })
 
     if (pendingSignup) {
@@ -2690,7 +4168,7 @@ function App() {
     skipShopChoiceRef.current = false
     cardBuyRef.current = false
     setSettingsView('home')
-    setProfileTab(isRetailShop ? 'store' : 'gallery')
+    setProfileTab(isRetailShop ? 'store' : isFabrication ? 'dash' : 'dash')
     setTab('profile')
     setMenuOpen(false)
     setOverlay({ type: 'live-link', site })
@@ -2710,10 +4188,51 @@ function App() {
   const emptyCompose = () => ({
     mode: '',
     photo: '',
+    video: '',
     caption: '',
     shelf: '',
     feePlan: '',
+    note: '',
   })
+
+  const defaultAccountSite = (account) =>
+    makeWebsite({
+      name: String(account?.email || 'My company').split('@')[0] || 'My company',
+      type: 'Business',
+      systemType: '',
+      gallery: [],
+      slides: [],
+    })
+
+  const publishAccountSlide = (slide, extra = {}) => {
+    if (!signedInAccount) return false
+    let publishedId = ''
+    setAccounts((previous) =>
+      previous.map((account) => {
+        if (account.id !== signedInAccount.id) return account
+        const websites = account.websites?.length ? [...account.websites] : [defaultAccountSite(account)]
+        const currentId = activeProfileId || websites[0]?.id
+        const index = Math.max(
+          0,
+          websites.findIndex((site) => site.id === currentId),
+        )
+        const site = websites[index]
+        publishedId = site.id
+        const caption = slide.testimonial || ''
+        websites[index] = {
+          ...site,
+          ...extra,
+          slides: [slide, ...(site.slides || [])],
+          gallery: slide.photo || slide.video ? [slide.photo || slide.video, ...(site.gallery || [])] : site.gallery || [],
+          photoCaptions: slide.photo || slide.video ? [caption, ...(site.photoCaptions || [])] : site.photoCaptions || [],
+          testimonial: caption || site.testimonial,
+        }
+        return { ...account, websites }
+      }),
+    )
+    if (publishedId) setActiveProfileId(publishedId)
+    return true
+  }
 
   const openAddMedia = () => {
     setCompose(emptyCompose())
@@ -2732,51 +4251,81 @@ function App() {
     event.target.value = ''
     const mode = composeModeRef.current
     if (!file || !mode) return
-    const photo = await readFileAsDataUrl(file)
-    setCompose({ ...emptyCompose(), mode, photo })
-    setOverlay({ type: 'compose' })
-    pushPath('/profile/compose')
+    try {
+      const media = await readMediaFile(file)
+      setCompose({
+        ...emptyCompose(),
+        mode,
+        photo: media.kind === 'photo' ? media.src : '',
+        video: media.kind === 'video' ? media.src : '',
+      })
+      setOverlay({ type: 'compose' })
+      pushPath('/profile/compose')
+    } catch (error) {
+      setCompose({
+        ...emptyCompose(),
+        mode,
+        note: error?.message || 'Could not read that photo or video.',
+      })
+      setOverlay({ type: 'compose' })
+      pushPath('/profile/compose')
+    }
+  }
+
+  const composeSlide = () => {
+    const caption = compose.caption.trim()
+    if (compose.video) {
+      return {
+        video: compose.video,
+        photo: '',
+        testimonial: caption || 'Video from the company card.',
+        shelf: compose.shelf || '',
+        feePlan: compose.feePlan || '',
+      }
+    }
+    if (!compose.photo) return null
+    return {
+      photo: compose.photo,
+      testimonial: caption || 'Photo from the company card.',
+      shelf: compose.shelf || '',
+      feePlan: compose.feePlan || '',
+    }
   }
 
   const publishFeaturePost = () => {
-    if (!currentProfile || !compose.photo) return
-    const caption = compose.caption.trim()
-    updateCurrentWebsite({
-      gallery: [...(currentProfile.gallery || []), compose.photo],
-      photoCaptions: [...(currentProfile.photoCaptions || []), caption],
-      slides: [
-        ...(currentProfile.slides || []),
-        {
-          photo: compose.photo,
-          testimonial: caption,
-          shelf: compose.shelf || 'New companies',
-          feePlan: compose.feePlan || '',
-        },
-      ],
+    const slide = composeSlide()
+    if (!slide) return
+    publishAccountSlide({
+      ...slide,
+      shelf: compose.shelf || 'New companies',
     })
     setCompose(emptyCompose())
     setOverlay(null)
     setProfileTab('gallery')
+    setTab('profile')
     pushPath('/profile')
   }
 
   const submitCompose = (event) => {
     event.preventDefault()
-    if (!currentProfile || !compose.photo) return
+    const slide = composeSlide()
+    if (!slide) {
+      setCompose((previous) => ({
+        ...previous,
+        note: previous.note || 'Choose a photo or video from your gallery.',
+      }))
+      return
+    }
 
     if (compose.mode === 'gallery') {
-      const caption = compose.caption.trim()
-      updateCurrentWebsite({
-        gallery: [...(currentProfile.gallery || []), compose.photo],
-        photoCaptions: [...(currentProfile.photoCaptions || []), caption],
-        slides: [
-          ...(currentProfile.slides || []),
-          { photo: compose.photo, testimonial: caption || 'Gallery photo from the company card.' },
-        ],
+      publishAccountSlide({
+        ...slide,
+        testimonial: compose.caption.trim() || slide.testimonial,
       })
       setCompose(emptyCompose())
       setOverlay(null)
       setProfileTab('gallery')
+      setTab('profile')
       pushPath('/profile')
       return
     }
@@ -2897,6 +4446,14 @@ function App() {
       goLogin()
       return
     }
+    if (nextTab === 'calc') {
+      openCalc()
+      return
+    }
+    if (nextTab === 'buy') {
+      openBuyWebsite()
+      return
+    }
     if (!signedInAccount && (nextTab === 'profile' || nextTab === 'settings')) {
       if (pendingSignup && nextTab === 'settings') {
         setTab('settings')
@@ -2957,10 +4514,7 @@ function App() {
 
   const ownGalleryCompany = () => {
     if (!currentProfile) return null
-    const slides = (currentProfile.gallery || []).map((photo, index) => ({
-      photo,
-      testimonial: currentProfile.photoCaptions?.[index] || currentProfile.testimonial || '',
-    }))
+    const slides = gallerySlides(currentProfile)
     return {
       id: currentProfile.id,
       name: currentProfile.name || 'My account',
@@ -2998,12 +4552,12 @@ function App() {
     pushPath(`/mall/open/${encodeId(shop.id)}`)
   }
 
+  const openMallProduct = (product) => {
+    setOverlay({ type: 'product', company: product.shop, item: product })
+    pushPath(`/mall/item/${encodeId(product.shopId)}/${encodeId(product.id)}`)
+  }
+
   const viewCompanyProfile = (company) => {
-    if (!signedInAccount) {
-      setOverlay({ type: 'gate', company })
-      pushPath(`/${tab}/card/${encodeId(company.id)}/gate`)
-      return
-    }
     setOverlay({ type: 'profile', company, postIndex: null })
     pushPath(`/${tab}/card/${encodeId(company.id)}/profile`)
   }
@@ -3076,6 +4630,16 @@ function App() {
     setPaymentNote('')
     shopFlowRef.current = typeId === 'retail'
     setOverlay(null)
+    setMenuOpen(false)
+    if (typeId === 'fabrication') {
+      openCalc()
+      return
+    }
+    setTab('settings')
+    goSettingsView('preview')
+  }
+
+  const continuePreview = () => {
     if (pendingSignup) {
       goSettingsView('ecocash')
       return
@@ -3113,6 +4677,90 @@ function App() {
     const next = isRetailShop ? `/shop/${slug}` : `/site/${slug}`
     lastPathRef.current = next
     window.location.hash = next
+  }
+
+  const updateWebsite = (siteId, updates) => {
+    if (!signedInAccount || !siteId) return
+    setAccounts((previous) =>
+      previous.map((account) => {
+        if (account.id !== signedInAccount.id) return account
+        return {
+          ...account,
+          websites: account.websites.map((site) => (site.id === siteId ? { ...site, ...updates } : site)),
+        }
+      }),
+    )
+  }
+
+  const openPrivateSystem = (site) => {
+    if (!site) return
+    setOverlay(null)
+    if (site.systemType === 'retail' || site.isShop) {
+      setActiveProfileId(site.id)
+      setProfileTab('store')
+      setTab('profile')
+      setAppRoute({ kind: '', slug: '' })
+      pushPath('/profile')
+      return
+    }
+    openGeneratedSite(site)
+  }
+
+  const openBuyWebsite = () => {
+    setOverlay(null)
+    setMenuOpen(false)
+    if (!signedInAccount) {
+      goLogin()
+      return
+    }
+    openSettingsPage('system')
+  }
+
+  const handleDrawingFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const photo = await readFileAsDataUrl(file)
+    setDrawingDraft((previous) => ({ ...previous, photo }))
+  }
+
+  const openCalc = (site) => {
+    setOverlay(null)
+    setMenuOpen(false)
+    setDrawingDraft(emptyDrawingDraft())
+    if (site?.slug) {
+      setAppRoute({ kind: 'site', slug: site.slug })
+      lastPathRef.current = `/site/${site.slug}`
+      window.location.hash = `/site/${site.slug}`
+      return
+    }
+    setAppRoute({ kind: 'calc' })
+    lastPathRef.current = '/calc'
+    window.location.hash = '/calc'
+  }
+
+  const saveDrawing = (site) => {
+    const quote = fabQuote(drawingDraft, fabPricing)
+    if (!site?.id || !quote || !drawingDraft.complexity) return
+    const drawing = {
+      id: makeId('draw'),
+      photo: drawingDraft.photo,
+      name: drawingDraft.name.trim() || 'Gate',
+      gateType: drawingDraft.gateType,
+      gateId: drawingDraft.gateId || `${drawingDraft.gateType}-${drawingDraft.complexity}`,
+      complexity: drawingDraft.complexity,
+      construction: drawingDraft.construction,
+      width: Number(drawingDraft.width),
+      height: Number(drawingDraft.height),
+      qty: Number(drawingDraft.qty) || 1,
+      rate: quote.rate,
+      area: quote.area,
+      steelMeters: quote.steelMeters,
+      materials: quote.materials,
+      quote: quote.quote,
+    }
+    updateWebsite(site.id, { drawings: [drawing, ...(site.drawings || [])] })
+    setDrawingDraft(emptyDrawingDraft())
   }
 
   const updateShopWebsite = (updates) => {
@@ -3179,17 +4827,18 @@ function App() {
 
   const deleteOwnPhoto = (index) => {
     if (!currentProfile) return
-    const gallery = [...(currentProfile.gallery || [])]
-    const captions = [...(currentProfile.photoCaptions || [])]
-    const photo = gallery[index]
-    if (!photo) return
-    gallery.splice(index, 1)
-    captions.splice(index, 1)
+    const posts = gallerySlides(currentProfile)
+    const target = posts[index]
+    if (!target) return
+    const src = target.photo || target.video
     updateCurrentWebsite({
-      gallery,
-      photoCaptions: captions,
-      slides: (currentProfile.slides || []).filter((slide) => slide.photo !== photo),
-      profilePhoto: currentProfile.profilePhoto === photo ? gallery[0] || '' : currentProfile.profilePhoto,
+      slides: (currentProfile.slides || []).filter(
+        (slide, slideIndex) =>
+          slideIndex !== index && slide.photo !== src && slide.video !== src,
+      ),
+      gallery: (currentProfile.gallery || []).filter((item) => item !== src),
+      photoCaptions: (currentProfile.photoCaptions || []).filter((_, captionIndex) => captionIndex !== index),
+      profilePhoto: currentProfile.profilePhoto === src ? '' : currentProfile.profilePhoto,
     })
     setOverlay(null)
     pushPath('/profile')
@@ -3292,6 +4941,45 @@ function App() {
       : null
   const publishedShop = appRoute.kind === 'shop' ? shopBySlug(appRoute.slug, accounts) : null
 
+  const calcSite =
+    publishedSite?.systemType === 'fabrication'
+      ? publishedSite
+      : signedInAccount?.websites.find((item) => item.systemType === 'fabrication') || {
+          id: '',
+          name: 'Fabrication calculator',
+          drawings: [],
+        }
+
+  const openFabPay = (planId) => {
+    setSystemType('fabrication')
+    setFabPlan(planId || 'month')
+    setAppRoute({ kind: '', slug: '' })
+    setTab('settings')
+    goSettingsView('preview')
+  }
+
+  if (appRoute.kind === 'calc' || publishedSite?.systemType === 'fabrication') {
+    return (
+      <FabricationCalculator
+        site={calcSite}
+        draft={drawingDraft}
+        onChange={setDrawingDraft}
+        onSave={calcSite.id ? () => saveDrawing(calcSite) : undefined}
+        onRenew={openFabPay}
+        onBack={leavePublished}
+        pricing={fabPricing}
+        onSavePricing={(next) => {
+          setFabPricing(next)
+          try {
+            window.localStorage.setItem(PRICING_KEY, JSON.stringify(next))
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
+    )
+  }
+
   if (appRoute.kind === 'shop') {
     const shopOwner = accounts.find((account) =>
       account.websites.some((site) => site.slug === appRoute.slug && (site.systemType === 'retail' || site.isShop)),
@@ -3308,14 +4996,10 @@ function App() {
   }
 
   if (appRoute.kind === 'site') {
-    const siteOwner = accounts.find((account) =>
-      account.websites.some((site) => site.slug === appRoute.slug),
-    )
-    if (publishedSite?.systemType === 'manufacturing') {
+    if (publishedSite?.systemType === 'construction' || publishedSite?.systemType === 'manufacturing') {
       return (
-        <ShopStorefront
-          shop={publishedSite}
-          owner={siteOwner || null}
+        <CeoDashboard
+          site={publishedSite}
           onBack={() => {
             leavePublished()
           }}
@@ -3357,9 +5041,11 @@ function App() {
                     <MenuButton
                       key={item.id}
                       item={item}
-                      active={tab === item.id}
+                      active={item.id === 'calc' ? appRoute.kind === 'calc' : tab === item.id}
                       onSelect={goTab}
-                      className={`${tab === item.id ? 'menu-link active' : 'menu-link'}${item.id === 'logout' ? ' logout-link' : ''}`}
+                      className={`${
+                        (item.id === 'calc' ? appRoute.kind === 'calc' : tab === item.id) ? 'menu-link active' : 'menu-link'
+                      }${item.id === 'logout' ? ' logout-link' : ''}`}
                     />
                   ))}
                 </div>
@@ -3383,10 +5069,28 @@ function App() {
                 homeQuery.trim() ? <p className="empty-note">No testimonials match that search.</p> : null
               )}
               {homeGridCards.length > 0 ? (
-                <div className="home-grid" aria-label="Company cards">
-                  {homeGridCards.map((company) => (
-                    <HomeTile key={company.id} company={company} onOpen={openGallery} />
-                  ))}
+                <div className="home-grid" aria-label="Company reels and testimonials">
+                  {homeGridCards.flatMap((company, index) => {
+                    const tiles = [
+                      <HomeTile key={company.id} company={company} onOpen={openGallery} />,
+                    ]
+                    if ((index + 1) % 6 === 0) {
+                      const ad = HOME_ADS[Math.floor(index / 6) % HOME_ADS.length]
+                      tiles.push(
+                        <button
+                          key={ad.id + index}
+                          type="button"
+                          className="home-ad"
+                          onClick={() => (ad.id === 'ad-fab' ? openCalc() : openBuyWebsite())}
+                        >
+                          <span>{ad.kicker}</span>
+                          <strong>{ad.title}</strong>
+                          <small>{ad.copy}</small>
+                        </button>,
+                      )
+                    }
+                    return tiles
+                  })}
                 </div>
               ) : null}
             </div>
@@ -3396,8 +5100,7 @@ function App() {
             <section className="panel-box settings-page">
               <form className="create-account-form" onSubmit={handleLogin}>
                 <h3>Login</h3>
-                <p className="phase-banner">{PHASE1_LOGIN_NOTE}</p>
-                <p className="shop-copy">Only one Fortress account is accepted. Other logins are locked.</p>
+                <p className="shop-copy">Enter your account email and password.</p>
                 <input
                   type="email"
                   placeholder="Email"
@@ -3501,7 +5204,6 @@ function App() {
                     hidden
                     onChange={handleAvatarSelect}
                   />
-                  <input ref={composeInputRef} type="file" accept="image/*" hidden onChange={handleComposeFile} />
                 </div>
 
                 <div className="profile-copy">
@@ -3510,16 +5212,21 @@ function App() {
                 </div>
               </div>
 
-              {currentProfile?.slug ? (
-                <button
-                  type="button"
-                  className="profile-live-link"
-                  onClick={() => openGeneratedSite(currentProfile)}
-                >
-                  {displayLivePath(currentProfile)}
-                </button>
+              {privateSystems.length ? (
+                privateSystems.map((site, index) => (
+                  <button
+                    key={site.id}
+                    type="button"
+                    className="profile-live-link"
+                    onClick={() => openPrivateSystem(site)}
+                  >
+                    {index + 1}) {liveDomain(site)}
+                  </button>
+                ))
               ) : (
-                <p className="profile-live-link muted">Live website appears here after it is created.</p>
+                <p className="profile-live-link muted">
+                  Your private system link appears here after you buy a website. Other people cannot see it.
+                </p>
               )}
 
               {currentProfile && signedInAccount.websites.length > 1 && (
@@ -3538,7 +5245,7 @@ function App() {
                 </div>
               )}
 
-              <div className="ig-tabs" role="tablist" aria-label="Profile sections">
+              <div className={`ig-tabs${privateSystems.length ? ' has-dash' : ''}`} role="tablist" aria-label="Profile sections">
                 <button
                   type="button"
                   role="tab"
@@ -3562,10 +5269,10 @@ function App() {
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={profileTab === 'company'}
-                  className={profileTab === 'company' ? 'ig-tab active' : 'ig-tab'}
-                  onClick={() => setProfileTab('company')}
-                  aria-label="Company"
+                  aria-selected={profileTab === 'dash'}
+                  className={profileTab === 'dash' ? 'ig-tab active' : 'ig-tab'}
+                  onClick={() => setProfileTab('dash')}
+                  aria-label="CEO dashboards"
                 >
                   <IconCompanyTab />
                 </button>
@@ -3573,15 +5280,20 @@ function App() {
 
               {profileTab === 'gallery' && (
                 <div className="gallery-grid">
-                  {(currentProfile?.gallery || []).length ? (
-                    (currentProfile.gallery || []).map((image, index) => (
-                      <div className="gallery-tile-wrap" key={`${image.slice(0, 24)}-${index}`}>
+                  {gallerySlides(currentProfile).length ? (
+                    gallerySlides(currentProfile).map((slide, index) => (
+                      <div className="gallery-tile-wrap" key={`${slide.video || slide.photo || 'post'}-${index}`}>
                         <button
                           type="button"
-                          className="gallery-tile"
+                          className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
                           onClick={() => openOwnGalleryPost(index)}
                         >
-                          <img src={image} alt={currentProfile.photoCaptions?.[index] || `Gallery ${index + 1}`} />
+                          {slide.video ? (
+                            <video src={slide.video} muted playsInline preload="metadata" />
+                          ) : (
+                            <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
+                          )}
+                          {slide.video ? <span className="reel-mark">Reel</span> : null}
                         </button>
                         <button
                           type="button"
@@ -3593,7 +5305,7 @@ function App() {
                       </div>
                     ))
                   ) : (
-                    <p className="empty-note gallery-empty">Tap + to add a photo to gallery.</p>
+                    <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
                   )}
                 </div>
               )}
@@ -3661,16 +5373,62 @@ function App() {
                 </div>
               )}
 
-              {profileTab === 'company' && (
+              {profileTab === 'dash' && (
                 <div className="profile-tab-panel">
-                  {currentProfile?.link ? (
-                    <a className="website-link" href={currentProfile.link}>
-                      <strong>{currentProfile.name}</strong>
-                      <span>{currentProfile.link}</span>
-                    </a>
+                  {dashSite ? (
+                    <>
+                      <div className="dash-switch">
+                        <button
+                          type="button"
+                          className="card-arrow left"
+                          aria-label="Previous company dashboard"
+                          disabled={!canSwitchDash && privateSystems.length < 2}
+                          onClick={() =>
+                            setDashCursor((current) => (current - 1 + privateSystems.length) % privateSystems.length)
+                          }
+                        >
+                          ‹
+                        </button>
+                        <div>
+                          <strong>{dashSite.name}</strong>
+                          <p>{dashSite.systemType}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="card-arrow right"
+                          aria-label="Next company dashboard"
+                          disabled={!canSwitchDash && privateSystems.length < 2}
+                          onClick={() => setDashCursor((current) => (current + 1) % privateSystems.length)}
+                        >
+                          ›
+                        </button>
+                      </div>
+                      {dashSite.systemType === 'fabrication' ? (
+                        <div className="ceo-embedded">
+                          <p className="shop-copy">
+                            The fabrication calculator is its own webpage. Choose a gate, enter size, and quote it there.
+                          </p>
+                          <button type="button" className="primary-button" onClick={() => openCalc(dashSite)}>
+                            Open calculator
+                          </button>
+                        </div>
+                      ) : dashSite.systemType === 'retail' ? (
+                        <div className="ceo-embedded">
+                          <p className="shop-copy">
+                            Shop control stays inside Fortress. Items you price here show on the online mall.
+                          </p>
+                          <button type="button" className="primary-button" onClick={() => setProfileTab('store')}>
+                            Open shop control
+                          </button>
+                        </div>
+                      ) : (
+                        <CeoDashboard site={dashSite} embedded />
+                      )}
+                    </>
                   ) : (
-                    <p className="empty-note">Create a website to open the company page.</p>
+                    <p className="empty-note">Buy a website to open the CEO dashboard.</p>
                   )}
+                  <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
                 </div>
               )}
             </section>
@@ -3704,6 +5462,9 @@ function App() {
                 </div>
               )}
               <p className="shop-copy">Manage the account that runs your Fortress website.</p>
+              <button type="button" className="buy-website-btn" onClick={() => goSettingsView('system')}>
+                Buy website
+              </button>
               <button type="button" className="primary-button" onClick={() => goSettingsView('manage')}>
                 Manage accounts
               </button>
@@ -3924,9 +5685,7 @@ function App() {
                         onClick={() => continueFromSystem(type.id)}
                       >
                         {type.label}
-                        {type.id === 'retail' ? <small>Shop in the online mall</small> : null}
-                        {type.id === 'construction' ? <small>Rodcroft-style website</small> : null}
-                        {type.id === 'manufacturing' ? <small>Prixburg-style website</small> : null}
+                        <small>{type.style}</small>
                       </button>
                     ))}
                   </div>
@@ -3936,18 +5695,24 @@ function App() {
                 </>
               ) : (
                 <>
-                  <h3>Account ready</h3>
-                  <p className="shop-copy">Your account is signed in. Buy a Fortress system to generate the website.</p>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => {
-                      if (shopFlowRef.current) setSystemType('retail')
-                      goSettingsView('system')
-                    }}
-                  >
-                    Buy Fortress system
-                  </button>
+                  <h3>Buy a website</h3>
+                  <p className="shop-copy">
+                    Choose construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
+                    Swipe the pictures to see how that website solves problems at that kind of company.
+                  </p>
+                  <div className="settings-actions">
+                    {SYSTEM_TYPES.map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        className={systemType === type.id ? 'system-choice active' : 'system-choice'}
+                        onClick={() => continueFromSystem(type.id)}
+                      >
+                        {type.label}
+                        <small>{type.style}</small>
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
             </section>
@@ -3955,11 +5720,17 @@ function App() {
 
           {tab === 'settings' && settingsView === 'system' && (
             <section className="panel-box settings-page">
-              <button type="button" className="text-back" onClick={() => goSettingsView('buy')}>
+              <button
+                type="button"
+                className="text-back"
+                onClick={() => goSettingsView(pendingSignup ? 'buy' : 'home')}
+              >
                 Back
               </button>
-              <h3>Choose a system</h3>
-              <p className="shop-copy">Construction, manufacturing, or retail. Retail is selected for a shop account.</p>
+              <h3>Buy a website</h3>
+              <p className="shop-copy">
+                Choose a type, then swipe the pictures. Each picture explains how that website solves problems at that kind of company.
+              </p>
               <div className="settings-actions">
                 {SYSTEM_TYPES.map((type) => (
                   <button
@@ -3969,7 +5740,7 @@ function App() {
                     onClick={() => continueFromSystem(type.id)}
                   >
                     {type.label}
-                    {type.id === 'retail' ? <small>Default for shops</small> : null}
+                    <small>{type.style}</small>
                   </button>
                 ))}
               </div>
@@ -4003,6 +5774,35 @@ function App() {
                   Create a new account
                 </button>
               </div>
+            </section>
+          )}
+
+          {tab === 'settings' && settingsView === 'preview' && chosenSystem && (
+            <section className="panel-box settings-page">
+              <button type="button" className="text-back" onClick={() => goSettingsView('system')}>
+                Back
+              </button>
+              <h3>{chosenSystem.label}</h3>
+              <p className="eyebrow">{chosenSystem.style}</p>
+              <SystemExplainCards system={chosenSystem} />
+              {chosenSystem.id === 'fabrication' && (
+                <div className="settings-actions">
+                  {FAB_PLANS.map((plan) => (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      className={fabPlan === plan.id ? 'system-choice active' : 'system-choice'}
+                      onClick={() => setFabPlan(plan.id)}
+                    >
+                      {plan.label}
+                      <small>{formatPrice(plan.price)}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button type="button" className="primary-button" onClick={continuePreview}>
+                Continue to EcoCash
+              </button>
             </section>
           )}
 
@@ -4042,7 +5842,13 @@ function App() {
                   <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
                 ) : null}
                 <p className="ecocash-kicker">EcoCash</p>
-                <h3>{chosenSystem ? `${chosenSystem.label} system` : 'Fortress system'}</h3>
+                <h3>{chosenSystem ? chosenSystem.label : 'Fortress system'}</h3>
+                {systemType === 'fabrication' ? (
+                  <p className="shop-copy">
+                    {formatPrice((FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[1]).price)} ·{' '}
+                    {(FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[1]).label}
+                  </p>
+                ) : null}
                 <label>
                   EcoCash number
                   <input
@@ -4091,7 +5897,11 @@ function App() {
               <form className="create-account-form" onSubmit={createGeneratedWebsite}>
                 <h3>Tailor making details</h3>
                 <label>
-                  {systemType === 'retail' || shopFlowRef.current ? 'Name of shop' : 'Name of website'}
+                  {systemType === 'fabrication'
+                    ? 'Name on the calculator'
+                    : systemType === 'retail' || shopFlowRef.current
+                      ? 'Name of shop'
+                      : 'Name of website'}
                   <input
                     type="text"
                     placeholder={
@@ -4105,7 +5915,11 @@ function App() {
                   />
                 </label>
                 <button type="submit" className="primary-button">
-                  {systemType === 'retail' || shopFlowRef.current ? 'Create shop' : 'Create website'}
+                  {systemType === 'fabrication'
+                    ? 'Open calculator'
+                    : systemType === 'retail' || shopFlowRef.current
+                      ? 'Create shop'
+                      : 'Create website'}
                 </button>
               </form>
             </section>
@@ -4118,30 +5932,37 @@ function App() {
                 <input
                   type="search"
                   value={mallQuery}
-                  placeholder="Search a shop"
+                  placeholder="Search a product"
                   onChange={(event) => setMallQuery(event.target.value)}
                 />
               </form>
-              <div className="mall-list">
-                {mallShops.map((shop) => (
-                  <button key={shop.id} type="button" className="mall-item" onClick={() => openMallShop(shop)}>
-                    {shop.cover ? (
-                      <img src={shop.cover} alt="" />
+              <div className="mall-product-grid">
+                {mallProducts.map((product) => (
+                  <button
+                    key={`${product.shopId}-${product.id}`}
+                    type="button"
+                    className="mall-product-card"
+                    onClick={() => openMallProduct(product)}
+                  >
+                    {product.photo ? (
+                      <img src={product.photo} alt="" />
                     ) : (
-                      <span className="mall-item-fallback">{shop.name.slice(0, 1)}</span>
+                      <span className="mall-item-fallback">{product.name.slice(0, 1)}</span>
                     )}
-                    <span>
-                      {shop.name}
-                      <small>{shop.category}</small>
-                    </span>
+                    <div className="mall-product-copy">
+                      <strong>{product.name}</strong>
+                      <span>{formatPrice(product.price)}</span>
+                      <small>{product.shopName}</small>
+                      {product.description ? <p>{product.description}</p> : null}
+                    </div>
                   </button>
                 ))}
               </div>
-              {!mallShops.length && (
+              {!mallProducts.length && (
                 <p className="empty-note">
                   {mallQuery.trim()
-                    ? 'No shops match that search.'
-                    : 'Shops appear here after you create a shop in profile or settings.'}
+                    ? 'No products match that search.'
+                    : 'Products appear here from shops on Fortress.'}
                 </p>
               )}
               <button type="button" className="primary-button" onClick={startShopAccount}>
@@ -4163,13 +5984,24 @@ function App() {
           />
         )}
 
+        {overlay?.type === 'product' && overlay.item && (
+          <MallProductSheet
+            product={overlay.item}
+            onClose={closeOverlay}
+            comments={comments}
+            onAddComment={addComment}
+            onReplyComment={replyToComment}
+            viewer={signedInAccount}
+            onNeedAccount={needAccountForComment}
+          />
+        )}
+
         {overlay?.type === 'gallery' && overlayCompany && (
           <OpenedCard
             company={overlayCompany}
             startIndex={overlay.postIndex || 0}
             onClose={closeOverlay}
             onViewProfile={() => viewCompanyProfile(overlayCompany)}
-            onBuySystem={() => startBuySystem(overlayCompany)}
             comments={comments}
             onAddComment={addComment}
             onReplyComment={replyToComment}
@@ -4181,10 +6013,14 @@ function App() {
         {overlay?.type === 'profile' && overlayCompany && (
           <PublicCompanyProfile
             company={overlayCompany}
+            comments={comments}
             onClose={closeOverlay}
             onOpenPost={(index) => openCompanyPost(overlayCompany, index)}
             onOpenPhoto={() => openCompanyPost(overlayCompany, 'avatar')}
-            onOpenLive={openGeneratedSite}
+            viewer={signedInAccount}
+            onAddComment={addComment}
+            onReplyComment={replyToComment}
+            onNeedAccount={needAccountForComment}
           />
         )}
 
@@ -4269,7 +6105,7 @@ function App() {
             <div className="lock-card buy-system-card">
               <h2>Buy a Fortress system</h2>
               <p className="shop-copy">
-                Choose construction, manufacturing, or retail. Your account is created only after this purchase.
+                Construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
               </p>
               <div className="settings-actions">
                 {SYSTEM_TYPES.map((type) => (
@@ -4280,9 +6116,7 @@ function App() {
                     onClick={() => continueFromSystem(type.id)}
                   >
                     {type.label}
-                    {type.id === 'retail' ? <small>Shop in the online mall</small> : null}
-                    {type.id === 'construction' ? <small>Rodcroft-style website</small> : null}
-                    {type.id === 'manufacturing' ? <small>Prixburg-style website</small> : null}
+                    <small>{type.style}</small>
                   </button>
                 ))}
               </div>
@@ -4305,13 +6139,13 @@ function App() {
             <div className="lock-card live-link-card">
               <h2>Your system is live</h2>
               <p className="shop-copy">Fortress generated this website from the tailor-made name.</p>
-              <p className="live-link-url">{displayLivePath(overlay.site || currentProfile)}</p>
+              <p className="live-link-url">{liveDomain(overlay.site || currentProfile)}</p>
               <button
                 type="button"
                 className="primary-button"
-                onClick={() => openGeneratedSite(overlay.site || currentProfile)}
+                onClick={() => openPrivateSystem(overlay.site || currentProfile)}
               >
-                Open website
+                Open
               </button>
             </div>
           </section>
@@ -4358,11 +6192,11 @@ function App() {
               <h2>Add media</h2>
               <button type="button" className="add-media-option" onClick={() => pickComposeFile('gallery')}>
                 <strong>Gallery upload</strong>
-                <span>The photo from gallery or file goes to the profile gallery in Fortress.</span>
+                <span>Pick a photo or video from your phone. It goes on your Fortress gallery and this company’s home card.</span>
               </button>
               <button type="button" className="add-media-option" onClick={() => pickComposeFile('feature')}>
                 <strong>Feature post</strong>
-                <span>Photo goes to the home screen company card.</span>
+                <span>The same photo or video posts to your gallery and as a new picture on the home-page company card.</span>
               </button>
             </div>
           </section>
@@ -4443,7 +6277,12 @@ function App() {
             </button>
             <form className="add-media-card" onSubmit={submitCompose}>
               <h2>{compose.mode === 'feature' ? 'Feature post' : 'Gallery upload'}</h2>
-              {compose.photo && <img className="compose-preview" src={compose.photo} alt="" />}
+              {compose.video ? (
+                <video className="compose-preview" src={compose.video} controls playsInline />
+              ) : compose.photo ? (
+                <img className="compose-preview" src={compose.photo} alt="" />
+              ) : null}
+              {compose.note ? <p className="form-error">{compose.note}</p> : null}
               <label>
                 Testimonial
                 <textarea
@@ -4513,8 +6352,9 @@ function App() {
                 type="submit"
                 className="primary-button"
                 disabled={
-                  compose.mode === 'feature' &&
-                  (!compose.shelf || (compose.shelf === 'Best selling' && !compose.feePlan))
+                  (!compose.photo && !compose.video) ||
+                  (compose.mode === 'feature' &&
+                    (!compose.shelf || (compose.shelf === 'Best selling' && !compose.feePlan)))
                 }
               >
                 {compose.mode === 'feature' && compose.shelf === 'Best selling' ? 'Pay with EcoCash' : 'Post'}
@@ -4536,6 +6376,13 @@ function App() {
 
         {tab === 'profile' && signedInAccount && (
           <>
+            <input
+              ref={composeInputRef}
+              type="file"
+              accept="image/*,video/*,.mp4,.mov,.webm,.m4v"
+              className="file-input-hidden"
+              onChange={handleComposeFile}
+            />
             <input
               ref={shopItemInputRef}
               type="file"
