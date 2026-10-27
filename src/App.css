@@ -2810,7 +2810,7 @@
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 44px auto 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 10px 14px;
@@ -2819,9 +2819,68 @@
   border-bottom: 1px solid rgba(28, 25, 21, 0.08);
 }
 
+.history-nav {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.history-nav-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(28, 25, 21, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1915;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.history-nav-btn:hover,
+.history-nav-btn:focus-visible {
+  border-color: #1c1915;
+}
+
+.title-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .fab-app-bar .eyebrow,
 .fab-app-bar strong {
   margin: 0;
+}
+
+.fab-offline-banner,
+.app-offline-banner {
+  margin: 0;
+  padding: 10px 14px;
+  background: #1c1915;
+  color: #f4efe8;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.app-offline-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.app-offline-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.app-offline-banner .text-back {
+  color: #f4efe8;
+  flex: none;
+  border-color: rgba(244, 239, 232, 0.35);
 }
 
 .fab-menu-btn {
@@ -3104,5 +3163,459 @@
 @media (min-width: 700px) {
   .fab-gate-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.fab-hero-btn {
+  width: 100%;
+  min-height: 72px;
+  border: 0;
+  border-radius: 18px;
+  background: #1c1915;
+  color: #fffdfb;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 22px 16px;
+}
+
+.fab-next-btn,
+.fab-go-btn,
+.fab-wa-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  font-weight: 800;
+  padding: 16px 18px;
+}
+
+.fab-next-btn {
+  background: #1c1915;
+  color: #fffdfb;
+}
+
+.fab-next-btn.fab-btn-outline {
+  background: #fff;
+  color: #1c1915;
+  border: 2px solid rgba(28, 25, 21, 0.16);
+}
+
+.fab-go-btn,
+.fab-wa-btn {
+  background: #16a34a;
+  color: #fff;
+  font-size: 1.05rem;
+  min-height: 58px;
+}
+
+.fab-note {
+  margin: 4px 0 16px;
+  color: #6b645c;
+  font-size: 0.82rem;
+}
+
+.fab-recent {
+  display: grid;
+  gap: 8px;
+}
+
+.fab-recent button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px 16px;
+  color: inherit;
+}
+
+.fab-recent small {
+  grid-column: 1;
+  color: #6b645c;
+}
+
+.fab-recent span {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-weight: 800;
+}
+
+.fab-choice-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.fab-type-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  border: 2px solid rgba(28, 25, 21, 0.08);
+  border-radius: 18px;
+  background: #fff;
+  padding: 14px;
+  color: inherit;
+}
+
+.fab-type-card.active {
+  border-color: #1c1915;
+}
+
+.fab-type-card span {
+  display: grid;
+  gap: 2px;
+}
+
+.fab-type-card small {
+  color: #6b645c;
+  font-weight: 600;
+}
+
+.fab-card-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  fill: none;
+  stroke: #1c1915;
+  stroke-width: 2;
+}
+
+.fab-design-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.fab-design-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  border: 2px solid rgba(28, 25, 21, 0.08);
+  border-radius: 18px;
+  background: #fff;
+  padding: 8px 8px 14px;
+  color: inherit;
+  overflow: hidden;
+}
+
+.fab-design-card.active {
+  border-color: #16a34a;
+}
+
+.fab-design-art {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  background: #ece7df;
+}
+
+.fab-design-card small {
+  padding: 0 6px;
+  color: #6b645c;
+  font-weight: 600;
+}
+
+.fab-design-card strong {
+  padding: 0 6px;
+}
+
+.fab-result-blue {
+  background: #dbeafe;
+  color: #1e3a8a;
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-weight: 800;
+  margin-bottom: 14px;
+}
+
+.fab-materials {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.fab-materials h2 {
+  margin: 0 0 4px;
+}
+
+.fab-materials ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.fab-materials li label {
+  display: grid;
+  gap: 6px;
+  font-weight: 800;
+}
+
+.fab-materials input {
+  width: 100%;
+  border: 1px solid rgba(28, 25, 21, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+}
+
+.fab-materials small {
+  color: #6b645c;
+}
+
+.fab-hardware-line {
+  font-weight: 700;
+  padding-top: 4px;
+}
+
+.fab-result-green {
+  background: #dcfce7;
+  color: #14532d;
+  border-radius: 18px;
+  padding: 20px 18px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.fab-result-green p {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #14532d;
+}
+
+.fab-result-green small {
+  color: #166534;
+}
+
+.fab-result-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.fab-result-blue small {
+  display: block;
+  margin-top: 4px;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.fab-cost-list {
+  display: grid;
+  gap: 10px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.fab-cost-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.95rem;
+}
+
+.fab-cost-total {
+  padding-top: 10px;
+  border-top: 1px solid rgba(28, 25, 21, 0.12);
+  font-weight: 800;
+}
+
+.fab-section .fab-field:first-of-type {
+  margin-top: 0;
+}
+
+.fab-vision-box {
+  background: #fff;
+  border: 2px solid #1c1915;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 22px;
+  display: grid;
+  gap: 4px;
+}
+
+.fab-vision-box h2 {
+  margin: 0 0 4px;
+}
+
+.fab-master-card {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.fab-master-card small,
+.fab-master-card span {
+  color: #6b645c;
+  font-size: 0.82rem;
+}
+
+.fab-master-card p {
+  margin: 4px 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.fab-size-row select,
+.fab-field select {
+  width: 100%;
+  border: 1px solid rgba(28, 25, 21, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  background: #fff;
+}
+
+.fab-drawing-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin: 0;
+  display: block;
+}
+
+.fab-drawing-attach {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+
+.fab-drawing-preview-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.fab-drawing-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.fab-pdf-chip {
+  display: grid;
+  gap: 2px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.fab-pdf-chip span {
+  color: #6b645c;
+  font-size: 0.82rem;
+}
+
+.fab-remember-note {
+  color: #166534 !important;
+  font-weight: 700;
+}
+
+.fab-viewer-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(28, 25, 21, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.fab-viewer {
+  width: min(920px, 100%);
+  max-height: min(90vh, 900px);
+  background: #fffdfb;
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+}
+
+.fab-viewer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.fab-viewer-image {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #ece7df;
+}
+
+.fab-viewer-frame {
+  width: 100%;
+  min-height: 65vh;
+  border: 0;
+  border-radius: 12px;
+  background: #ece7df;
+}
+
+.fab-mini-preview {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.fab-mini-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fab-schedule {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.fab-schedule-row {
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.fab-schedule-row strong {
+  font-size: 0.92rem;
+}
+
+.fab-line-detail {
+  display: block;
+  color: #6b645c;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+@media (min-width: 700px) {
+  .fab-design-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
