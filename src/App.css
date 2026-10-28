@@ -1291,21 +1291,45 @@
 .gallery-tile-wrap {
   position: relative;
   min-width: 0;
+  display: grid;
+  gap: 8px;
 }
 
 .tile-delete {
-  position: absolute;
-  left: 4px;
-  bottom: 4px;
-  z-index: 2;
+  justify-self: start;
   border: 0;
   border-radius: 999px;
-  background: rgba(28, 25, 21, 0.78);
+  background: #9f2d2d;
   color: #fff;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  padding: 4px 8px;
+  padding: 6px 10px;
   cursor: pointer;
+}
+
+.tile-caption-edit,
+.card-caption-edit {
+  display: grid;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #463f39;
+}
+
+.tile-caption-edit textarea,
+.card-caption-edit textarea {
+  width: 100%;
+  border: 1px solid rgba(28, 25, 21, 0.12);
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 500;
+  resize: vertical;
+}
+
+.card-caption-edit {
+  margin-top: 8px;
 }
 
 .card-delete {

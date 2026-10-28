@@ -50,7 +50,7 @@ const shot = (id) =>
 const pexel = (id) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1400`
 
-const COMMENTS_KEY = 'fortress-comments-v4'
+const COMMENTS_KEY = 'fortress-comments-v5'
 const VIDEO_SECONDS = 10
 
 const REEL = {
@@ -531,22 +531,16 @@ const seedNote = (id, author, text, replies = []) => ({
 
 const DEMO_COMMENTS = {
   'photo:prixburg:0': [
-    seedNote('pb0a', 'Tawanda Chitukutuku, CEO', 'Ndatenda. Floor and office finally share one site. Zvinhu zviri kufamba.'),
     seedNote('pb0b', 'Nyasha Mutasa, CEO', 'Same for our mill. Ndinoona the run without walking the bay.'),
-  ],
-  'photo:prixburg:3': [
-    seedNote('pb3a', 'Tawanda Chitukutuku, CEO', 'Dishwasher and softener sales sit pano. Makorokoto to the mixing team.'),
   ],
   'photo:apex:0': [
     seedNote('ap0a', 'Nyasha Mutasa, CEO', 'Ndatenda. Heat numbers live pano now, not on clipboards.'),
-    seedNote('ap0b', 'Tawanda Chitukutuku, CEO', 'Makorokoto. Same habit as Prixburg — ndinoona the mill from the phone.'),
   ],
   'photo:apex:1': [
     seedNote('ap1a', 'Nyasha Mutasa, CEO', 'Storeroom steel is on the website. Zvakanaka — shortages show before the bay runs dry.'),
   ],
   'photo:ridgeline:0': [
     seedNote('rg0a', 'Tawanda Ncube, CEO', 'I’m the CEO of it Wasu Contractors. Ndatenda — claims sit pano instead of in the trailer.'),
-    seedNote('rg0b', 'Patrick Mbizvo, CEO', 'Makorokoto. Rodcroft and Wasu now run the same basa from the phone.'),
   ],
   'photo:ridgeline:1': [
     seedNote('rg1a', 'Tawanda Ncube, CEO', 'More sites, more tenders. Zvinhu zviri kufamba at it Wasu Contractors.'),
@@ -560,7 +554,6 @@ const DEMO_COMMENTS = {
   ],
   'photo:ridgeline:4': [
     seedNote('rg4a', 'Tawanda Ncube, CEO', 'Ndinoona every deck from the phone. Handichafona the trailer.'),
-    seedNote('rg4b', 'Patrick Mbizvo, CEO', 'Tinotenda. Same picture we wanted at Rodcroft.'),
   ],
   'photo:ironleaf:0': [
     seedNote('il0a', 'Chiedza Dube, CEO', 'Engineers post the run pano. Ndatenda — clipboards are done.'),
@@ -576,7 +569,6 @@ const DEMO_COMMENTS = {
   ],
   'photo:fieldnote:0': [
     seedNote('fn0a', 'Tatenda Chirwa, CEO', 'From day one the phone is the trailer. Zvakanaka.'),
-    seedNote('fn0b', 'Patrick Mbizvo, CEO', 'Makorokoto. Start like this and the basa stays clean.'),
   ],
   'item:mall-apex:apex-plate': [
     seedNote('itap', 'Nyasha Mutasa, CEO', 'This plate pack is what left the rack nhasi. Ndatenda.'),
@@ -589,12 +581,45 @@ const DEMO_COMMENTS = {
   ],
 }
 
+const BLOCKED_COMMENT_AUTHORS = ['patrick mbizvo', 'tawanda chitukutuku']
+
+const isBlockedCommentAuthor = (author) => {
+  const name = String(author || '')
+    .toLowerCase()
+    .replace(/,?\s*ceo\s*$/i, '')
+    .trim()
+  return BLOCKED_COMMENT_AUTHORS.some((blocked) => name.includes(blocked))
+}
+
+const stripBlockedComments = (thread) =>
+  (Array.isArray(thread) ? thread : [])
+    .filter((note) => !isBlockedCommentAuthor(note?.author))
+    .map((note) => ({
+      ...note,
+      replies: (note.replies || []).filter((reply) => !isBlockedCommentAuthor(reply?.author)),
+    }))
+
 const withDemoComments = (saved) => {
-  const next = { ...DEMO_COMMENTS }
+  const next = {}
+  Object.entries(DEMO_COMMENTS).forEach(([key, thread]) => {
+    const cleaned = stripBlockedComments(thread)
+    if (cleaned.length) next[key] = cleaned
+  })
   Object.entries(saved || {}).forEach(([key, thread]) => {
-    if (Array.isArray(thread) && thread.length) next[key] = thread
+    if (!Array.isArray(thread) || !thread.length) return
+    const cleaned = stripBlockedComments(thread)
+    if (cleaned.length) next[key] = cleaned
+    else if (Object.prototype.hasOwnProperty.call(DEMO_COMMENTS, key)) return
+    else next[key] = []
   })
   return next
+}
+
+const confirmDeleteTwice = (itemLabel = 'this item') => {
+  if (typeof window === 'undefined') return false
+  const first = window.confirm(`Delete ${itemLabel}?`)
+  if (!first) return false
+  return window.confirm(`Please confirm again. Delete ${itemLabel} permanently?`)
 }
 
 const formatPrice = (price) =>
@@ -2306,6 +2331,8 @@ function OpenedCard({
   onNeedAccount,
   canDelete,
   onDelete,
+  canEditCaption,
+  onCaptionChange,
 }) {
   const slides = company.slides || []
   const count = slides.length
@@ -2424,7 +2451,17 @@ function OpenedCard({
           <p className="opened-count">
             {count ? `${active + 1} / ${count}` : '0 / 0'}
           </p>
-          {slide?.testimonial ? (
+          {canEditCaption && onCaptionChange ? (
+            <label className="card-caption-edit">
+              Testimonial caption
+              <textarea
+                rows="3"
+                value={slide?.testimonial || ''}
+                placeholder="Write the testimonial caption for this picture"
+                onChange={(event) => onCaptionChange(active, event.target.value)}
+              />
+            </label>
+          ) : slide?.testimonial ? (
             <p className="detail-quote card-caption">{slide.testimonial}</p>
           ) : (
             <p className="empty-note">No photos yet.</p>
@@ -5483,6 +5520,7 @@ function App() {
 
   const deleteSignedInAccount = () => {
     if (!signedInAccount) return
+    if (!confirmDeleteTwice(`${signedInAccount.email} and the websites on this account`)) return
     const removedId = signedInAccount.id
     setAccounts((previous) => previous.filter((account) => account.id !== removedId))
     setSignedInId('')
@@ -6130,6 +6168,7 @@ function App() {
     const posts = gallerySlides(currentProfile)
     const target = posts[index]
     if (!target) return
+    if (!confirmDeleteTwice('this picture')) return
     const src = target.photo || target.video
     updateCurrentWebsite({
       slides: (currentProfile.slides || []).filter(
@@ -6142,6 +6181,28 @@ function App() {
     })
     setOverlay(null)
     pushPath('/profile')
+  }
+
+  const updateOwnSlideCaption = (index, caption) => {
+    if (!currentProfile) return
+    const posts = gallerySlides(currentProfile)
+    const target = posts[index]
+    if (!target) return
+    const src = target.photo || target.video || ''
+    const baseSlides = currentProfile.slides?.length ? currentProfile.slides : posts
+    const nextSlides = baseSlides.map((slide, slideIndex) => {
+      const sameIndex = slideIndex === index
+      const sameSrc = src && (slide.photo === src || slide.video === src)
+      if (!sameIndex && !sameSrc) return slide
+      return { ...slide, testimonial: caption }
+    })
+    const nextCaptions = [...(currentProfile.photoCaptions || [])]
+    while (nextCaptions.length < posts.length) nextCaptions.push('')
+    nextCaptions[index] = caption
+    updateCurrentWebsite({
+      slides: nextSlides,
+      photoCaptions: nextCaptions,
+    })
   }
 
   const openAddShopItem = () => {
@@ -6660,6 +6721,15 @@ function App() {
                             )}
                             {slide.video ? <span className="reel-mark">Reel</span> : null}
                           </button>
+                          <label className="tile-caption-edit">
+                            Testimonial caption
+                            <textarea
+                              rows="2"
+                              value={slide.testimonial || ''}
+                              placeholder="Write the caption for this picture"
+                              onChange={(event) => updateOwnSlideCaption(index, event.target.value)}
+                            />
+                          </label>
                           <button
                             type="button"
                             className="tile-delete"
@@ -7423,6 +7493,8 @@ function App() {
             onNeedAccount={needAccountForComment}
             canDelete={overlay.type === 'own-post'}
             onDelete={deleteOwnPhoto}
+            canEditCaption={overlay.type === 'own-post'}
+            onCaptionChange={updateOwnSlideCaption}
           />
         )}
 
