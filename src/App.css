@@ -724,19 +724,6 @@
   grid-template-columns: 1fr;
 }
 
-.shelf-label {
-  margin: 18px 4px 8px;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #6b645c;
-}
-
-.general-feed {
-  margin-top: 8px;
-}
-
 .compose-preview {
   width: 100%;
   max-height: 220px;

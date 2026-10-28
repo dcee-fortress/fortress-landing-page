@@ -5310,10 +5310,6 @@ function App() {
     ...featureCards.filter((company) => company.shelf === 'Best selling'),
   ].filter((company) => companyMatchesQuery(company, homeQuery))
 
-  const generalFeed = featureCards
-    .filter((company) => company.shelf === 'General' || company.shelf === 'New companies' || company.shelf === 'Trending')
-    .filter((company) => companyMatchesQuery(company, homeQuery))
-
   const homeGridCards = useMemo(() => {
     const extras = builtCards.filter(
       (company) =>
@@ -6549,12 +6545,6 @@ function App() {
               {bestSelling.length > 0 ? <FeatureFlip companies={bestSelling} onOpen={openGallery} /> : (
                 homeQuery.trim() ? <p className="empty-note">No testimonials match that search.</p> : null
               )}
-              {generalFeed.length > 0 ? (
-                <div className="general-feed" aria-label="General posts">
-                  <p className="shelf-label">General</p>
-                  <FeatureFlip companies={generalFeed} onOpen={openGallery} />
-                </div>
-              ) : null}
               {homeGridCards.length > 0 ? (
                 <div className="home-grid" aria-label="Company reels and testimonials">
                   {homeGridCards.flatMap((company, index) => {
@@ -7685,7 +7675,7 @@ function App() {
               </button>
               <button type="button" className="add-media-option" onClick={startGeneralPost}>
                 <strong>General post</strong>
-                <span>Appears on the General card and your gallery grid.</span>
+                <span>Appears on your company card and gallery grid.</span>
               </button>
             </div>
           </section>
