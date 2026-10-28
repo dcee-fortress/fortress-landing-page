@@ -2452,18 +2452,31 @@ function OpenedCard({
             {count ? `${active + 1} / ${count}` : '0 / 0'}
           </p>
           {canEditCaption && onCaptionChange ? (
-            <label className="card-caption-edit">
-              Testimonial caption
-              <textarea
-                rows="3"
-                value={slide?.testimonial || ''}
-                placeholder="Write the testimonial caption for this picture"
-                onChange={(event) => onCaptionChange(active, event.target.value)}
-              />
-            </label>
+            <div className="card-caption-edit">
+              <label>
+                Testimonial caption
+                <textarea
+                  rows="3"
+                  value={slide?.testimonial || ''}
+                  placeholder="Write a testimonial caption, or leave blank"
+                  onChange={(event) => onCaptionChange(active, event.target.value)}
+                />
+              </label>
+              {slide?.testimonial ? (
+                <button
+                  type="button"
+                  className="danger-button caption-clear"
+                  onClick={() => onCaptionChange(active, '', { clear: true })}
+                >
+                  Delete caption
+                </button>
+              ) : (
+                <p className="empty-note">No caption on this picture.</p>
+              )}
+            </div>
           ) : slide?.testimonial ? (
             <p className="detail-quote card-caption">{slide.testimonial}</p>
-          ) : (
+          ) : count ? null : (
             <p className="empty-note">No photos yet.</p>
           )}
         </div>
@@ -5889,7 +5902,7 @@ function App() {
   const openOwnGalleryPost = (postIndex) => {
     const company = ownGalleryCompany()
     if (!company?.slides?.length) return
-    setOverlay({ type: 'own-post', company, postIndex })
+    setOverlay({ type: 'own-post', postIndex })
     pushPath(`/profile/post/${postIndex}`)
   }
 
@@ -6183,22 +6196,27 @@ function App() {
     pushPath('/profile')
   }
 
-  const updateOwnSlideCaption = (index, caption) => {
+  const updateOwnSlideCaption = (index, caption, options = {}) => {
     if (!currentProfile) return
     const posts = gallerySlides(currentProfile)
     const target = posts[index]
     if (!target) return
+    const nextCaption = String(caption ?? '')
+    if (options.clear) {
+      if (!nextCaption && !target.testimonial) return
+      if (!confirmDeleteTwice('this testimonial caption')) return
+    }
     const src = target.photo || target.video || ''
     const baseSlides = currentProfile.slides?.length ? currentProfile.slides : posts
     const nextSlides = baseSlides.map((slide, slideIndex) => {
       const sameIndex = slideIndex === index
       const sameSrc = src && (slide.photo === src || slide.video === src)
       if (!sameIndex && !sameSrc) return slide
-      return { ...slide, testimonial: caption }
+      return { ...slide, testimonial: nextCaption }
     })
     const nextCaptions = [...(currentProfile.photoCaptions || [])]
     while (nextCaptions.length < posts.length) nextCaptions.push('')
-    nextCaptions[index] = caption
+    nextCaptions[index] = nextCaption
     updateCurrentWebsite({
       slides: nextSlides,
       photoCaptions: nextCaptions,
@@ -6721,15 +6739,6 @@ function App() {
                             )}
                             {slide.video ? <span className="reel-mark">Reel</span> : null}
                           </button>
-                          <label className="tile-caption-edit">
-                            Testimonial caption
-                            <textarea
-                              rows="2"
-                              value={slide.testimonial || ''}
-                              placeholder="Write the caption for this picture"
-                              onChange={(event) => updateOwnSlideCaption(index, event.target.value)}
-                            />
-                          </label>
                           <button
                             type="button"
                             className="tile-delete"
@@ -7470,9 +7479,9 @@ function App() {
           (overlay.company || currentProfile) && (
           <OpenedCard
             company={
-              overlay.company ||
-              (overlay.type === 'own-photo'
-                ? {
+              overlay.type === 'own-post'
+                ? ownGalleryCompany()
+                : overlay.company || {
                     id: currentProfile.id,
                     name: currentProfile.name || 'My account',
                     slides: [
@@ -7482,7 +7491,6 @@ function App() {
                       },
                     ],
                   }
-                : ownGalleryCompany())
             }
             startIndex={overlay.postIndex || 0}
             onClose={closeOverlay}

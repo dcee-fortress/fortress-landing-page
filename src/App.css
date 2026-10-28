@@ -1291,32 +1291,37 @@
 .gallery-tile-wrap {
   position: relative;
   min-width: 0;
-  display: grid;
-  gap: 8px;
 }
 
 .tile-delete {
-  justify-self: start;
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  z-index: 2;
   border: 0;
   border-radius: 999px;
-  background: #9f2d2d;
+  background: rgba(28, 25, 21, 0.78);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
-  padding: 6px 10px;
+  padding: 4px 8px;
   cursor: pointer;
 }
 
-.tile-caption-edit,
 .card-caption-edit {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 8px;
   font-size: 0.78rem;
   font-weight: 700;
   color: #463f39;
 }
 
-.tile-caption-edit textarea,
+.card-caption-edit label {
+  display: grid;
+  gap: 6px;
+}
+
 .card-caption-edit textarea {
   width: 100%;
   border: 1px solid rgba(28, 25, 21, 0.12);
@@ -1328,8 +1333,9 @@
   resize: vertical;
 }
 
-.card-caption-edit {
-  margin-top: 8px;
+.card-caption-edit .caption-clear {
+  justify-self: start;
+  margin: 0;
 }
 
 .card-delete {
