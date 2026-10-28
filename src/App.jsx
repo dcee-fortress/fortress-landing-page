@@ -14,6 +14,22 @@ const OWNER_LOGIN = {
   email: 'darelchits@gmail.com',
   password: 'Darel2005',
 }
+const COMPANY_LOGINS = [
+  {
+    accountId: 'account-rodcroft',
+    siteId: 'site-rodcroft',
+    email: 'rodcroft@fortress.com',
+    password: 'Rodcroft2026',
+    catalogId: 'rodcroft',
+  },
+  {
+    accountId: 'account-prixburg',
+    siteId: 'site-prixburg',
+    email: 'prixburg@fortress.com',
+    password: 'Prixburg2026',
+    catalogId: 'prixburg',
+  },
+]
 const PHASE1_COMPLETE = true
 const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
 const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
@@ -73,34 +89,29 @@ const catalog = [
     video: MEDIA.rodcroft1,
     videoCaption: 'Rodcroft site reel.',
     location: 'Zimbabwe',
-    ceo: 'Patrick Mbizvo',
-    about:
-      'Fortress cut QS and engineering admin at Rodcroft, grew sites and tenders, and gave the CEO a live view of every site.',
+    ceo: '',
+    about: '',
+    ceoTestimonial: '',
     slides: [
       {
         photo: MEDIA.rodcroftPhoto1,
-        testimonial:
-          'I’m the CEO. Fortress cut the paperwork for our QS and engineers — ndatenda. Measurements and claims now sit pano on one website.',
+        testimonial: 'Rodcroft yard and gate on a working day.',
       },
       {
         photo: MEDIA.rodcroftPhoto2,
-        testimonial:
-          'With that time back we took on more sites and more tenders. Zvinhu zviri kufamba, and the same team runs a bigger book from the phone. — Patrick Mbizvo, CEO',
+        testimonial: 'Structure rising on the Rodcroft site.',
       },
       {
         photo: MEDIA.rodcroftPhoto3,
-        testimonial:
-          'Theft is down because Fortress tracks storeroom stock. Zvechokwadi, cement and fuel now have a log before they leave the yard. — Patrick Mbizvo, CEO',
+        testimonial: 'Storeroom stock ready for the next pour.',
       },
       {
         photo: MEDIA.rodcroftPhoto4,
-        testimonial:
-          'Valuations land on a cumulative dashboard with SHEQ. Ndinoona every site from the phone without calling the trailer. — Patrick Mbizvo, CEO',
+        testimonial: 'Site progress from the deck.',
       },
       {
         video: MEDIA.rodcroft1,
-        testimonial:
-          'From the gate to the storeroom, this is our live picture of the job. Zvakanaka — QS, engineers, and I finally share one site. — Patrick Mbizvo, CEO',
+        testimonial: 'Rodcroft site reel.',
       },
     ],
   },
@@ -519,18 +530,6 @@ const seedNote = (id, author, text, replies = []) => ({
 })
 
 const DEMO_COMMENTS = {
-  'photo:rodcroft:0': [
-    seedNote('rc0a', 'Patrick Mbizvo, CEO', 'Ndatenda. This is the picture I open every mangwanani before I call anyone.'),
-    seedNote(
-      'rc0b',
-      'Rudo Nyathi, CEO',
-      'Makorokoto to the QS team. Zvakanaka — the site is already on the website.',
-      [{ author: 'Tawanda Chitukutuku, CEO', text: 'Tinotenda. We run the same habit at the plant.' }],
-    ),
-  ],
-  'photo:rodcroft:2': [
-    seedNote('rc2a', 'Patrick Mbizvo, CEO', 'Zvechokwadi, cement and fuel now have a log. Theft has nowhere to hide.'),
-  ],
   'photo:prixburg:0': [
     seedNote('pb0a', 'Tawanda Chitukutuku, CEO', 'Ndatenda. Floor and office finally share one site. Zvinhu zviri kufamba.'),
     seedNote('pb0b', 'Nyasha Mutasa, CEO', 'Same for our mill. Ndinoona the run without walking the bay.'),
@@ -605,7 +604,7 @@ const formatPrice = (price) =>
   })}`
 
 const MENU_ACTIONS = [
-  { id: 'buy', label: 'Buy a CEO website' },
+  { id: 'buy', label: 'Buy CEO Website' },
 ]
 
 const NAV = [
@@ -1074,6 +1073,7 @@ const brandTheme = (name = '') => {
 }
 
 const makeWebsite = ({
+  id = '',
   name,
   type = 'Business',
   systemType = '',
@@ -1091,8 +1091,11 @@ const makeWebsite = ({
   fabPlan = '',
   paidUntil = 0,
   drawings = [],
+  catalogId = '',
+  ceo = '',
+  ceoTestimonial = '',
 }) => ({
-  id: makeId('site'),
+  id: id || makeId('site'),
   name,
   type,
   systemType,
@@ -1110,14 +1113,38 @@ const makeWebsite = ({
   fabPlan,
   paidUntil,
   drawings,
+  catalogId,
+  ceo,
+  ceoTestimonial,
 })
 
-const makeAccount = (email, password, companyName, { withWebsite = true } = {}) => ({
-  id: makeId('account'),
+const makeAccount = (email, password, companyName, { withWebsite = true, id = '' } = {}) => ({
+  id: id || makeId('account'),
   email,
   password,
   websites: withWebsite ? [makeWebsite({ name: companyName || 'My company', type: 'Business' })] : [],
 })
+
+const websiteFromCatalog = (entry, login) => {
+  const slides = entry.slides || []
+  const [first, ...rest] = slides
+  return makeWebsite({
+    id: login.siteId,
+    name: entry.name,
+    type: entry.category || 'Business',
+    systemType: systemIdFromCompany(entry),
+    slug: entry.id,
+    link: '',
+    profilePhoto: first?.photo || '',
+    testimonial: entry.ceoTestimonial || entry.about || '',
+    slides,
+    gallery: rest.map((slide) => slide.photo || slide.video).filter(Boolean),
+    photoCaptions: rest.map((slide) => slide.testimonial || ''),
+    catalogId: entry.id,
+    ceo: entry.ceo || '',
+    ceoTestimonial: entry.ceoTestimonial || '',
+  })
+}
 
 const withOwnerLogin = (list) => {
   const accounts = Array.isArray(list) ? list.map((account) => ({ ...account })) : []
@@ -1132,6 +1159,55 @@ const withOwnerLogin = (list) => {
     return accounts
   }
   return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }), ...accounts]
+}
+
+const withCompanyAccounts = (list) => {
+  const accounts = withOwnerLogin(list)
+  COMPANY_LOGINS.forEach((login) => {
+    const catalogEntry = catalog.find((entry) => entry.id === login.catalogId)
+    if (!catalogEntry) return
+    const index = accounts.findIndex((account) => account.email?.toLowerCase() === login.email)
+    const seededSite = websiteFromCatalog(catalogEntry, login)
+    if (index < 0) {
+      accounts.push({
+        id: login.accountId,
+        email: login.email,
+        password: login.password,
+        websites: [seededSite],
+      })
+      return
+    }
+
+    const account = {
+      ...accounts[index],
+      id: accounts[index].id || login.accountId,
+      email: login.email,
+      password: login.password,
+    }
+    const siteIndex = account.websites.findIndex(
+      (site) =>
+        site.catalogId === login.catalogId || site.id === login.siteId || site.slug === login.catalogId,
+    )
+    if (siteIndex < 0) {
+      account.websites = [...account.websites, seededSite]
+    } else {
+      account.websites = account.websites.map((site, current) =>
+        current === siteIndex
+          ? {
+              ...site,
+              id: site.id || login.siteId,
+              catalogId: login.catalogId,
+              slug: site.slug || login.catalogId,
+              ceo: site.ceo ?? catalogEntry.ceo ?? '',
+              ceoTestimonial: site.ceoTestimonial ?? catalogEntry.ceoTestimonial ?? '',
+              slides: site.slides?.length ? site.slides : seededSite.slides,
+            }
+          : site,
+      )
+    }
+    accounts[index] = account
+  })
+  return accounts
 }
 
 const readHashPath = () => {
@@ -4683,11 +4759,16 @@ function PublicCompanyProfile({
         </button>
         <div className="profile-copy">
           <h3>{company.name}</h3>
-          <p>{company.ceo || company.name}</p>
+          <p>{company.ceo || 'CEO'}</p>
           <p>CEO</p>
           <p>{company.category}</p>
           {company.location ? <p>{company.location}</p> : null}
           <StarRanking rating={company.rating} />
+          {company.ceoTestimonial || company.about ? (
+            <p className="detail-quote ceo-testimonial">{company.ceoTestimonial || company.about}</p>
+          ) : company.id === 'rodcroft' ? (
+            <p className="empty-note ceo-testimonial">CEO testimonial awaiting entry.</p>
+          ) : null}
         </div>
       </div>
       <div className="gallery-grid">
@@ -4738,12 +4819,16 @@ function App() {
     if (typeof window === 'undefined') return []
     const saved = window.localStorage.getItem(STORE_KEY)
     if (!saved) {
-      return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false })]
+      return withCompanyAccounts([
+        makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }),
+      ])
     }
     try {
-      return withOwnerLogin(JSON.parse(saved))
+      return withCompanyAccounts(JSON.parse(saved))
     } catch {
-      return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false })]
+      return withCompanyAccounts([
+        makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }),
+      ])
     }
   })
   const [signedInId, setSignedInId] = useState(() => {
@@ -4956,8 +5041,8 @@ function App() {
     if (overlay && accountOverlays.includes(overlay.type)) {
       setOverlay(null)
     }
-    const guestSettings = ['create', 'loading', 'buy', 'system', 'ecocash', 'tailor']
-    const buying = Boolean(pendingSignup) || overlay?.type === 'buy-system'
+    const guestSettings = ['create', 'loading', 'buy', 'system', 'ecocash', 'tailor', 'preview']
+    const buying = overlay?.type === 'buy-system'
     if (tab === 'profile' && !buying) {
       setTab('login')
       pushPath('/login')
@@ -4993,7 +5078,9 @@ function App() {
             rating: 5,
             hue: accountIndex % 2 === 0 ? '#ff7b54' : '#51b6a0',
             location: 'On Fortress',
-            about: site.testimonial || `${site.name} keeps its site photos on this card.`,
+            about: site.ceoTestimonial || site.testimonial || `${site.name} keeps its site photos on this card.`,
+            ceo: site.ceo || '',
+            ceoTestimonial: site.ceoTestimonial || '',
             slides,
             featured: slides.some((slide) => slide.photo || slide.video),
             video: latest?.video || '',
@@ -5002,6 +5089,7 @@ function App() {
             slug: site.slug,
             link: site.link,
             systemType: site.systemType,
+            catalogId: site.catalogId || '',
             items: site.items || [],
             cover: latest?.photo || site.profilePhoto || '',
             accountIndex,
@@ -5032,12 +5120,37 @@ function App() {
     [accounts],
   )
 
+  const liveCatalog = useMemo(() => {
+    const owned = new Map()
+    accounts.forEach((account) => {
+      account.websites.forEach((site) => {
+        if (site.catalogId) owned.set(site.catalogId, site)
+      })
+    })
+    return catalog.map((company) => {
+      const site = owned.get(company.id)
+      if (!site) return company
+      const slides = slidesForSite(site)
+      const reel = slides.find((slide) => slide.video)
+      return {
+        ...company,
+        name: site.name || company.name,
+        ceo: site.ceo ?? company.ceo,
+        about: site.ceoTestimonial || site.testimonial || company.about,
+        ceoTestimonial: site.ceoTestimonial ?? company.ceoTestimonial ?? '',
+        slides: slides.length ? slides : company.slides,
+        video: reel?.video || company.video,
+        videoCaption: reel?.testimonial || company.videoCaption,
+      }
+    })
+  }, [accounts])
+
   findCompanyRef.current = (id) => {
     if (!id) return null
     return (
-      catalog.find((item) => item.id === id) ||
+      liveCatalog.find((item) => item.id === id) ||
       mallCatalog.find((item) => item.id === id) ||
-      builtCards.find((item) => item.id === id) ||
+      builtCards.find((item) => item.id === id || item.catalogId === id) ||
       featureCards.find((item) => item.id === id) ||
       null
     )
@@ -5114,18 +5227,21 @@ function App() {
   }
 
   const bestSelling = [
-    ...catalog.filter((company) => company.shelf === 'Best selling' && company.slides?.[0]),
+    ...liveCatalog.filter((company) => company.shelf === 'Best selling' && company.slides?.[0]),
     ...featureCards.filter((company) => company.shelf === 'Best selling'),
   ].filter((company) => companyMatchesQuery(company, homeQuery))
 
   const homeGridCards = useMemo(() => {
     const extras = builtCards.filter(
-      (company) => company.featured && !catalog.some((item) => item.id === company.id),
+      (company) =>
+        company.featured &&
+        !company.catalogId &&
+        !liveCatalog.some((item) => item.id === company.id || item.name === company.name),
     )
-    const showcase = catalog.filter((company) => company.showOnGrid)
-    const rest = catalog.filter((company) => company.shelf !== 'Best selling' && !company.showOnGrid)
+    const showcase = liveCatalog.filter((company) => company.showOnGrid)
+    const rest = liveCatalog.filter((company) => company.shelf !== 'Best selling' && !company.showOnGrid)
     return [...showcase, ...rest, ...extras].filter((company) => companyMatchesQuery(company, homeQuery))
-  }, [builtCards, homeQuery])
+  }, [builtCards, homeQuery, liveCatalog])
 
   const updateCurrentWebsite = (updates) => {
     if (!signedInAccount || !currentProfile) return
@@ -5168,17 +5284,25 @@ function App() {
       return
     }
 
-    setAuthError('')
-    fromHomeCardRef.current = false
-    setSignedInId('')
-    setActiveProfileId('')
-    setPendingSignup({ email, password })
+    const nextAccount = makeAccount(email, password, '', { withWebsite: false })
+    setAccounts((previous) => [...previous, nextAccount])
+    setSignedInId(nextAccount.id)
+    setActiveProfileId(nextAccount.websites[0]?.id || '')
+    setPendingSignup(null)
     setAuthForm({ email: '', password: '' })
-    setSystemType(shopFlowRef.current ? 'retail' : '')
-    setTab('settings')
-    setSettingsView('buy')
-    setOverlay({ type: 'buy-system' })
-    pushPath('/settings/buy')
+    setAuthError('')
+    setMenuOpen(false)
+    setOverlay(null)
+    setSystemType('')
+    shopFlowRef.current = false
+    skipShopChoiceRef.current = false
+    cardBuyRef.current = false
+    fromHomeCardRef.current = false
+    setSettingsView('home')
+    setProfileTab('gallery')
+    setTab('profile')
+    setAppRoute({ kind: '', slug: '' })
+    pushPath('/profile')
   }
 
   const finishLogin = (account) => {
@@ -5234,15 +5358,20 @@ function App() {
       return
     }
 
-    setAuthError('')
-    setSignedInId('')
-    setActiveProfileId('')
-    setPendingSignup({ email, password })
+    const nextAccount = makeAccount(email, password, '', { withWebsite: false })
+    setAccounts((previous) => [...previous, nextAccount])
+    setSignedInId(nextAccount.id)
+    setActiveProfileId(nextAccount.websites[0]?.id || '')
+    setPendingSignup(null)
     setAuthForm({ email: '', password: '' })
-    setTab('settings')
-    setSettingsView('buy')
-    setOverlay({ type: 'buy-system' })
-    pushPath('/settings/buy')
+    setAuthError('')
+    setMenuOpen(false)
+    setOverlay(null)
+    setSettingsView('home')
+    setProfileTab('gallery')
+    setTab('profile')
+    setAppRoute({ kind: '', slug: '' })
+    pushPath('/profile')
   }
 
   const approvePayment = (event) => {
@@ -5641,15 +5770,6 @@ function App() {
       return
     }
     if (!signedInAccount && (nextTab === 'profile' || nextTab === 'settings')) {
-      if (pendingSignup && nextTab === 'settings') {
-        setTab('settings')
-        setSettingsView('buy')
-        setOverlay({ type: 'buy-system' })
-        setMenuOpen(false)
-        setAppRoute({ kind: '', slug: '' })
-        pushPath('/settings/buy')
-        return
-      }
       goLogin()
       return
     }
@@ -5678,7 +5798,9 @@ function App() {
 
   const openGallery = (company, mediaSrc) => {
     const source =
-      catalog.find((item) => item.id === company.id || item.name === company.name) || company
+      liveCatalog.find((item) => item.id === company.id || item.name === company.name) ||
+      builtCards.find((item) => item.id === company.id || item.catalogId === company.id) ||
+      company
     const opened = withVideoSlides(source)
     const startIndex = opened.slides?.findIndex((slide) => slide.photo === mediaSrc || slide.video === mediaSrc)
     setOverlay({
@@ -5893,6 +6015,7 @@ function App() {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
     setOverlay(null)
     setMenuOpen(false)
+    setPendingSignup(null)
     if (!signedInAccount) {
       goLogin()
       return
@@ -6481,35 +6604,76 @@ function App() {
               </div>
 
               {profileTab === 'gallery' && (
-                <div className="gallery-grid">
-                  {gallerySlides(currentProfile).length ? (
-                    gallerySlides(currentProfile).map((slide, index) => (
-                      <div className="gallery-tile-wrap" key={`${slide.video || slide.photo || 'post'}-${index}`}>
-                        <button
-                          type="button"
-                          className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
-                          onClick={() => openOwnGalleryPost(index)}
-                        >
-                          {slide.video ? (
-                            <video src={slide.video} muted playsInline preload="metadata" />
-                          ) : (
-                            <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
-                          )}
-                          {slide.video ? <span className="reel-mark">Reel</span> : null}
-                        </button>
-                        <button
-                          type="button"
-                          className="tile-delete"
-                          onClick={() => deleteOwnPhoto(index)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
-                  )}
-                </div>
+                <>
+                  <form className="profile-form company-edit-form" onSubmit={(event) => event.preventDefault()}>
+                    <label>
+                      Company name
+                      <input
+                        type="text"
+                        value={currentProfile?.name || ''}
+                        onChange={(event) =>
+                          updateCurrentWebsite({ name: event.target.value || 'My company' })
+                        }
+                      />
+                    </label>
+                    <label>
+                      CEO name
+                      <input
+                        type="text"
+                        value={currentProfile?.ceo || ''}
+                        placeholder="CEO name"
+                        onChange={(event) => updateCurrentWebsite({ ceo: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      CEO testimonial
+                      <textarea
+                        rows="3"
+                        value={currentProfile?.ceoTestimonial || ''}
+                        placeholder={
+                          currentProfile?.catalogId === 'rodcroft'
+                            ? 'Awaiting CEO entry'
+                            : 'Write the CEO testimonial'
+                        }
+                        onChange={(event) =>
+                          updateCurrentWebsite({
+                            ceoTestimonial: event.target.value,
+                            testimonial: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </form>
+                  <div className="gallery-grid">
+                    {gallerySlides(currentProfile).length ? (
+                      gallerySlides(currentProfile).map((slide, index) => (
+                        <div className="gallery-tile-wrap" key={`${slide.video || slide.photo || 'post'}-${index}`}>
+                          <button
+                            type="button"
+                            className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
+                            onClick={() => openOwnGalleryPost(index)}
+                          >
+                            {slide.video ? (
+                              <video src={slide.video} muted playsInline preload="metadata" />
+                            ) : (
+                              <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
+                            )}
+                            {slide.video ? <span className="reel-mark">Reel</span> : null}
+                          </button>
+                          <button
+                            type="button"
+                            className="tile-delete"
+                            onClick={() => deleteOwnPhoto(index)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
+                    )}
+                  </div>
+                </>
               )}
 
               {profileTab === 'store' && (
@@ -6750,10 +6914,10 @@ function App() {
                             shopFlowRef.current = true
                             setSystemType('retail')
                           }
-                          goSettingsView('buy')
+                          openBuyWebsite()
                         }}
                       >
-                        Buy Fortress system
+                        Buy CEO Website
                       </button>
                     )
                   })()}
@@ -6872,52 +7036,24 @@ function App() {
 
           {tab === 'settings' && settingsView === 'buy' && (
             <section className="panel-box settings-page">
-              {pendingSignup ? (
-                <>
-                  <h3>Buy a Fortress system</h3>
-                  <p className="shop-copy">
-                    Your login details are held until you buy construction, manufacturing, or retail. If you leave
-                    without buying, no account is created.
-                  </p>
-                  <div className="settings-actions">
-                    {SYSTEM_TYPES.map((type) => (
-                      <button
-                        key={type.id}
-                        type="button"
-                        className={systemType === type.id ? 'system-choice active' : 'system-choice'}
-                        onClick={() => continueFromSystem(type.id)}
-                      >
-                        {type.label}
-                        <small>{type.style}</small>
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" className="text-back" onClick={cancelPendingSignup}>
-                    Cancel
+              <h3>Buy CEO Website</h3>
+              <p className="shop-copy">
+                Choose construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
+                Swipe the pictures to see how that website solves problems at that kind of company.
+              </p>
+              <div className="settings-actions">
+                {SYSTEM_TYPES.map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    className={systemType === type.id ? 'system-choice active' : 'system-choice'}
+                    onClick={() => continueFromSystem(type.id)}
+                  >
+                    {type.label}
+                    <small>{type.style}</small>
                   </button>
-                </>
-              ) : (
-                <>
-                  <h3>Buy a website</h3>
-                  <p className="shop-copy">
-                    Choose construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
-                    Swipe the pictures to see how that website solves problems at that kind of company.
-                  </p>
-                  <div className="settings-actions">
-                    {SYSTEM_TYPES.map((type) => (
-                      <button
-                        key={type.id}
-                        type="button"
-                        className={systemType === type.id ? 'system-choice active' : 'system-choice'}
-                        onClick={() => continueFromSystem(type.id)}
-                      >
-                        {type.label}
-                        <small>{type.style}</small>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                ))}
+              </div>
             </section>
           )}
 
@@ -7306,7 +7442,7 @@ function App() {
               Close
             </button>
             <div className="lock-card buy-system-card">
-              <h2>Buy a Fortress system</h2>
+              <h2>Buy CEO Website</h2>
               <p className="shop-copy">
                 Construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
               </p>
