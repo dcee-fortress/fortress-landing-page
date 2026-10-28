@@ -35,15 +35,17 @@ const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
 const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
 const SHELVES = ['Best selling', 'Trending', 'New companies']
 
-const FEATURE_CLASSES = [
-  {
-    id: 'Best selling',
-    label: 'Best selling',
-    note: 'Exclusive fee $200/year or $20/month',
-  },
-  { id: 'Trending', label: 'Trending', note: '' },
-  { id: 'New companies', label: 'New companies', note: '' },
+const BEST_SELLING_PLANS = [
+  { id: 'week', label: '$1 a week', note: 'on exclusive trending', price: 1 },
+  { id: 'month', label: '$3.50 a month', note: '', price: 3.5 },
+  { id: 'year', label: '$22 a year', note: '', price: 22 },
 ]
+
+const bestSellingPlanLabel = (planId) => {
+  const plan = BEST_SELLING_PLANS.find((entry) => entry.id === planId)
+  if (!plan) return ''
+  return plan.note ? `${plan.label} ${plan.note}` : plan.label
+}
 
 const shot = (id) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1400&q=80`
@@ -776,6 +778,17 @@ function IconCompanyTab() {
   )
 }
 
+function IconBin() {
+  return (
+    <svg className="card-bin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9zm-1 12h12l1-12H5l1 12z"
+      />
+    </svg>
+  )
+}
+
 const makeId = (prefix = 'id') =>
   `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
 
@@ -1161,13 +1174,13 @@ const websiteFromCatalog = (entry, login) => {
     slug: entry.id,
     link: '',
     profilePhoto: first?.photo || '',
-    testimonial: entry.ceoTestimonial || entry.about || '',
+    testimonial: '',
     slides,
     gallery: rest.map((slide) => slide.photo || slide.video).filter(Boolean),
     photoCaptions: rest.map((slide) => slide.testimonial || ''),
     catalogId: entry.id,
     ceo: entry.ceo || '',
-    ceoTestimonial: entry.ceoTestimonial || '',
+    ceoTestimonial: '',
   })
 }
 
@@ -1224,7 +1237,8 @@ const withCompanyAccounts = (list) => {
               catalogId: login.catalogId,
               slug: site.slug || login.catalogId,
               ceo: site.ceo ?? catalogEntry.ceo ?? '',
-              ceoTestimonial: site.ceoTestimonial ?? catalogEntry.ceoTestimonial ?? '',
+              ceoTestimonial: '',
+              testimonial: '',
               slides: site.slides?.length ? site.slides : seededSite.slides,
             }
           : site,
@@ -1268,6 +1282,7 @@ const pathFromNav = ({ tab, settingsView, overlay }) => {
   if (overlay?.type === 'buy-system') return '/settings/buy'
   if (overlay?.type === 'live-link') return '/profile/live'
   if (overlay?.type === 'add-media') return '/profile/add'
+  if (overlay?.type === 'best-selling-plans') return '/profile/best-selling-plans'
   if (overlay?.type === 'compose') return '/profile/compose'
   if (overlay?.type === 'feature-ecocash') return '/profile/feature-pay'
   if (tab === 'settings' && settingsView && settingsView !== 'home') {
@@ -1347,6 +1362,7 @@ const parseHashPath = (path, findCompany) => {
   }
   else if (a === 'profile' && b === 'live') overlay = { type: 'live-link' }
   else if (a === 'profile' && b === 'add') overlay = { type: 'add-media' }
+  else if (a === 'profile' && b === 'best-selling-plans') overlay = { type: 'best-selling-plans' }
   else if (a === 'profile' && b === 'compose') overlay = { type: 'compose' }
   else if (a === 'profile' && b === 'feature-pay') overlay = { type: 'feature-ecocash' }
   else if (a === 'home' && b === 'gate') overlay = { type: 'gate' }
@@ -1404,7 +1420,7 @@ const slidesForSite = (site) => {
   if (site.profilePhoto && !seen.has(site.profilePhoto)) {
     slides.push({
       photo: site.profilePhoto,
-      testimonial: site.testimonial || 'Profile photo from the company card.',
+      testimonial: '',
     })
     seen.add(site.profilePhoto)
   }
@@ -2339,12 +2355,14 @@ function OpenedCard({
   const count = slides.length
   const [index, setIndex] = useState(() => Number(startIndex) || 0)
   const [dir, setDir] = useState(1)
+  const [deleteMenuOpen, setDeleteMenuOpen] = useState(false)
   const startX = useRef(0)
   const dragging = useRef(false)
 
   useEffect(() => {
     setIndex(Number(startIndex) || 0)
     setDir(1)
+    setDeleteMenuOpen(false)
   }, [company.id, startIndex])
 
   const go = (step) => {
@@ -2404,6 +2422,39 @@ function OpenedCard({
           >
             ×
           </button>
+          {canDelete ? (
+            <div className="card-bin-wrap">
+              <button
+                type="button"
+                className="card-bin"
+                aria-label="Post options"
+                aria-expanded={deleteMenuOpen}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setDeleteMenuOpen((open) => !open)
+                }}
+              >
+                <IconBin />
+              </button>
+              {deleteMenuOpen ? (
+                <div className="card-bin-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setDeleteMenuOpen(false)
+                      onDelete?.(active)
+                    }}
+                  >
+                    Delete post
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {slides.map((entry, slideIndex) => (
             <div
               className="opened-slide"
@@ -2468,11 +2519,6 @@ function OpenedCard({
             <p className="empty-note">No photos yet.</p>
           )}
         </div>
-        {canDelete ? (
-          <button type="button" className="danger-button card-delete" onClick={() => onDelete(active)}>
-            Delete picture
-          </button>
-        ) : null}
         {onViewProfile ? (
           <div className="card-actions opened-actions">
             <button className="view-profile-button" type="button" onClick={onViewProfile}>
@@ -4797,8 +4843,7 @@ function PublicCompanyProfile({
         </button>
         <div className="profile-copy">
           <h3>{company.name}</h3>
-          <p>{company.ceo || 'CEO'}</p>
-          <p>CEO</p>
+          {company.ceo ? <p>{company.ceo}</p> : null}
           <p>{company.category}</p>
           {company.location ? <p>{company.location}</p> : null}
           <StarRanking rating={company.rating} />
@@ -5065,6 +5110,7 @@ function App() {
       'own-photo',
       'own-post',
       'add-media',
+      'best-selling-plans',
       'compose',
       'shop-item',
       'shop-item-add',
@@ -5111,9 +5157,9 @@ function App() {
             rating: 5,
             hue: accountIndex % 2 === 0 ? '#ff7b54' : '#51b6a0',
             location: 'On Fortress',
-            about: site.ceoTestimonial || site.testimonial || `${site.name} keeps its site photos on this card.`,
+            about: '',
             ceo: site.ceo || '',
-            ceoTestimonial: site.ceoTestimonial || '',
+            ceoTestimonial: '',
             slides,
             featured: slides.some((slide) => slide.photo || slide.video),
             video: latest?.video || '',
@@ -5169,8 +5215,8 @@ function App() {
         ...company,
         name: site.name || company.name,
         ceo: site.ceo ?? company.ceo,
-        about: site.ceoTestimonial || site.testimonial || company.about,
-        ceoTestimonial: site.ceoTestimonial ?? company.ceoTestimonial ?? '',
+        about: company.about || '',
+        ceoTestimonial: '',
         slides: slides.length ? slides : company.slides,
         video: reel?.video || company.video,
         videoCaption: reel?.testimonial || company.videoCaption,
@@ -5263,6 +5309,10 @@ function App() {
     ...liveCatalog.filter((company) => company.shelf === 'Best selling' && company.slides?.[0]),
     ...featureCards.filter((company) => company.shelf === 'Best selling'),
   ].filter((company) => companyMatchesQuery(company, homeQuery))
+
+  const generalFeed = featureCards
+    .filter((company) => company.shelf === 'General' || company.shelf === 'New companies' || company.shelf === 'Trending')
+    .filter((company) => companyMatchesQuery(company, homeQuery))
 
   const homeGridCards = useMemo(() => {
     const extras = builtCards.filter(
@@ -5580,10 +5630,36 @@ function App() {
     pushPath('/profile/add')
   }
 
+  const startBestSellingPost = () => {
+    if (!requireOnline(NETWORK_ACTIONS.post)) return
+    setCompose({ ...emptyCompose(), mode: 'feature', shelf: 'Best selling' })
+    setOverlay({ type: 'best-selling-plans' })
+    pushPath('/profile/best-selling-plans')
+  }
+
+  const startGeneralPost = () => {
+    if (!requireOnline(NETWORK_ACTIONS.post)) return
+    composeModeRef.current = 'general'
+    setCompose({ ...emptyCompose(), mode: 'general', shelf: 'General' })
+    composeInputRef.current?.click()
+  }
+
+  const continueBestSellingPlan = () => {
+    if (!compose.feePlan) return
+    if (!requireOnline(NETWORK_ACTIONS.post)) return
+    composeModeRef.current = 'feature'
+    composeInputRef.current?.click()
+  }
+
   const pickComposeFile = (mode) => {
     if (!requireOnline(NETWORK_ACTIONS.post)) return
     composeModeRef.current = mode
-    setCompose({ ...emptyCompose(), mode })
+    setCompose((previous) => ({
+      ...emptyCompose(),
+      mode,
+      shelf: previous.shelf || (mode === 'feature' ? 'Best selling' : mode === 'general' ? 'General' : ''),
+      feePlan: previous.feePlan || '',
+    }))
     composeInputRef.current?.click()
   }
 
@@ -5594,20 +5670,24 @@ function App() {
     if (!file || !mode) return
     try {
       const media = await readMediaFile(file)
-      setCompose({
+      setCompose((previous) => ({
         ...emptyCompose(),
-        mode,
+        mode: previous.mode || mode,
+        shelf: previous.shelf || (mode === 'feature' ? 'Best selling' : mode === 'general' ? 'General' : ''),
+        feePlan: previous.feePlan || '',
         photo: media.kind === 'photo' ? media.src : '',
         video: media.kind === 'video' ? media.src : '',
-      })
+      }))
       setOverlay({ type: 'compose' })
       pushPath('/profile/compose')
     } catch (error) {
-      setCompose({
+      setCompose((previous) => ({
         ...emptyCompose(),
-        mode,
+        mode: previous.mode || mode,
+        shelf: previous.shelf || (mode === 'feature' ? 'Best selling' : mode === 'general' ? 'General' : ''),
+        feePlan: previous.feePlan || '',
         note: error?.message || 'Could not read that photo or video.',
-      })
+      }))
       setOverlay({ type: 'compose' })
       pushPath('/profile/compose')
     }
@@ -5638,7 +5718,8 @@ function App() {
     if (!slide) return
     publishAccountSlide({
       ...slide,
-      shelf: compose.shelf || 'New companies',
+      shelf: compose.shelf || 'General',
+      testimonial: compose.caption.trim() || slide.testimonial,
     })
     setCompose(emptyCompose())
     setOverlay(null)
@@ -5662,9 +5743,10 @@ function App() {
       return
     }
 
-    if (compose.mode === 'gallery') {
+    if (compose.mode === 'general' || compose.mode === 'gallery') {
       publishAccountSlide({
         ...slide,
+        shelf: 'General',
         testimonial: compose.caption.trim() || slide.testimonial,
       })
       setCompose(emptyCompose())
@@ -5675,17 +5757,21 @@ function App() {
       return
     }
 
-    if (compose.mode !== 'feature' || !compose.shelf) return
-    if (compose.shelf === 'Best selling') {
-      if (!compose.feePlan) return
-      setEcocash({ number: '', password: '', name: '' })
-      setPaymentNote('')
-      setOverlay({ type: 'feature-ecocash' })
-      pushPath('/profile/feature-pay')
+    if (compose.mode !== 'feature') return
+    if (compose.shelf !== 'Best selling' || !compose.feePlan) {
+      setCompose((previous) => ({
+        ...previous,
+        note: 'Choose an exclusive Best selling plan first.',
+      }))
+      setOverlay({ type: 'best-selling-plans' })
+      pushPath('/profile/best-selling-plans')
       return
     }
 
-    publishFeaturePost()
+    setEcocash({ number: '', password: '', name: '' })
+    setPaymentNote('')
+    setOverlay({ type: 'feature-ecocash' })
+    pushPath('/profile/feature-pay')
   }
 
   const submitFeatureEcoCash = (event) => {
@@ -5876,7 +5962,7 @@ function App() {
       company: {
         id: currentProfile.id,
         name: currentProfile.name || 'My account',
-        slides: [{ photo: src, testimonial: currentProfile.name || 'Profile picture' }],
+        slides: [{ photo: src, testimonial: '' }],
       },
     })
     pushPath('/profile/photo')
@@ -6164,7 +6250,7 @@ function App() {
     const posts = gallerySlides(currentProfile)
     const target = posts[index]
     if (!target) return
-    if (!confirmDeleteTwice('this picture')) return
+    if (!confirmDeleteTwice('this post')) return
     const src = target.photo || target.video
     updateCurrentWebsite({
       slides: (currentProfile.slides || []).filter(
@@ -6463,6 +6549,12 @@ function App() {
               {bestSelling.length > 0 ? <FeatureFlip companies={bestSelling} onOpen={openGallery} /> : (
                 homeQuery.trim() ? <p className="empty-note">No testimonials match that search.</p> : null
               )}
+              {generalFeed.length > 0 ? (
+                <div className="general-feed" aria-label="General posts">
+                  <p className="shelf-label">General</p>
+                  <FeatureFlip companies={generalFeed} onOpen={openGallery} />
+                </div>
+              ) : null}
               {homeGridCards.length > 0 ? (
                 <div className="home-grid" aria-label="Company reels and testimonials">
                   {homeGridCards.flatMap((company, index) => {
@@ -6640,6 +6732,30 @@ function App() {
                 </div>
               )}
 
+              {currentProfile ? (
+                <form className="profile-form company-edit-form" onSubmit={(event) => event.preventDefault()}>
+                  <label>
+                    Company name
+                    <input
+                      type="text"
+                      value={currentProfile.name || ''}
+                      onChange={(event) =>
+                        updateCurrentWebsite({ name: event.target.value || 'My company' })
+                      }
+                    />
+                  </label>
+                  <label>
+                    CEO name
+                    <input
+                      type="text"
+                      value={currentProfile.ceo || ''}
+                      placeholder="CEO name"
+                      onChange={(event) => updateCurrentWebsite({ ceo: event.target.value })}
+                    />
+                  </label>
+                </form>
+              ) : null}
+
               <div className={`ig-tabs${privateSystems.length ? ' has-dash' : ''}`} role="tablist" aria-label="Profile sections">
                 <button
                   type="button"
@@ -6674,50 +6790,27 @@ function App() {
               </div>
 
               {profileTab === 'gallery' && (
-                <>
-                  <form className="profile-form company-edit-form" onSubmit={(event) => event.preventDefault()}>
-                    <label>
-                      Company name
-                      <input
-                        type="text"
-                        value={currentProfile?.name || ''}
-                        onChange={(event) =>
-                          updateCurrentWebsite({ name: event.target.value || 'My company' })
-                        }
-                      />
-                    </label>
-                    <label>
-                      CEO name
-                      <input
-                        type="text"
-                        value={currentProfile?.ceo || ''}
-                        placeholder="CEO name"
-                        onChange={(event) => updateCurrentWebsite({ ceo: event.target.value })}
-                      />
-                    </label>
-                  </form>
-                  <div className="gallery-grid">
-                    {gallerySlides(currentProfile).length ? (
-                      gallerySlides(currentProfile).map((slide, index) => (
-                        <button
-                          key={`${slide.video || slide.photo || 'post'}-${index}`}
-                          type="button"
-                          className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
-                          onClick={() => openOwnGalleryPost(index)}
-                        >
-                          {slide.video ? (
-                            <video src={slide.video} muted playsInline preload="metadata" />
-                          ) : (
-                            <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
-                          )}
-                          {slide.video ? <span className="reel-mark">Reel</span> : null}
-                        </button>
-                      ))
-                    ) : (
-                      <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
-                    )}
-                  </div>
-                </>
+                <div className="gallery-grid">
+                  {gallerySlides(currentProfile).length ? (
+                    gallerySlides(currentProfile).map((slide, index) => (
+                      <button
+                        key={`${slide.video || slide.photo || 'post'}-${index}`}
+                        type="button"
+                        className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
+                        onClick={() => openOwnGalleryPost(index)}
+                      >
+                        {slide.video ? (
+                          <video src={slide.video} muted playsInline preload="metadata" />
+                        ) : (
+                          <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
+                        )}
+                        {slide.video ? <span className="reel-mark">Reel</span> : null}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
+                  )}
+                </div>
               )}
 
               {profileTab === 'store' && (
@@ -7427,7 +7520,7 @@ function App() {
               slides: [
                 {
                   photo: overlayCompany.profilePhoto || firstSlide(overlayCompany)?.photo,
-                  testimonial: overlayCompany.name,
+                  testimonial: '',
                 },
               ],
             }}
@@ -7449,7 +7542,7 @@ function App() {
                 slides: [
                   {
                     photo: currentProfile.profilePhoto || currentProfile.gallery?.[0],
-                    testimonial: currentProfile.name || 'Profile picture',
+                    testimonial: '',
                   },
                 ],
               }
@@ -7585,13 +7678,55 @@ function App() {
             </button>
             <div className="add-media-card">
               <h2>Add media</h2>
-              <button type="button" className="add-media-option" onClick={() => pickComposeFile('gallery')}>
-                <strong>Gallery upload</strong>
-                <span>Pick a photo or video from your phone. It goes on your Fortress gallery and this company’s home card.</span>
+              <button type="button" className="add-media-option has-exclusive" onClick={startBestSellingPost}>
+                <span className="exclusive-sticker">exclusive</span>
+                <strong>Best selling post</strong>
+                <span>Appears on Best selling, your gallery grid, and your company card after the exclusive plan.</span>
               </button>
-              <button type="button" className="add-media-option" onClick={() => pickComposeFile('feature')}>
-                <strong>Feature post</strong>
-                <span>The same photo or video posts to your gallery and as a new picture on the home-page company card.</span>
+              <button type="button" className="add-media-option" onClick={startGeneralPost}>
+                <strong>General post</strong>
+                <span>Appears on the General card and your gallery grid.</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        {overlay?.type === 'best-selling-plans' && (
+          <section className="detail-sheet add-media-sheet" aria-label="Exclusive best selling plans">
+            <button type="button" className="detail-close" onClick={closeOverlay}>
+              Close
+            </button>
+            <div className="add-media-card best-selling-plans-card">
+              <p className="ecocash-kicker">Exclusive</p>
+              <h2>Best selling</h2>
+              <p className="shop-copy">Choose a plan for exclusive Best selling placement.</p>
+              <div className="fee-picker best-selling-fee-picker">
+                {BEST_SELLING_PLANS.map((plan) => (
+                  <label
+                    key={plan.id}
+                    className={compose.feePlan === plan.id ? 'class-option active' : 'class-option'}
+                  >
+                    <input
+                      type="radio"
+                      name="best-selling-fee"
+                      value={plan.id}
+                      checked={compose.feePlan === plan.id}
+                      onChange={() => setCompose((previous) => ({ ...previous, feePlan: plan.id }))}
+                    />
+                    <span>
+                      <strong>{plan.label}</strong>
+                      {plan.note ? <small>{plan.note}</small> : null}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!compose.feePlan}
+                onClick={continueBestSellingPlan}
+              >
+                Continue
               </button>
             </div>
           </section>
@@ -7613,7 +7748,7 @@ function App() {
               <p className="ecocash-kicker">EcoCash</p>
               <h2>Best selling exclusive</h2>
               <p className="shop-copy">
-                {compose.feePlan === 'month' ? '$20/month' : '$200/year'} for the Best selling card.
+                {bestSellingPlanLabel(compose.feePlan) || '$1 a week on exclusive trending'} for the Best selling card.
               </p>
               <label>
                 EcoCash number
@@ -7671,7 +7806,10 @@ function App() {
               Close
             </button>
             <form className="add-media-card" onSubmit={submitCompose}>
-              <h2>{compose.mode === 'feature' ? 'Feature post' : 'Gallery upload'}</h2>
+              <h2>{compose.mode === 'feature' ? 'Best selling post' : 'General post'}</h2>
+              {compose.mode === 'feature' && compose.feePlan ? (
+                <p className="shop-copy">{bestSellingPlanLabel(compose.feePlan)}</p>
+              ) : null}
               {compose.video ? (
                 <video className="compose-preview" src={compose.video} controls playsInline />
               ) : compose.photo ? (
@@ -7679,80 +7817,25 @@ function App() {
               ) : null}
               {compose.note ? <p className="form-error">{compose.note}</p> : null}
               <label>
-                Testimonial
+                Testimonial caption
                 <textarea
                   rows="3"
                   value={compose.caption}
-                  placeholder="Add a testimonial like a caption"
+                  placeholder="Write a testimonial caption, or leave blank"
                   onChange={(event) =>
                     setCompose((previous) => ({ ...previous, caption: event.target.value }))
                   }
                 />
               </label>
-              {compose.mode === 'feature' && (
-                <fieldset className="class-picker">
-                  <legend>Choose where this post appears</legend>
-                  {FEATURE_CLASSES.map((item) => (
-                    <label key={item.id} className={compose.shelf === item.id ? 'class-option active' : 'class-option'}>
-                      <input
-                        type="radio"
-                        name="feature-class"
-                        value={item.id}
-                        checked={compose.shelf === item.id}
-                        onChange={() =>
-                          setCompose((previous) => ({
-                            ...previous,
-                            shelf: item.id,
-                            feePlan: item.id === 'Best selling' ? previous.feePlan : '',
-                          }))
-                        }
-                      />
-                      <span>
-                        <strong>{item.label}</strong>
-                        {item.note ? <small>{item.note}</small> : null}
-                      </span>
-                    </label>
-                  ))}
-                  {compose.shelf === 'Best selling' && (
-                    <div className="fee-picker">
-                      <label className={compose.feePlan === 'year' ? 'class-option active' : 'class-option'}>
-                        <input
-                          type="radio"
-                          name="feature-fee"
-                          value="year"
-                          checked={compose.feePlan === 'year'}
-                          onChange={() => setCompose((previous) => ({ ...previous, feePlan: 'year' }))}
-                        />
-                        <span>
-                          <strong>$200/year</strong>
-                        </span>
-                      </label>
-                      <label className={compose.feePlan === 'month' ? 'class-option active' : 'class-option'}>
-                        <input
-                          type="radio"
-                          name="feature-fee"
-                          value="month"
-                          checked={compose.feePlan === 'month'}
-                          onChange={() => setCompose((previous) => ({ ...previous, feePlan: 'month' }))}
-                        />
-                        <span>
-                          <strong>$20/month</strong>
-                        </span>
-                      </label>
-                    </div>
-                  )}
-                </fieldset>
-              )}
               <button
                 type="submit"
                 className="primary-button"
                 disabled={
                   (!compose.photo && !compose.video) ||
-                  (compose.mode === 'feature' &&
-                    (!compose.shelf || (compose.shelf === 'Best selling' && !compose.feePlan)))
+                  (compose.mode === 'feature' && !compose.feePlan)
                 }
               >
-                {compose.mode === 'feature' && compose.shelf === 'Best selling' ? 'Pay with EcoCash' : 'Post'}
+                {compose.mode === 'feature' ? 'Pay with EcoCash' : 'Post'}
               </button>
             </form>
           </section>

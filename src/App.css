@@ -678,6 +678,7 @@
 }
 
 .add-media-option {
+  position: relative;
   display: grid;
   gap: 4px;
   text-align: left;
@@ -688,13 +689,52 @@
   cursor: pointer;
 }
 
+.add-media-option.has-exclusive {
+  overflow: hidden;
+  padding-top: 22px;
+}
+
+.exclusive-sticker {
+  position: absolute;
+  top: 10px;
+  right: -28px;
+  width: 110px;
+  padding: 4px 0;
+  background: #9f2d2d;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  transform: rotate(35deg);
+  box-shadow: 0 2px 8px rgba(28, 25, 21, 0.18);
+}
+
 .add-media-option strong {
   font-size: 1rem;
 }
 
-.add-media-option span {
+.add-media-option > span:not(.exclusive-sticker) {
   color: #6b5b4d;
   font-size: 0.85rem;
+}
+
+.best-selling-plans-card .best-selling-fee-picker {
+  grid-template-columns: 1fr;
+}
+
+.shelf-label {
+  margin: 18px 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b645c;
+}
+
+.general-feed {
+  margin-top: 8px;
 }
 
 .compose-preview {
@@ -773,7 +813,8 @@
 }
 
 .company-edit-form {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
+  padding: 0 2px;
 }
 
 .public-comments {
@@ -1328,9 +1369,6 @@
   resize: vertical;
 }
 
-.card-delete {
-  margin: 10px 14px 0;
-}
 
 .comment-thread {
   display: grid;
@@ -1478,20 +1516,20 @@
 .opened-stage-fill video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
 }
 
 .opened-stage-fill {
   width: 100%;
-  height: min(70dvh, 640px);
+  height: min(78dvh, 720px);
 }
 
 .opened-stage img,
 .opened-stage video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
   background: #111;
@@ -1780,7 +1818,7 @@
 .opened-stage {
   position: relative;
   margin: 0;
-  height: min(58vh, 460px);
+  height: min(72vh, 640px);
   flex: none;
   overflow: hidden;
   background: #111;
@@ -1803,10 +1841,65 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
   pointer-events: none;
+}
+
+.card-bin-wrap {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 9;
+}
+
+.card-bin {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(28, 25, 21, 0.78);
+  color: #fff;
+  cursor: pointer;
+}
+
+.card-bin-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.card-bin-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(28, 25, 21, 0.22);
+}
+
+.card-bin-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9f2d2d;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.card-bin-menu button:hover,
+.card-bin-menu button:focus-visible {
+  background: rgba(159, 45, 45, 0.08);
 }
 
 .opened-stage .card-arrow {
