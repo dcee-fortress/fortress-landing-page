@@ -1310,16 +1310,11 @@
 
 .card-caption-edit {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin-top: 8px;
   font-size: 0.78rem;
   font-weight: 700;
   color: #463f39;
-}
-
-.card-caption-edit label {
-  display: grid;
-  gap: 6px;
 }
 
 .card-caption-edit textarea {
@@ -1331,11 +1326,6 @@
   font: inherit;
   font-weight: 500;
   resize: vertical;
-}
-
-.card-caption-edit .caption-clear {
-  justify-self: start;
-  margin: 0;
 }
 
 .card-delete {

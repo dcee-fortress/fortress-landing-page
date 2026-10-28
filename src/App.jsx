@@ -2333,6 +2333,7 @@ function OpenedCard({
   onDelete,
   canEditCaption,
   onCaptionChange,
+  commentIndex,
 }) {
   const slides = company.slides || []
   const count = slides.length
@@ -2452,28 +2453,15 @@ function OpenedCard({
             {count ? `${active + 1} / ${count}` : '0 / 0'}
           </p>
           {canEditCaption && onCaptionChange ? (
-            <div className="card-caption-edit">
-              <label>
-                Testimonial caption
-                <textarea
-                  rows="3"
-                  value={slide?.testimonial || ''}
-                  placeholder="Write a testimonial caption, or leave blank"
-                  onChange={(event) => onCaptionChange(active, event.target.value)}
-                />
-              </label>
-              {slide?.testimonial ? (
-                <button
-                  type="button"
-                  className="danger-button caption-clear"
-                  onClick={() => onCaptionChange(active, '', { clear: true })}
-                >
-                  Delete caption
-                </button>
-              ) : (
-                <p className="empty-note">No caption on this picture.</p>
-              )}
-            </div>
+            <label className="card-caption-edit">
+              Testimonial caption
+              <textarea
+                rows="3"
+                value={slide?.testimonial || ''}
+                placeholder="Write a testimonial caption, or leave blank"
+                onChange={(event) => onCaptionChange(active, event.target.value)}
+              />
+            </label>
           ) : slide?.testimonial ? (
             <p className="detail-quote card-caption">{slide.testimonial}</p>
           ) : count ? null : (
@@ -2494,7 +2482,7 @@ function OpenedCard({
         ) : null}
         {comments && onAddComment ? (
           <CommentThread
-            targetId={`photo:${company.id}:${active}`}
+            targetId={`photo:${company.id}:${commentIndex ?? active}`}
             comments={comments}
             viewer={viewer}
             onAdd={onAddComment}
@@ -4814,11 +4802,6 @@ function PublicCompanyProfile({
           <p>{company.category}</p>
           {company.location ? <p>{company.location}</p> : null}
           <StarRanking rating={company.rating} />
-          {company.ceoTestimonial || company.about ? (
-            <p className="detail-quote ceo-testimonial">{company.ceoTestimonial || company.about}</p>
-          ) : company.id === 'rodcroft' ? (
-            <p className="empty-note ceo-testimonial">CEO testimonial awaiting entry.</p>
-          ) : null}
         </div>
       </div>
       <div className="gallery-grid">
@@ -6196,16 +6179,12 @@ function App() {
     pushPath('/profile')
   }
 
-  const updateOwnSlideCaption = (index, caption, options = {}) => {
+  const updateOwnSlideCaption = (index, caption) => {
     if (!currentProfile) return
     const posts = gallerySlides(currentProfile)
     const target = posts[index]
     if (!target) return
     const nextCaption = String(caption ?? '')
-    if (options.clear) {
-      if (!nextCaption && !target.testimonial) return
-      if (!confirmDeleteTwice('this testimonial caption')) return
-    }
     const src = target.photo || target.video || ''
     const baseSlides = currentProfile.slides?.length ? currentProfile.slides : posts
     const nextSlides = baseSlides.map((slide, slideIndex) => {
@@ -6221,6 +6200,18 @@ function App() {
       slides: nextSlides,
       photoCaptions: nextCaptions,
     })
+  }
+
+  const ownPostCompany = (postIndex) => {
+    if (!currentProfile) return null
+    const posts = gallerySlides(currentProfile)
+    const slide = posts[postIndex]
+    if (!slide) return null
+    return {
+      id: currentProfile.id,
+      name: currentProfile.name || 'My account',
+      slides: [slide],
+    }
   }
 
   const openAddShopItem = () => {
@@ -6704,49 +6695,23 @@ function App() {
                         onChange={(event) => updateCurrentWebsite({ ceo: event.target.value })}
                       />
                     </label>
-                    <label>
-                      CEO testimonial
-                      <textarea
-                        rows="3"
-                        value={currentProfile?.ceoTestimonial || ''}
-                        placeholder={
-                          currentProfile?.catalogId === 'rodcroft'
-                            ? 'Awaiting CEO entry'
-                            : 'Write the CEO testimonial'
-                        }
-                        onChange={(event) =>
-                          updateCurrentWebsite({
-                            ceoTestimonial: event.target.value,
-                            testimonial: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
                   </form>
                   <div className="gallery-grid">
                     {gallerySlides(currentProfile).length ? (
                       gallerySlides(currentProfile).map((slide, index) => (
-                        <div className="gallery-tile-wrap" key={`${slide.video || slide.photo || 'post'}-${index}`}>
-                          <button
-                            type="button"
-                            className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
-                            onClick={() => openOwnGalleryPost(index)}
-                          >
-                            {slide.video ? (
-                              <video src={slide.video} muted playsInline preload="metadata" />
-                            ) : (
-                              <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
-                            )}
-                            {slide.video ? <span className="reel-mark">Reel</span> : null}
-                          </button>
-                          <button
-                            type="button"
-                            className="tile-delete"
-                            onClick={() => deleteOwnPhoto(index)}
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          key={`${slide.video || slide.photo || 'post'}-${index}`}
+                          type="button"
+                          className={`gallery-tile${slide.video ? ' is-reel' : ''}`}
+                          onClick={() => openOwnGalleryPost(index)}
+                        >
+                          {slide.video ? (
+                            <video src={slide.video} muted playsInline preload="metadata" />
+                          ) : (
+                            <img src={slide.photo} alt={slide.testimonial || `Gallery ${index + 1}`} />
+                          )}
+                          {slide.video ? <span className="reel-mark">Reel</span> : null}
+                        </button>
                       ))
                     ) : (
                       <p className="empty-note gallery-empty">Tap + to add a photo or video from your gallery.</p>
@@ -7475,34 +7440,45 @@ function App() {
           />
         )}
 
-        {(overlay?.type === 'own-photo' || overlay?.type === 'own-post') &&
-          (overlay.company || currentProfile) && (
+        {overlay?.type === 'own-photo' && (overlay.company || currentProfile) && (
           <OpenedCard
             company={
-              overlay.type === 'own-post'
-                ? ownGalleryCompany()
-                : overlay.company || {
-                    id: currentProfile.id,
-                    name: currentProfile.name || 'My account',
-                    slides: [
-                      {
-                        photo: currentProfile.profilePhoto || currentProfile.gallery?.[0],
-                        testimonial: currentProfile.name || 'Profile picture',
-                      },
-                    ],
-                  }
+              overlay.company || {
+                id: currentProfile.id,
+                name: currentProfile.name || 'My account',
+                slides: [
+                  {
+                    photo: currentProfile.profilePhoto || currentProfile.gallery?.[0],
+                    testimonial: currentProfile.name || 'Profile picture',
+                  },
+                ],
+              }
             }
-            startIndex={overlay.postIndex || 0}
+            startIndex={0}
             onClose={closeOverlay}
             comments={comments}
             onAddComment={addComment}
             onReplyComment={replyToComment}
             viewer={signedInAccount}
             onNeedAccount={needAccountForComment}
-            canDelete={overlay.type === 'own-post'}
-            onDelete={deleteOwnPhoto}
-            canEditCaption={overlay.type === 'own-post'}
-            onCaptionChange={updateOwnSlideCaption}
+          />
+        )}
+
+        {overlay?.type === 'own-post' && ownPostCompany(overlay.postIndex || 0) && (
+          <OpenedCard
+            company={ownPostCompany(overlay.postIndex || 0)}
+            startIndex={0}
+            onClose={closeOverlay}
+            comments={comments}
+            onAddComment={addComment}
+            onReplyComment={replyToComment}
+            viewer={signedInAccount}
+            onNeedAccount={needAccountForComment}
+            canDelete
+            onDelete={() => deleteOwnPhoto(overlay.postIndex || 0)}
+            canEditCaption
+            onCaptionChange={(_, caption) => updateOwnSlideCaption(overlay.postIndex || 0, caption)}
+            commentIndex={overlay.postIndex || 0}
           />
         )}
 
