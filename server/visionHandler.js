@@ -7,6 +7,8 @@ import { STEEL_VISION_PROMPT } from './visionPrompt.js'
 
 export const DRAWING_RATE_LIMIT = 10
 export const DRAWING_RATE_WINDOW_MS = 60_000
+/** 3.8 Flash-Lite is TTS-only; use 3.5 Flash-Lite for vision/generateContent. Override with GEMINI_MODEL. */
+export const GEMINI_VISION_MODEL = String(process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim()
 
 const hitBuckets = new Map()
 
@@ -56,9 +58,13 @@ export const takeDrawingSlot = (ip) => {
   }
 }
 
-export const callGeminiVision = async (dataUrl, apiKey) => {
+export const callGeminiVision = async (dataUrl, apiKey, corrections = '') => {
   const { mime, base64 } = splitDataUrl(dataUrl)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`
+  const model = GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite'
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  const correctionBlock = String(corrections || '').trim()
+    ? `\n\nFabricator objections / corrections about a previous read of THIS drawing:\n${String(corrections).trim()}\nRevise the JSON to fix those mistakes. Prefer these corrections over the previous guess. Do not keep wrong materials from another drawing type.`
+    : ''
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,7 +72,7 @@ export const callGeminiVision = async (dataUrl, apiKey) => {
       contents: [
         {
           parts: [
-            { text: STEEL_VISION_PROMPT },
+            { text: `${STEEL_VISION_PROMPT}${correctionBlock}` },
             { inline_data: { mime_type: mime, data: base64 } },
           ],
         },
@@ -130,7 +136,8 @@ export const handleVisionExtract = async (req, res) => {
   }
 
   try {
-    const schedule = await callGeminiVision(dataUrl, apiKey)
+    const corrections = typeof req.body?.corrections === 'string' ? req.body.corrections : ''
+    const schedule = await callGeminiVision(dataUrl, apiKey, corrections)
     res.status(200).json({
       schedule,
       rateLimit: { limit: DRAWING_RATE_LIMIT, remaining: slot.remaining, windowSeconds: 60 },

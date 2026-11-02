@@ -1,6 +1,53 @@
 /** Intelligent steel-drawing brain: Vision extract → master template → auto schedule */
 
+import { storage } from './storage.js'
+
 export const FAB_MASTER_KEY = 'fortress-fab-master-template-v1'
+
+const GATE_DRAWING_TYPES = new Set(['gate', 'burglar'])
+
+/** Map vision/memory drawing_type → calc jobType (`gate` | `structure`). */
+export const jobTypeFromDrawingType = (drawingType = '', hints = {}) => {
+  const type = String(drawingType || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+  if (GATE_DRAWING_TYPES.has(type)) return 'gate'
+  if (type && type !== 'unknown') return 'structure'
+  const blob = `${hints.notes || ''} ${hints.name || ''} ${hints.label || ''}`.toLowerCase()
+  if (/\bgate\b|burglar|palisade|sliding\s*gate|swing\s*gate/.test(blob)) return 'gate'
+  return 'structure'
+}
+
+export const normalizeGateType = (value) => {
+  const v = String(value || '')
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+  if (v === 'sliding') return 'sliding'
+  if (['swing-double', 'double', 'double-swing', 'double-leaf'].includes(v)) return 'swing-double'
+  if (['swing-single', 'single', 'single-swing', 'swing', 'pedestrian'].includes(v)) return 'swing-single'
+  return ''
+}
+
+export const normalizeGateDesign = (value) => {
+  const v = String(value || '').toLowerCase()
+  if (/palisade|spear|vertical\s*tube|25\s*[x×]\s*25/.test(v)) return 'palisade'
+  if (/solid|private|ibr|sheet|clad|no\s*see/.test(v)) return 'solid'
+  if (/half/.test(v)) return 'half'
+  return ''
+}
+
+export const inferDrawingTypeFromText = (text = '') => {
+  const t = String(text || '').toLowerCase()
+  if (/burglar/.test(t)) return 'burglar'
+  if (/\bgate\b|palisade|sliding\s*gate|swing\s*gate|driveway\s*gate/.test(t)) return 'gate'
+  if (/carport/.test(t)) return 'carport'
+  if (/warehouse/.test(t)) return 'warehouse'
+  if (/workshop/.test(t)) return 'workshop'
+  if (/stair|staircase|stringer|tread/.test(t)) return 'staircase'
+  if (/roof\s*plan/.test(t)) return 'roof_plan'
+  if (/steel\s*schedule|purlin|girt|rafter|pfc\s*\d|h\s*\d{2,3}/.test(t)) return 'steel_structure'
+  return 'unknown'
+}
 
 const SECTION_ALIASES = [
   { test: /h\s*120|120\s*[x×]\s*120/i, priceKey: 'h120PerM', defaultRate: '18', role: 'Columns' },
@@ -46,7 +93,7 @@ export const emptyMasterTemplate = () => ({
 export const loadMasterTemplate = () => {
   if (typeof window === 'undefined') return emptyMasterTemplate()
   try {
-    return { ...emptyMasterTemplate(), ...JSON.parse(window.localStorage.getItem(FAB_MASTER_KEY) || '{}') }
+    return { ...emptyMasterTemplate(), ...JSON.parse(storage.getItem(FAB_MASTER_KEY) || '{}') }
   } catch {
     return emptyMasterTemplate()
   }
@@ -54,7 +101,7 @@ export const loadMasterTemplate = () => {
 
 export const saveMasterTemplate = (master) => {
   try {
-    window.localStorage.setItem(FAB_MASTER_KEY, JSON.stringify(master))
+    storage.setItem(FAB_MASTER_KEY, JSON.stringify(master))
   } catch {
     /* ignore */
   }
@@ -80,11 +127,30 @@ export const matchSectionMeta = (size = '', roleHint = '') => {
   }
 }
 
+const scheduleRowKey = (row = {}) => {
+  const mark = String(row.mark || '')
+    .trim()
+    .toLowerCase()
+  // Keep distinct marks / grid lines (A vs B, C1 vs C2) as separate rows.
+  return `${row.role}|${row.section}|${row.priceKey}|${mark}`
+}
+
+const addNumericFields = (a = '', b = '') => {
+  const left = Number(a)
+  const right = Number(b)
+  if (Number.isFinite(left) && Number.isFinite(right) && (left || right)) {
+    const sum = left + right
+    return Number.isInteger(sum) ? String(sum) : String(Number(sum.toFixed(3)))
+  }
+  return b || a || ''
+}
+
 const flattenExtracted = (extracted = {}) => {
   const rows = []
   const pushGroup = (list, role) => {
     ;(list || []).forEach((item, index) => {
       const size = item.size || item.section || item.grade || 'Unknown'
+      const mark = String(item.mark || '').trim()
       const qty = Number(item.qty) || 0
       const total =
         Number(item.total_m) ||
@@ -94,8 +160,9 @@ const flattenExtracted = (extracted = {}) => {
       const isPlate = /plate/i.test(role) || /plate|200x200/i.test(size)
       const isBolt = /bolt/i.test(role) || /^m\d+/i.test(size)
       rows.push({
-        id: `${slugId(role)}-${slugId(size)}-${index}`,
+        id: `${slugId(role)}-${slugId(mark || size)}-${index}`,
         role: meta.role || role,
+        mark,
         section: size,
         unit: isPlate ? 'kg' : isBolt ? 'qty' : 'm',
         qty: String(qty || ''),
@@ -116,10 +183,12 @@ const flattenExtracted = (extracted = {}) => {
   pushGroup(extracted.bolts, 'Bolts')
   ;(extracted.other || []).forEach((item, index) => {
     const size = item.size || 'Other'
+    const mark = String(item.mark || '').trim()
     const meta = matchSectionMeta(size, item.role || 'Other')
     rows.push({
-      id: `other-${slugId(size)}-${index}`,
+      id: `other-${slugId(mark || size)}-${index}`,
       role: item.role || meta.role,
+      mark,
       section: size,
       unit: item.unit || 'm',
       qty: String(item.qty || ''),
@@ -133,33 +202,46 @@ const flattenExtracted = (extracted = {}) => {
   return rows
 }
 
-export const mergeScheduleWithExtraction = (extracted, previousSchedule = []) => {
+export const mergeScheduleWithExtraction = (extracted, previousSchedule = [], { replace = false } = {}) => {
   const extractedRows = flattenExtracted(extracted)
   if (!extractedRows.length) {
     return {
-      schedule: previousSchedule,
+      schedule: replace ? [] : previousSchedule,
       addedSections: [],
       pricingUpdates: {},
       building: extracted?.building || null,
+      gate: extracted?.gate || null,
+      drawingType: extracted?.drawing_type || extracted?.drawingType || '',
+      source: extracted?.source || 'schedule_read',
+      notes: extracted?.notes || '',
     }
   }
   const byKey = new Map()
-  previousSchedule.forEach((row) => {
-    byKey.set(`${row.role}|${row.section}|${row.priceKey}`, row)
-  })
+  if (!replace) {
+    previousSchedule.forEach((row) => {
+      byKey.set(scheduleRowKey(row), row)
+    })
+  }
   const addedSections = []
   const pricingUpdates = {}
   extractedRows.forEach((row) => {
-    const key = `${row.role}|${row.section}|${row.priceKey}`
+    const key = scheduleRowKey(row)
     const prev = byKey.get(key)
-    byKey.set(key, {
-      ...(prev || {}),
-      ...row,
-      qty: row.qty || prev?.qty || '',
-      meters: row.meters || prev?.meters || '',
-      kgEach: row.kgEach || prev?.kgEach || '',
-    })
-    if (!prev) addedSections.push(row.section)
+    if (prev) {
+      // Same mark + size again (e.g. two schedule tables): add totals, do not drop the first.
+      byKey.set(key, {
+        ...prev,
+        ...row,
+        id: prev.id || row.id,
+        mark: row.mark || prev.mark || '',
+        qty: addNumericFields(prev.qty, row.qty),
+        meters: addNumericFields(prev.meters, row.meters),
+        kgEach: row.kgEach || prev.kgEach || '',
+      })
+    } else {
+      byKey.set(key, row)
+      addedSections.push(row.section)
+    }
     if (row.priceKey) pricingUpdates[row.priceKey] = row.defaultRate
   })
   return {
@@ -167,7 +249,220 @@ export const mergeScheduleWithExtraction = (extracted, previousSchedule = []) =>
     addedSections: [...new Set(addedSections)],
     pricingUpdates,
     building: extracted?.building || null,
+    gate: extracted?.gate || null,
+    drawingType: extracted?.drawing_type || extracted?.drawingType || '',
+    source: extracted?.source || 'schedule_read',
+    notes: extracted?.notes || '',
   }
+}
+
+/** Human-readable take-off script for the confirm step (linked to meta / template). */
+export const formatDrawingScript = ({
+  drawingType = '',
+  jobType = '',
+  roofLength = '',
+  roofWidth = '',
+  wallArea = '',
+  foundationPads = '',
+  gate = null,
+  schedule = [],
+  notes = '',
+} = {}) => {
+  const lines = []
+  const type = drawingType || (jobType === 'gate' ? 'gate' : 'steel_structure')
+  lines.push(`Drawing type: ${type.replace(/_/g, ' ')}.`)
+  if (jobType === 'gate') {
+    lines.push(
+      `Opening size: ${gate?.width || '—'} m wide × ${gate?.height || '—'} m high.`,
+    )
+    if (gate?.gateType) lines.push(`Gate type: ${gate.gateType}.`)
+    if (gate?.design) lines.push(`Design: ${gate.design}.`)
+  } else {
+    lines.push(`Overall dimensions: ${roofLength || '—'} m × ${roofWidth || '—'} m.`)
+    if (wallArea) lines.push(`Wall / cladding area: ${wallArea} sqm.`)
+    if (foundationPads) lines.push(`Foundation pads: ${foundationPads}.`)
+  }
+  lines.push('')
+  lines.push('Materials from this drawing:')
+  const rows = schedule || []
+  if (!rows.length && jobType !== 'gate') {
+    lines.push('— No steel members listed yet.')
+  }
+  rows.forEach((row) => {
+    const label = row.mark
+      ? `${row.role || 'Member'} ${row.mark}: ${row.section || '—'}`
+      : `${row.role || 'Member'}: ${row.section || '—'}`
+    const bits = [label]
+    if (row.qty !== '' && row.qty != null) bits.push(`qty ${row.qty}`)
+    if (row.unit === 'm' || row.meters) bits.push(`${row.meters || '—'} m total`)
+    if (row.unit === 'kg' || row.kgEach) bits.push(`${row.kgEach || '—'} kg each`)
+    if (row.unit === 'qty' && !row.meters) bits.push('each')
+    lines.push(`• ${bits.join(' · ')}`)
+  })
+  if (notes) {
+    lines.push('')
+    lines.push(`Reader notes: ${notes}`)
+  }
+  return lines.join('\n')
+}
+
+export const projectToExtraction = (project = {}) => {
+  const buckets = {
+    columns: [],
+    rafters: [],
+    purlins: [],
+    girts: [],
+    braces: [],
+    plates: [],
+    bolts: [],
+    other: [],
+  }
+  const roleBucket = (role = '') => {
+    const r = String(role).toLowerCase()
+    if (/column|stanchion/.test(r)) return 'columns'
+    if (/rafter|beam/.test(r)) return 'rafters'
+    if (/purlin/.test(r)) return 'purlins'
+    if (/girt|rail/.test(r)) return 'girts'
+    if (/brace|angle|cleat/.test(r)) return 'braces'
+    if (/plate|base/.test(r)) return 'plates'
+    if (/bolt/.test(r)) return 'bolts'
+    return 'other'
+  }
+  ;(project.schedule || []).forEach((row) => {
+    const bucket = roleBucket(row.role)
+    const mark = String(row.mark || '').trim()
+    const qty = Number(row.qty) || 0
+    const total_m = Number(row.meters) || 0
+    const length_m = qty > 0 && total_m ? Number((total_m / qty).toFixed(3)) : 0
+    if (bucket === 'plates') {
+      buckets.plates.push({ mark, size: row.section, qty, thickness_mm: null })
+      return
+    }
+    if (bucket === 'bolts') {
+      buckets.bolts.push({ grade: '', size: row.section, qty })
+      return
+    }
+    if (bucket === 'other') {
+      buckets.other.push({
+        role: row.role || 'Steel member',
+        mark,
+        size: row.section,
+        qty,
+        total_m: total_m || null,
+        unit: row.unit || 'm',
+      })
+      return
+    }
+    buckets[bucket].push({ mark, size: row.section, qty, length_m, total_m })
+  })
+  return {
+    drawing_type: project.drawingType || 'steel_structure',
+    source: 'confirmed',
+    building: {
+      length_m: Number(project.roofLength) || null,
+      width_m: Number(project.roofWidth) || null,
+      height_m: null,
+      name: project.name || project.drawingName || null,
+    },
+    gate: null,
+    ...buckets,
+    notes: project.confirmNotes || project.drawingScript || '',
+  }
+}
+
+export const FAB_NATURE_PRICES_KEY = 'fortress-fab-nature-prices-v1'
+
+export const drawingNatureKey = ({ drawingType = '', building = {}, schedule = [] } = {}) => {
+  const L = Math.round((Number(building?.length_m) || Number(building?.roofLength) || 0) * 2) / 2
+  const W = Math.round((Number(building?.width_m) || Number(building?.roofWidth) || 0) * 2) / 2
+  const type = String(drawingType || 'steel')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '') || 'steel'
+  const sections = (schedule || [])
+    .map((row) => String(row.section || '').toLowerCase().replace(/\s+/g, ''))
+    .filter(Boolean)
+    .sort()
+    .slice(0, 14)
+    .join('|')
+  return `${type}|${L}x${W}|${sections}`
+}
+
+export const loadNaturePrices = () => {
+  if (typeof window === 'undefined') return []
+  try {
+    const rows = JSON.parse(storage.getItem(FAB_NATURE_PRICES_KEY) || '[]')
+    return Array.isArray(rows) ? rows : []
+  } catch {
+    return []
+  }
+}
+
+export const saveNaturePrices = (rows) => {
+  try {
+    storage.setItem(FAB_NATURE_PRICES_KEY, JSON.stringify(rows.slice(0, 60)))
+  } catch {
+    /* ignore */
+  }
+}
+
+export const findNaturePriceMemory = (natureKey, { drawingType = '', schedule = [] } = {}) => {
+  const rows = loadNaturePrices()
+  if (!rows.length) return null
+  const exact = rows.find((row) => row.natureKey === natureKey)
+  if (exact) return { ...exact, match: 'exact' }
+
+  const type = String(drawingType || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+  const sections = new Set(
+    (schedule || []).map((row) => String(row.section || '').toLowerCase().replace(/\s+/g, '')).filter(Boolean),
+  )
+  let best = null
+  let bestScore = 0
+  rows.forEach((row) => {
+    const rowType = String(row.drawingType || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+    if (type && rowType && type !== rowType) return
+    const known = (row.sections || []).map((s) => String(s).toLowerCase().replace(/\s+/g, ''))
+    if (!known.length || !sections.size) return
+    let hit = 0
+    known.forEach((section) => {
+      if (sections.has(section)) hit += 1
+    })
+    const score = hit / Math.max(known.length, sections.size)
+    if (score > bestScore) {
+      bestScore = score
+      best = row
+    }
+  })
+  if (best && bestScore >= 0.75) return { ...best, match: 'similar', score: bestScore }
+  return null
+}
+
+export const rememberNaturePrices = ({
+  natureKey,
+  drawingType = '',
+  label = '',
+  pricing = {},
+  schedule = [],
+  building = null,
+} = {}) => {
+  if (!natureKey) return
+  const sections = (schedule || []).map((row) => row.section).filter(Boolean)
+  const entry = {
+    natureKey,
+    drawingType,
+    label,
+    pricing: { ...pricing },
+    sections,
+    building,
+    at: Date.now(),
+  }
+  const next = [entry, ...loadNaturePrices().filter((row) => row.natureKey !== natureKey)]
+  saveNaturePrices(next)
+  return entry
 }
 
 export const updateMasterFromExtraction = (master, extracted, label = 'New drawing') => {
@@ -212,17 +507,39 @@ const splitDataUrl = (dataUrl) => {
   return { mime: match[1], base64: match[2] }
 }
 
+const visionExtractUrl = () => {
+  const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_VISION_API_URL
+  if (fromEnv) return String(fromEnv)
+  // Electron (file://) and direct browser hits need the vision server absolute URL.
+  if (typeof window !== 'undefined' && window.electronAPI?.isElectron) {
+    return 'http://127.0.0.1:8787/api/vision-extract'
+  }
+  if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+    return 'http://127.0.0.1:8787/api/vision-extract'
+  }
+  // Vite/web: relative path is proxied to the vision server in vite.config.js
+  return '/api/vision-extract'
+}
+
 /** Calls Fortress backend — Gemini API key never leaves the server. Limit: 10 drawings / min. */
-export const extractSteelScheduleWithGemini = async (dataUrl) => {
+export const extractSteelScheduleWithGemini = async (dataUrl, { corrections = '' } = {}) => {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     throw new Error('Gemini needs internet. Switch to Tesseract (free, on-device) for offline reads.')
   }
   splitDataUrl(dataUrl) // validate early
-  const response = await fetch('/api/vision-extract', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl }),
-  })
+  const url = visionExtractUrl()
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl, corrections: String(corrections || '').trim() || undefined }),
+    })
+  } catch {
+    throw new Error(
+      'Could not reach the vision server. Keep `npm run server` on (port 8787) and `npm run dev` running, then try again.',
+    )
+  }
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(payload?.error || 'Vision server failed')
@@ -293,55 +610,71 @@ export const parseSteelScheduleFromOcrText = (rawText = '') => {
     if (/steel schedule|material list|bill of|drawing no|rev\b|sheet\b/i.test(line) && !sectionRe.test(line)) {
       return
     }
-    const sizeMatch = line.match(sectionRe)
-    if (!sizeMatch) return
-    const size = sizeMatch[1].replace(/\s+/g, ' ').trim()
-    const after = line.slice(sizeMatch.index + sizeMatch[0].length)
-    const before = line.slice(0, sizeMatch.index)
-    // Only numbers after the section size are qty / length / total (ignore mark digits like C1).
-    const nums = [...after.matchAll(numsRe)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n))
-    let qty = 0
-    let length_m = 0
-    let total_m = 0
-    if (nums.length >= 3) {
-      qty = nums[0]
-      length_m = nums[1]
-      total_m = nums[2]
-    } else if (nums.length === 2) {
-      qty = nums[0]
-      total_m = nums[1]
-      length_m = qty ? Number((total_m / qty).toFixed(3)) : 0
-    } else if (nums.length === 1) {
-      qty = nums[0]
-    }
-    const bucket = roleFromHint(line, size)
-    const row = {
-      mark: (before.match(/\b([A-Z]{1,3}\d{0,3})\b/) || [])[1] || '',
-      size,
-      qty: qty || 0,
-      length_m: length_m || 0,
-      total_m: total_m || (qty && length_m ? qty * length_m : 0),
-    }
-    if (bucket === 'plates') {
-      buckets.plates.push({
-        mark: row.mark,
+    // Side-by-side schedule columns often OCR as one line with several sizes — parse every match.
+    const sizeMatches = [...line.matchAll(new RegExp(sectionRe.source, 'gi'))]
+    if (!sizeMatches.length) return
+    sizeMatches.forEach((sizeMatch, matchIndex) => {
+      const size = sizeMatch[1].replace(/\s+/g, ' ').trim()
+      const start = sizeMatch.index
+      const end = start + sizeMatch[0].length
+      const nextStart = sizeMatches[matchIndex + 1]?.index ?? line.length
+      const after = line.slice(end, nextStart)
+      const before = line.slice(matchIndex === 0 ? 0 : sizeMatches[matchIndex - 1].index + sizeMatches[matchIndex - 1][0].length, start)
+      // Only numbers after the section size (before the next size) are qty / length / total.
+      const nums = [...after.matchAll(numsRe)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n))
+      let qty = 0
+      let length_m = 0
+      let total_m = 0
+      if (nums.length >= 3) {
+        qty = nums[0]
+        length_m = nums[1]
+        total_m = nums[2]
+      } else if (nums.length === 2) {
+        qty = nums[0]
+        total_m = nums[1]
+        length_m = qty ? Number((total_m / qty).toFixed(3)) : 0
+      } else if (nums.length === 1) {
+        qty = nums[0]
+      }
+      const bucket = roleFromHint(`${before} ${after}`, size)
+      const markHit =
+        before.match(/\b(?:grid|line|col(?:umn)?|mark)?\s*([A-Z]{1,3}\d{0,3})\b/i) ||
+        before.match(/\b([A-Z]{1,3}\d{0,3})\b/)
+      const row = {
+        mark: markHit ? String(markHit[1]).toUpperCase() : '',
         size,
-        qty: row.qty,
-        thickness_mm: (size.match(/[x×]\s*(\d{1,2}(?:\.\d)?)\s*$/) || [])[1]
-          ? Number((size.match(/[x×]\s*(\d{1,2}(?:\.\d)?)\s*$/) || [])[1])
-          : null,
-      })
-      return
-    }
-    if (bucket === 'bolts') {
-      buckets.bolts.push({ grade: /8\.8/i.test(size) ? '8.8' : /hd/i.test(size) ? 'HD' : '', size, qty: row.qty })
-      return
-    }
-    if (bucket === 'other') {
-      buckets.other.push({ role: 'Steel member', size, qty: row.qty, total_m: row.total_m, unit: 'm' })
-      return
-    }
-    buckets[bucket].push(row)
+        qty: qty || 0,
+        length_m: length_m || 0,
+        total_m: total_m || (qty && length_m ? qty * length_m : 0),
+      }
+      if (bucket === 'plates') {
+        buckets.plates.push({
+          mark: row.mark,
+          size,
+          qty: row.qty,
+          thickness_mm: (size.match(/[x×]\s*(\d{1,2}(?:\.\d)?)\s*$/) || [])[1]
+            ? Number((size.match(/[x×]\s*(\d{1,2}(?:\.\d)?)\s*$/) || [])[1])
+            : null,
+        })
+        return
+      }
+      if (bucket === 'bolts') {
+        buckets.bolts.push({ grade: /8\.8/i.test(size) ? '8.8' : /hd/i.test(size) ? 'HD' : '', size, qty: row.qty })
+        return
+      }
+      if (bucket === 'other') {
+        buckets.other.push({
+          role: 'Steel member',
+          mark: row.mark,
+          size,
+          qty: row.qty,
+          total_m: row.total_m,
+          unit: 'm',
+        })
+        return
+      }
+      buckets[bucket].push(row)
+    })
   })
 
   const found =
@@ -354,14 +687,47 @@ export const parseSteelScheduleFromOcrText = (rawText = '') => {
     buckets.bolts.length +
     buckets.other.length
 
+  const drawing_type = inferDrawingTypeFromText(text)
+
   if (!found) {
+    if (GATE_DRAWING_TYPES.has(drawing_type)) {
+      return {
+        drawing_type,
+        source: 'schedule_read',
+        building,
+        gate: {
+          width_m: building.width_m || building.length_m,
+          height_m: building.height_m,
+          gate_type: null,
+          design: /palisade/.test(text.toLowerCase())
+            ? 'palisade'
+            : /ibr|sheet|solid/.test(text.toLowerCase())
+              ? 'solid'
+              : /half/.test(text.toLowerCase())
+                ? 'half'
+                : null,
+        },
+        columns: [],
+        rafters: [],
+        purlins: [],
+        girts: [],
+        braces: [],
+        plates: [],
+        bolts: [],
+        other: [],
+        notes: 'Gate / burglar detected on-device. Confirm opening size, type, and design.',
+      }
+    }
     throw new Error(
       'Tesseract could not find steel sizes in this drawing. Use a clearer photo of the schedule table, or try free Gemini.',
     )
   }
 
   return {
+    drawing_type: drawing_type === 'unknown' ? 'steel_structure' : drawing_type,
+    source: 'schedule_read',
     building,
+    gate: null,
     ...buckets,
     notes: 'Parsed on-device with Tesseract OCR (free). Check quantities against the drawing.',
   }
@@ -384,8 +750,8 @@ export const extractSteelScheduleWithTesseract = async (dataUrl) => {
   }
 }
 
-export const extractSteelSchedule = async (dataUrl, { provider = 'tesseract' } = {}) => {
+export const extractSteelSchedule = async (dataUrl, { provider = 'tesseract', corrections = '' } = {}) => {
   const mode = provider === 'openai' ? 'gemini' : provider || 'tesseract'
   if (mode === 'tesseract') return extractSteelScheduleWithTesseract(dataUrl)
-  return extractSteelScheduleWithGemini(dataUrl)
+  return extractSteelScheduleWithGemini(dataUrl, { corrections })
 }

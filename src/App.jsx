@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
+import { storage } from './storage'
 import {
+  drawingNatureKey,
   extractSteelSchedule,
+  findNaturePriceMemory,
+  formatDrawingScript,
+  jobTypeFromDrawingType,
   loadMasterTemplate,
   mergeScheduleWithExtraction,
+  normalizeGateDesign,
+  normalizeGateType,
+  projectToExtraction,
+  rememberNaturePrices,
   updateMasterFromExtraction,
 } from './steelVision'
 
 const STORE_KEY = 'fortress-phone-app-phase1'
 const SESSION_KEY = 'fortress-session-phase1'
+/** Bump when demo catalog media must overwrite stale localStorage slides/gallery. */
+const CATALOG_MEDIA_SEED = 5
 const OWNER_LOGIN = {
   email: 'darelchits@gmail.com',
   password: 'Darel2005',
@@ -29,7 +40,43 @@ const COMPANY_LOGINS = [
     password: 'Prixburg2026',
     catalogId: 'prixburg',
   },
+  {
+    accountId: 'account-siteworks',
+    siteId: 'site-siteworks',
+    email: 'siteworks@fortress.com',
+    password: 'Siteworks2026',
+    catalogId: 'siteworks',
+  },
+  {
+    accountId: 'account-fieldnote',
+    siteId: 'site-fieldnote',
+    email: 'fieldnote@fortress.com',
+    password: 'Fieldnote2026',
+    catalogId: 'fieldnote',
+  },
 ]
+
+const COMPANY_LIVE_SITES = {
+  rodcroft: {
+    home: 'https://rodcroft-fortress.vercel.app/',
+    ceo: 'https://rodcroft-fortress.vercel.app/project/p-1789313935790/dashboard/ceo-dashboards',
+    label: 'rodcroft-fortress.vercel.app',
+  },
+  prixburg: {
+    home: 'https://prixburg.vercel.app/',
+    ceo: 'https://prixburg.vercel.app/ceo-analysis.html',
+    ceoNet: 'https://prixburg.vercel.app/ceo-net-profit.html',
+    ceoGross: 'https://prixburg.vercel.app/ceo-gross-profit.html',
+    label: 'prixburg.vercel.app',
+  },
+}
+
+const companyLiveSite = (site) => {
+  const key = String(site?.catalogId || site?.slug || site?.id || '')
+    .toLowerCase()
+    .replace(/^site-/, '')
+  return COMPANY_LIVE_SITES[key] || null
+}
 const PHASE1_COMPLETE = true
 const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
 const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_LOGIN.email.toLowerCase()
@@ -73,7 +120,6 @@ const MEDIA = {
   prixburg3: '/media/prixburg/prixburg3.jpeg',
   prixburg4: '/media/prixburg/prixburg4.jpeg',
   prixburg5: '/media/prixburg/prixburg5.jpeg',
-  prixburg6: '/media/prixburg/prixburg6.mp4',
 }
 
 const catalog = [
@@ -157,11 +203,6 @@ const catalog = [
         photo: MEDIA.prixburg5,
         testimonial:
           'For a factory like this, the calculating system that keeps formulas intact is the asset. Fortress holds the recipes while output keeps rising. — Tawanda Chitukutuku, CEO',
-      },
-      {
-        video: MEDIA.prixburg6,
-        testimonial:
-          'Ndinoona the storeroom, the formulas, and sales pano on one site. Zvakanaka for a chemical plant. — Tawanda Chitukutuku, CEO',
       },
     ],
   },
@@ -259,15 +300,16 @@ const catalog = [
     rating: 4.7,
     hue: '#3f3f46',
     location: 'Gary, IN',
+    ceo: 'Tendai Moyo',
     about: 'Ironleaf tracks mill materials, consumed stock, and sales estimates on Fortress dashboards.',
     slides: [
       {
-        photo: pexel(1181519),
+        photo: shot('photo-1565043666747-69f6646db940'),
         testimonial:
-          'I’m the CEO of this coil mill. Fortress cut the paperwork so engineers post the run pano. Ndatenda. — Chiedza Dube, CEO',
+          'I’m the CEO of this coil mill. Fortress cut the paperwork so engineers post the run pano. Ndatenda. — Tendai Moyo, CEO',
       },
       {
-        photo: pexel(3184292),
+        photo: shot('photo-1504917595217-d4dc5ebe6122'),
         testimonial:
           'Coil and sheet sit in the storeroom. Fortress calculates consumed stock as the press runs, so the mill always knows what left the rack.',
       },
@@ -277,14 +319,14 @@ const catalog = [
           'The system tracks those materials from yard to press. Stock is managed by live counts, not a weekly walk.',
       },
       {
-        photo: shot('photo-1504917595217-d4dc5ebe6122'),
+        photo: shot('photo-1565008447742-97f6f38c985c'),
         testimonial:
           'It estimates sales on dashboards as coil and formed parts leave the plant. The mill and the office read one number for what shipped.',
       },
       {
-        photo: shot('photo-1565043666747-69f6646db940'),
+        photo: shot('photo-1504328345606-18bbc8c9d7d1'),
         testimonial:
-          'SHEQ and I open Fortress and see the floor without a walk-down. Zvechokwadi, the records stay intact. — Chiedza Dube, CEO',
+          'SHEQ and I open Fortress and see the floor without a walk-down. Zvechokwadi, the records stay intact. — Tendai Moyo, CEO',
       },
     ],
   },
@@ -412,33 +454,69 @@ const catalog = [
     shelf: 'New companies',
     rating: 4.7,
     hue: '#365314',
+    showOnGrid: true,
     location: 'Nashville, TN',
+    ceo: 'Tatenda Chirwa',
     about: 'Fieldnote started on Fortress so QS, stock, and the CEO already share one site.',
     slides: [
       {
-        photo: pexel(8487371),
+        photo: pexel(1216589),
         testimonial:
           'I’m the CEO. From day one the phone is the job trailer. Ndatenda. — Tatenda Chirwa, CEO',
       },
       {
-        photo: pexel(8487724),
+        photo: pexel(585419),
         testimonial:
           'With that time back, Fieldnote can grow first pours and first tenders without growing paperwork.',
       },
       {
-        photo: shot('photo-1590496793929-36417d3117de'),
+        photo: pexel(1117452),
         testimonial:
           'Theft has nowhere to hide because Fortress tracks storeroom stock. Cement and fuel have a log from the first delivery.',
       },
       {
-        photo: pexel(8487760),
+        photo: pexel(209251),
         testimonial:
           'Valuations are recorded on site and roll into a cumulative dashboard. Monday meetings now open that same screen.',
       },
       {
-        photo: shot('photo-1517581177682-a085bb7ffb15'),
+        photo: shot('photo-1486406146926-c627a92ad1ab'),
         testimonial:
           'SHEQ and my CEO view were built in from the start. Ndinoona whatever is happening on site. Zvakanaka. — Tatenda Chirwa, CEO',
+      },
+    ],
+  },
+  {
+    id: 'siteworks',
+    name: 'Test Siteworks',
+    category: 'Construction',
+    shelf: 'New companies',
+    rating: 4.6,
+    hue: '#3f6212',
+    showOnGrid: true,
+    location: 'Harare',
+    ceo: 'Kudzi Ndlovu',
+    about: 'Test Siteworks runs earthworks, pads, and storeroom tracking from Fortress.',
+    slides: [
+      {
+        photo: shot('photo-1503387762-592deb58ef4e'),
+        testimonial: 'Siteworks yard on a cut-and-fill day. — Kudzi Ndlovu, CEO',
+      },
+      {
+        photo: shot('photo-1541888946425-d81bb19240f5'),
+        testimonial: 'Excavator and pad works logged on the company card.',
+      },
+      {
+        photo: shot('photo-1581094794329-c8112a89af12'),
+        testimonial: 'Formwork and rebar before the next pour.',
+      },
+      {
+        photo: pexel(2219024),
+        testimonial: 'Storeroom cement and fuel leave with a Fortress log.',
+      },
+      {
+        photo: shot('photo-1504307651254-35680f356dfd'),
+        testimonial: 'Ndinoona the deck progress from the phone. — Kudzi Ndlovu, CEO',
       },
     ],
   },
@@ -493,7 +571,7 @@ const mallCatalog = [
   ]),
   shopFromHome('voltform', [
     mallGood('volt-cable', 'Cable drum', shot('photo-1621905251918-48416bd8575a'), 58, 'Armoured cable on a drum for plant rooms.'),
-    mallGood('volt-switch', 'Switch gear pack', pexel(3184292), 46, 'Breakers and switches for a small board.'),
+    mallGood('volt-switch', 'Switch gear pack', shot('photo-1558494949-ef010cbdcc31'), 46, 'Breakers and switches for a small board.'),
     mallGood('volt-lamp', 'Bay lamp', 'photo-1504328345606-18bbc8c9d7d1', 37, 'High-bay lamp for mill and warehouse lighting.'),
   ]),
   retailShop('lantern-home', 'Lantern Home Goods', 'photo-1555041469-a586c61ea9bc', [
@@ -558,7 +636,10 @@ const DEMO_COMMENTS = {
     seedNote('rg4a', 'Tawanda Ncube, CEO', 'Ndinoona every deck from the phone. Handichafona the trailer.'),
   ],
   'photo:ironleaf:0': [
-    seedNote('il0a', 'Chiedza Dube, CEO', 'Engineers post the run pano. Ndatenda — clipboards are done.'),
+    seedNote('il0a', 'Tendai Moyo, CEO', 'Engineers post the run pano. Ndatenda — clipboards are done.'),
+  ],
+  'photo:siteworks:0': [
+    seedNote('sw0a', 'Kudzi Ndlovu, CEO', 'Cut and fill stays on the card. Zvakanaka.'),
   ],
   'photo:pylon:0': [
     seedNote('py0a', 'Simba Mhlanga, CEO', 'Makorokoto. Measures and claims sit pano. Handichafona the trailer.'),
@@ -579,7 +660,7 @@ const DEMO_COMMENTS = {
     seedNote('itrg', 'Tawanda Ncube, CEO', 'Crew vest from the yard. Zvakanaka for the mall card.'),
   ],
   'item:market-street:market-bread': [
-    seedNote('itmb', 'Chiedza Dube, CEO', 'Fresh loaf pano. Ndatenda to the baker.'),
+    seedNote('itmb', 'Tendai Moyo, CEO', 'Fresh loaf pano. Ndatenda to the baker.'),
   ],
 }
 
@@ -608,6 +689,7 @@ const withDemoComments = (saved) => {
     if (cleaned.length) next[key] = cleaned
   })
   Object.entries(saved || {}).forEach(([key, thread]) => {
+    if (String(key).toLowerCase().includes('sparkstech')) return
     if (!Array.isArray(thread) || !thread.length) return
     const cleaned = stripBlockedComments(thread)
     if (cleaned.length) next[key] = cleaned
@@ -778,16 +860,6 @@ function IconCompanyTab() {
   )
 }
 
-function IconBin() {
-  return (
-    <svg className="card-bin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9zm-1 12h12l1-12H5l1 12z"
-      />
-    </svg>
-  )
-}
 
 const makeId = (prefix = 'id') =>
   `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
@@ -833,16 +905,6 @@ const readMediaFile = async (file) => {
     return { kind: 'video', src: await readFileAsDataUrl(file) }
   }
   return { kind: 'photo', src: await compressImageFile(file) }
-}
-
-const gallerySlides = (site) => {
-  const fromSlides = (site?.slides || []).filter((slide) => slide.photo || slide.video)
-  if (fromSlides.length) return fromSlides
-  return (site?.gallery || []).map((photo, index) => ({
-    photo,
-    video: isVideoSrc(photo) ? photo : '',
-    testimonial: site.photoCaptions?.[index] || site.testimonial || '',
-  }))
 }
 
 const FAB_PLANS = [
@@ -897,10 +959,26 @@ const FAB_QUOTES_KEY = 'fortress-fab-quotes-v1'
 const FAB_PROJECTS_KEY = 'fortress-fab-projects-v1'
 const FAB_DRAWING_TEMPLATES_KEY = 'fortress-fab-drawing-templates-v1'
 const FAB_STEEL_WASTE = 1.1
-const JOB_TYPES = [
-  { id: 'gate', label: 'Gate / Burglar', copy: 'Small jobs · L × W formula' },
-  { id: 'structure', label: 'Steel Structure / Carport / Warehouse', copy: 'From steel schedule' },
-]
+
+const DRAWING_TYPE_LABELS = {
+  steel_structure: 'Steel structure',
+  carport: 'Carport',
+  warehouse: 'Warehouse',
+  workshop: 'Workshop',
+  staircase: 'Staircase',
+  gate: 'Gate / burglar',
+  burglar: 'Burglar bars',
+  roof_plan: 'Roof plan',
+  building_plan: 'Building plan',
+  architectural: 'Architectural plan',
+  unknown: 'Drawing / plan',
+}
+
+const drawingTypeLabel = (type) => DRAWING_TYPE_LABELS[type] || type || 'Drawing / plan'
+const jobTypeLabel = (jobType, drawingType) => {
+  if (drawingType) return drawingTypeLabel(drawingType)
+  return jobType === 'gate' ? 'Gate / Burglar' : jobType === 'structure' ? 'Steel structure' : 'Drawing'
+}
 
 const defaultStructureSchedule = () => [
   { id: 'col', role: 'Columns', section: 'H 120x120', unit: 'm', qty: '6', meters: '29.7', priceKey: 'h120PerM' },
@@ -1132,6 +1210,7 @@ const makeWebsite = ({
   catalogId = '',
   ceo = '',
   ceoTestimonial = '',
+  seedMediaVersion = 0,
 }) => ({
   id: id || makeId('site'),
   name,
@@ -1154,6 +1233,7 @@ const makeWebsite = ({
   catalogId,
   ceo,
   ceoTestimonial,
+  seedMediaVersion,
 })
 
 const makeAccount = (email, password, companyName, { withWebsite = true, id = '' } = {}) => ({
@@ -1172,15 +1252,17 @@ const websiteFromCatalog = (entry, login) => {
     type: entry.category || 'Business',
     systemType: systemIdFromCompany(entry),
     slug: entry.id,
-    link: '',
+    link: companyLiveSite({ catalogId: entry.id })?.home || '',
     profilePhoto: first?.photo || '',
     testimonial: '',
     slides,
-    gallery: rest.map((slide) => slide.photo || slide.video).filter(Boolean),
-    photoCaptions: rest.map((slide) => slide.testimonial || ''),
+    // Keep gallery aligned with every card slide so profile grid matches home cards.
+    gallery: slides.map((slide) => slide.photo || slide.video).filter(Boolean),
+    photoCaptions: slides.map((slide) => slide.testimonial || ''),
     catalogId: entry.id,
     ceo: entry.ceo || '',
     ceoTestimonial: '',
+    seedMediaVersion: CATALOG_MEDIA_SEED,
   })
 }
 
@@ -1199,8 +1281,35 @@ const withOwnerLogin = (list) => {
   return [makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }), ...accounts]
 }
 
+const isSparksTechAccount = (account) => {
+  const email = String(account?.email || '').toLowerCase()
+  if (email.includes('sparkstech')) return true
+  if (account?.id === 'account-sparkstech') return true
+  return (account?.websites || []).some(
+    (site) =>
+      site?.catalogId === 'sparkstech' ||
+      site?.id === 'site-sparkstech' ||
+      site?.slug === 'sparkstech' ||
+      String(site?.name || '').toLowerCase() === 'sparkstech',
+  )
+}
+
+const stripSparksTech = (list) =>
+  (Array.isArray(list) ? list : [])
+    .filter((account) => !isSparksTechAccount(account))
+    .map((account) => ({
+      ...account,
+      websites: (account.websites || []).filter(
+        (site) =>
+          site?.catalogId !== 'sparkstech' &&
+          site?.id !== 'site-sparkstech' &&
+          site?.slug !== 'sparkstech' &&
+          String(site?.name || '').toLowerCase() !== 'sparkstech',
+      ),
+    }))
+
 const withCompanyAccounts = (list) => {
-  const accounts = withOwnerLogin(list)
+  const accounts = withOwnerLogin(stripSparksTech(list))
   COMPANY_LOGINS.forEach((login) => {
     const catalogEntry = catalog.find((entry) => entry.id === login.catalogId)
     if (!catalogEntry) return
@@ -1229,20 +1338,29 @@ const withCompanyAccounts = (list) => {
     if (siteIndex < 0) {
       account.websites = [...account.websites, seededSite]
     } else {
-      account.websites = account.websites.map((site, current) =>
-        current === siteIndex
-          ? {
-              ...site,
-              id: site.id || login.siteId,
-              catalogId: login.catalogId,
-              slug: site.slug || login.catalogId,
-              ceo: site.ceo ?? catalogEntry.ceo ?? '',
-              ceoTestimonial: '',
-              testimonial: '',
-              slides: site.slides?.length ? site.slides : seededSite.slides,
-            }
-          : site,
-      )
+      account.websites = account.websites.map((site, current) => {
+        if (current !== siteIndex) return site
+        const refreshMedia = site.seedMediaVersion !== CATALOG_MEDIA_SEED
+        return {
+          ...site,
+          id: site.id || login.siteId,
+          catalogId: login.catalogId,
+          slug: site.slug || login.catalogId,
+          name: catalogEntry.name || site.name,
+          type: catalogEntry.category || site.type,
+          systemType: systemIdFromCompany(catalogEntry) || site.systemType,
+          ceo: catalogEntry.ceo ?? site.ceo ?? '',
+          ceoTestimonial: '',
+          testimonial: '',
+          link: site.link || companyLiveSite({ catalogId: login.catalogId })?.home || seededSite.link || '',
+          profilePhoto: refreshMedia ? seededSite.profilePhoto : site.profilePhoto || seededSite.profilePhoto,
+          slides: refreshMedia || !site.slides?.length ? seededSite.slides : site.slides,
+          gallery: refreshMedia || !site.gallery?.length ? seededSite.gallery : site.gallery,
+          photoCaptions:
+            refreshMedia || !site.photoCaptions?.length ? seededSite.photoCaptions : site.photoCaptions,
+          seedMediaVersion: CATALOG_MEDIA_SEED,
+        }
+      })
     }
     accounts[index] = account
   })
@@ -1415,16 +1533,16 @@ const shopBySlug = (slug, accountList) => {
 }
 
 const slidesForSite = (site) => {
-  const slides = [...(site.slides || [])]
+  const slides = [...(site?.slides || [])]
   const seen = new Set(slides.flatMap((slide) => [slide.photo, slide.video].filter(Boolean)))
-  if (site.profilePhoto && !seen.has(site.profilePhoto)) {
-    slides.push({
+  if (site?.profilePhoto && !seen.has(site.profilePhoto)) {
+    slides.unshift({
       photo: site.profilePhoto,
       testimonial: '',
     })
     seen.add(site.profilePhoto)
   }
-  ;(site.gallery || []).forEach((photo, index) => {
+  ;(site?.gallery || []).forEach((photo, index) => {
     if (!photo || seen.has(photo)) return
     slides.push(
       isVideoSrc(photo)
@@ -1441,6 +1559,9 @@ const slidesForSite = (site) => {
   })
   return slides
 }
+
+// Profile gallery grid must use the same merged media as home cards.
+const gallerySlides = (site) => slidesForSite(site || {})
 
 const firstSlide = (company) => company.slides?.[0] || null
 
@@ -1525,6 +1646,15 @@ const displayLivePath = (site) => {
 }
 
 const liveDomain = (site) => {
+  const live = companyLiveSite(site)
+  if (live?.label) return live.label
+  if (live?.home) {
+    try {
+      return new URL(live.home).host
+    } catch {
+      return live.home
+    }
+  }
   const slug = site?.slug || slugify(site?.name || 'site')
   return `${slug}.fortress.site`
 }
@@ -1603,12 +1733,18 @@ const emptyProject = () => ({
   drawingName: '',
   drawingFingerprint: '',
   drawingKind: '',
+  drawingType: '',
+  drawingSource: '',
+  natureKey: '',
+  drawingScript: '',
+  confirmNotes: '',
+  descriptionConfirmed: false,
   gate: emptyDrawingDraft(),
-  schedule: defaultStructureSchedule(),
-  roofLength: '7.0',
-  roofWidth: '5.566',
-  wallArea: '40',
-  foundationPads: '6',
+  schedule: [],
+  roofLength: '',
+  roofWidth: '',
+  wallArea: '',
+  foundationPads: '',
   labourPercent: '',
   consumablesPercent: '',
   marginPercent: '',
@@ -1619,7 +1755,7 @@ const emptyProject = () => ({
 const loadDrawingTemplates = () => {
   if (typeof window === 'undefined') return []
   try {
-    const rows = JSON.parse(window.localStorage.getItem(FAB_DRAWING_TEMPLATES_KEY) || '[]')
+    const rows = JSON.parse(storage.getItem(FAB_DRAWING_TEMPLATES_KEY) || '[]')
     return Array.isArray(rows) ? rows : []
   } catch {
     return []
@@ -1628,7 +1764,7 @@ const loadDrawingTemplates = () => {
 
 const saveDrawingTemplates = (rows) => {
   try {
-    window.localStorage.setItem(FAB_DRAWING_TEMPLATES_KEY, JSON.stringify(rows.slice(0, 40)))
+    storage.setItem(FAB_DRAWING_TEMPLATES_KEY, JSON.stringify(rows.slice(0, 40)))
   } catch {
     /* ignore quota */
   }
@@ -1649,20 +1785,33 @@ const fingerprintFile = async (file) => {
 const findDrawingTemplate = (fingerprint) =>
   loadDrawingTemplates().find((item) => item.fingerprint === fingerprint) || null
 
-const rememberDrawingTemplate = (project) => {
+const rememberDrawingTemplate = (project, pricingSnapshot = null) => {
   if (!project?.drawingFingerprint || !project.jobType) return
+  const natureKey =
+    project.natureKey ||
+    drawingNatureKey({
+      drawingType: project.drawingType,
+      building: {
+        length_m: project.roofLength,
+        width_m: project.roofWidth,
+      },
+      schedule: project.schedule,
+    })
   const template = {
     id: project.drawingFingerprint,
     fingerprint: project.drawingFingerprint,
     fileName: project.drawingName || 'drawing',
     drawingKind: project.drawingKind || '',
+    drawingType: project.drawingType || '',
+    drawingSource: project.drawingSource || '',
+    natureKey,
     preview: project.drawingKind === 'image' && project.drawing ? project.drawing : '',
     jobType: project.jobType,
     gate: project.jobType === 'gate' ? { ...(project.gate || {}) } : null,
     schedule:
-      project.jobType === 'structure'
-        ? JSON.parse(JSON.stringify(project.schedule || defaultStructureSchedule()))
-        : null,
+      project.jobType === 'structure' ? JSON.parse(JSON.stringify(project.schedule || [])) : null,
+    drawingScript: project.drawingScript || '',
+    confirmNotes: project.confirmNotes || '',
     roofLength: project.roofLength,
     roofWidth: project.roofWidth,
     wallArea: project.wallArea,
@@ -1674,12 +1823,32 @@ const rememberDrawingTemplate = (project) => {
   if (template.preview && template.preview.length > 400000) template.preview = ''
   const next = [template, ...loadDrawingTemplates().filter((item) => item.fingerprint !== template.fingerprint)]
   saveDrawingTemplates(next)
+  if (project.jobType === 'structure' && pricingSnapshot) {
+    rememberNaturePrices({
+      natureKey,
+      drawingType: project.drawingType || 'steel_structure',
+      label: template.label,
+      pricing: pricingSnapshot,
+      schedule: project.schedule || [],
+      building: {
+        length_m: Number(project.roofLength) || null,
+        width_m: Number(project.roofWidth) || null,
+      },
+    })
+  }
+}
+
+/** Exact fingerprint only — never reuse another drawing's nature before this file is read. */
+const findSimilarDrawingTemplate = (fingerprint) => {
+  const exact = findDrawingTemplate(fingerprint)
+  if (exact) return { ...exact, match: 'exact' }
+  return null
 }
 
 const loadFabPricing = () => {
   if (typeof window === 'undefined') return emptyFabPricing()
   try {
-    const saved = { ...emptyFabPricing(), ...JSON.parse(window.localStorage.getItem(PRICING_KEY) || '{}') }
+    const saved = { ...emptyFabPricing(), ...JSON.parse(storage.getItem(PRICING_KEY) || '{}') }
     if (saved.visionProvider === 'openai') saved.visionProvider = 'gemini'
     if (!saved.visionProvider) saved.visionProvider = 'tesseract'
     delete saved.visionApiKey
@@ -1692,7 +1861,7 @@ const loadFabPricing = () => {
 const loadFabQuotes = () => {
   if (typeof window === 'undefined') return []
   try {
-    const rows = JSON.parse(window.localStorage.getItem(FAB_QUOTES_KEY) || '[]')
+    const rows = JSON.parse(storage.getItem(FAB_QUOTES_KEY) || '[]')
     return Array.isArray(rows) ? rows : []
   } catch {
     return []
@@ -1702,7 +1871,7 @@ const loadFabQuotes = () => {
 const loadFabProjects = () => {
   if (typeof window === 'undefined') return []
   try {
-    const rows = JSON.parse(window.localStorage.getItem(FAB_PROJECTS_KEY) || '[]')
+    const rows = JSON.parse(storage.getItem(FAB_PROJECTS_KEY) || '[]')
     return Array.isArray(rows) ? rows : []
   } catch {
     return []
@@ -1711,7 +1880,7 @@ const loadFabProjects = () => {
 
 const saveFabProjects = (rows) => {
   try {
-    window.localStorage.setItem(FAB_PROJECTS_KEY, JSON.stringify(rows))
+    storage.setItem(FAB_PROJECTS_KEY, JSON.stringify(rows))
   } catch {
     /* ignore */
   }
@@ -1741,7 +1910,12 @@ const structureQuote = (project, pricing = emptyFabPricing()) => {
       amount = qty * rate
       detail = `${qty} pcs × ${formatPrice(rate)}`
     }
-    return { name: `${row.role} · ${row.section}`, detail, cost: amount, raw: amount }
+    return {
+      name: `${row.role}${row.mark ? ` ${row.mark}` : ''} · ${row.section}`,
+      detail,
+      cost: amount,
+      raw: amount,
+    }
   })
   const roofL = moneyAmount(project.roofLength)
   const roofW = moneyAmount(project.roofWidth)
@@ -2047,7 +2221,7 @@ function FeatureFlip({ companies, onOpen }) {
 
   return (
     <div className="feature-card">
-      <div className={visibleCompany.nativeFrame ? 'feature-shot feature-shot-fill' : 'feature-shot'}>
+      <div className="feature-shot feature-shot-fill">
         {media.map((item, slideIndex) => (
           <div
             className="feature-slide"
@@ -2355,14 +2529,12 @@ function OpenedCard({
   const count = slides.length
   const [index, setIndex] = useState(() => Number(startIndex) || 0)
   const [dir, setDir] = useState(1)
-  const [deleteMenuOpen, setDeleteMenuOpen] = useState(false)
   const startX = useRef(0)
   const dragging = useRef(false)
 
   useEffect(() => {
     setIndex(Number(startIndex) || 0)
     setDir(1)
-    setDeleteMenuOpen(false)
   }, [company.id, startIndex])
 
   const go = (step) => {
@@ -2423,37 +2595,17 @@ function OpenedCard({
             ×
           </button>
           {canDelete ? (
-            <div className="card-bin-wrap">
-              <button
-                type="button"
-                className="card-bin"
-                aria-label="Post options"
-                aria-expanded={deleteMenuOpen}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setDeleteMenuOpen((open) => !open)
-                }}
-              >
-                <IconBin />
-              </button>
-              {deleteMenuOpen ? (
-                <div className="card-bin-menu" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setDeleteMenuOpen(false)
-                      onDelete?.(active)
-                    }}
-                  >
-                    Delete post
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              className="card-delete-fab"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                onDelete?.(active)
+              }}
+            >
+              Delete
+            </button>
           ) : null}
           {slides.map((entry, slideIndex) => (
             <div
@@ -2757,12 +2909,74 @@ function MallEcoCash({ item }) {
   )
 }
 
-function CeoDashboard({ site, onBack, embedded = false }) {
+function CeoDashboard({
+  site,
+  onBack,
+  embedded = false,
+  canHistoryBack = false,
+  canHistoryForward = false,
+  onHistoryBack,
+  onHistoryForward,
+}) {
   const brand = brandTheme(site?.brandName || site?.name || 'Company')
   const figures = ceoFigures(brand.name)
   const manufacturing = site?.systemType === 'manufacturing'
+  const live = companyLiveSite(site)
   const domain = liveDomain(site)
-  const body = (
+  const openLive = (url) => {
+    if (!url || typeof window === 'undefined') return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const liveCeoBody = live?.ceo ? (
+    <main className="clone-page ceo-page ceo-live-page">
+      <p className="eyebrow">Live CEO dashboard</p>
+      <h1>{brand.name}</h1>
+      <p className="clone-muted">
+        {manufacturing
+          ? 'CEO analysis for net profit and gross profit from the live Prixburg site.'
+          : 'CEO EXCLUSIVE live page with project-to-date materials, workers, materials overview, and fuel consumed.'}
+      </p>
+      <div className="ceo-live-actions">
+        <button type="button" className="primary-button" onClick={() => openLive(live.ceo)}>
+          Open live CEO page
+        </button>
+        {live.home ? (
+          <button type="button" className="clone-text-btn" onClick={() => openLive(live.home)}>
+            Open {live.label || domain}
+          </button>
+        ) : null}
+      </div>
+      {manufacturing && (live.ceoNet || live.ceoGross) ? (
+        <div className="ceo-live-actions">
+          {live.ceoNet ? (
+            <button type="button" className="clone-text-btn" onClick={() => openLive(live.ceoNet)}>
+              Net profit table
+            </button>
+          ) : null}
+          {live.ceoGross ? (
+            <button type="button" className="clone-text-btn" onClick={() => openLive(live.ceoGross)}>
+              Gross profit table
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <iframe
+        className="ceo-live-frame"
+        title={`${brand.name} live CEO dashboard`}
+        src={live.ceo}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+      {onBack ? (
+        <button type="button" className="clone-text-btn" onClick={onBack}>
+          Back to Fortress
+        </button>
+      ) : null}
+    </main>
+  ) : null
+
+  const body = liveCeoBody || (
     <main className="clone-page ceo-page">
       <p className="eyebrow">{manufacturing ? 'Prixburg style' : 'Rodcroft style'}</p>
       <h1>{brand.name}</h1>
@@ -2821,7 +3035,12 @@ function CeoDashboard({ site, onBack, embedded = false }) {
     <div className={`clone-app ${manufacturing ? 'clone-prixburg' : 'clone-rodcroft'}`} style={brand.vars}>
       <header className="clone-topbar">
         <div className="clone-topbar-inner">
-          <HistoryNav />
+          <HistoryNav
+            canBack={canHistoryBack}
+            canForward={canHistoryForward}
+            onBack={onHistoryBack}
+            onForward={onHistoryForward}
+          />
           <button type="button" className="clone-brand" onClick={onBack}>
             <span className="clone-brand-mark">{brand.mark}</span>
             <span className="clone-brand-name">{brand.name}</span>
@@ -2833,13 +3052,25 @@ function CeoDashboard({ site, onBack, embedded = false }) {
   )
 }
 
-function HistoryNav({ className = '' }) {
+function HistoryNav({ className = '', onBack, onForward, canBack = false, canForward = false }) {
   return (
     <div className={`history-nav ${className}`.trim()}>
-      <button type="button" className="history-nav-btn" aria-label="Go back" onClick={() => window.history.back()}>
+      <button
+        type="button"
+        className="history-nav-btn"
+        aria-label="Go back"
+        disabled={!onBack || canBack === false}
+        onClick={() => onBack?.()}
+      >
         ←
       </button>
-      <button type="button" className="history-nav-btn" aria-label="Go forward" onClick={() => window.history.forward()}>
+      <button
+        type="button"
+        className="history-nav-btn"
+        aria-label="Go forward"
+        disabled={!onForward || canForward === false}
+        onClick={() => onForward?.()}
+      >
         →
       </button>
     </div>
@@ -2852,8 +3083,9 @@ const calcPanelFromState = (view, step) => {
   if (view === 'documents') return 'docs'
   if (step === 1) return 'new'
   if (step === 2) return 'drawing'
-  if (step === 3) return 'prices'
-  if (step === 4) return 'quote'
+  if (step === 3) return 'confirm'
+  if (step === 4) return 'prices'
+  if (step === 5) return 'quote'
   return 'home'
 }
 
@@ -2863,8 +3095,9 @@ const calcStateFromPanel = (panel = 'home') => {
   if (panel === 'docs') return { view: 'documents', step: 0 }
   if (panel === 'new') return { view: 'home', step: 1 }
   if (panel === 'drawing') return { view: 'home', step: 2 }
-  if (panel === 'prices') return { view: 'home', step: 3 }
-  if (panel === 'quote') return { view: 'home', step: 4 }
+  if (panel === 'confirm') return { view: 'home', step: 3 }
+  if (panel === 'prices') return { view: 'home', step: 4 }
+  if (panel === 'quote') return { view: 'home', step: 5 }
   return { view: 'home', step: 0 }
 }
 
@@ -3166,6 +3399,10 @@ function FabricationCalculator({
   onSavePricing,
   routePanel = 'home',
   onNavigate,
+  canHistoryBack = false,
+  canHistoryForward = false,
+  onHistoryBack,
+  onHistoryForward,
 }) {
   const initial = calcStateFromPanel(routePanel)
   const [view, setView] = useState(initial.view)
@@ -3178,10 +3415,24 @@ function FabricationCalculator({
   const [project, setProject] = useState(() => emptyProject())
   const [drawingViewer, setDrawingViewer] = useState(null)
   const [drawingNote, setDrawingNote] = useState('')
+  const [objections, setObjections] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
   const [master, setMaster] = useState(() => loadMasterTemplate())
   const [online, setOnline] = useState(() => readOnline())
   const rates = { ...emptyFabPricing(), ...(pricing || {}), ...(priceForm || {}) }
+
+  const refreshDrawingScript = (proj) =>
+    formatDrawingScript({
+      drawingType: proj.drawingType,
+      jobType: proj.jobType,
+      roofLength: proj.roofLength,
+      roofWidth: proj.roofWidth,
+      wallArea: proj.wallArea,
+      foundationPads: proj.foundationPads,
+      gate: proj.gate,
+      schedule: proj.schedule,
+      notes: proj.confirmNotes || '',
+    })
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
@@ -3257,7 +3508,7 @@ function FabricationCalculator({
     }
     const next = [entry, ...projects.filter((item) => item.id !== entry.id)].slice(0, 24)
     persistProjects(next)
-    rememberDrawingTemplate(entry)
+    rememberDrawingTemplate(entry, rates)
     setProject(entry)
     if (site?.id && project.jobType === 'gate') onSave?.()
     return entry
@@ -3267,25 +3518,28 @@ function FabricationCalculator({
     setProject(emptyProject())
     onChange(emptyDrawingDraft())
     setNote('')
+    setObjections('')
+    setDrawingNote('')
     setGateStep(1)
     goStep(1)
   }
 
   const openProject = (item) => {
-    setProject({ ...emptyProject(), ...item, schedule: item.schedule?.length ? item.schedule : defaultStructureSchedule() })
+    setProject({
+      ...emptyProject(),
+      ...item,
+      schedule: item.schedule?.length ? item.schedule : [],
+    })
     if (item.jobType === 'gate' && item.gate) onChange({ ...emptyDrawingDraft(), ...item.gate })
     setNote('')
+    setObjections(item.confirmNotes || '')
     setGateStep(1)
-    goStep(4)
+    goStep(5)
   }
 
   const nextFromProject = () => {
     if (!project.name.trim()) {
       setNote('Enter a project name.')
-      return
-    }
-    if (!project.jobType) {
-      setNote('Choose Gate / Burglar or Steel Structure.')
       return
     }
     setNote('')
@@ -3294,10 +3548,14 @@ function FabricationCalculator({
   }
 
   const nextFromDrawing = () => {
+    if (!project.jobType) {
+      setNote('Upload a drawing so the app can recognise the type.')
+      return
+    }
     if (project.jobType === 'gate') {
       const g = project.gate || {}
       if (!Number(g.width) || !Number(g.height)) {
-        setNote('Enter gate width and height.')
+        setNote('Confirm gate width and height.')
         return
       }
       if (!g.gateType) {
@@ -3313,20 +3571,84 @@ function FabricationCalculator({
         return
       }
     } else if (!(project.schedule || []).length) {
-      setNote('Add steel schedule lines.')
+      setNote('Add materials from the drawing first (or re-read the plan).')
       return
     }
-    rememberDrawingTemplate(project)
+    const script = refreshDrawingScript(project)
+    setProject((prev) => ({
+      ...prev,
+      drawingScript: script,
+      descriptionConfirmed: false,
+    }))
+    setObjections(project.confirmNotes || '')
     setNote('')
-    setDrawingNote(project.drawingFingerprint ? 'Formula saved for this drawing. Next upload will restore it.' : '')
-    setPriceForm({ ...emptyFabPricing(), ...(pricing || {}) })
+    setDrawingNote('Review the take-off script. Object to anything wrong, then confirm before prices.')
     goStep(3)
   }
 
-  const nextFromPrices = () => {
-    onSavePricing?.(priceForm)
+  const applyObjectionsUpdate = async () => {
+    const text = objections.trim()
+    if (!text) {
+      setNote('Type what the app got wrong, then tap Update.')
+      return
+    }
+    if (!project.drawing) {
+      setNote('Upload a drawing first.')
+      return
+    }
+    if (needOnline(NETWORK_ACTIONS.vision)) return
+    setAiBusy(true)
     setNote('')
+    setDrawingNote('Updating take-off from your objections…')
+    try {
+      const extracted = await extractSteelSchedule(project.drawing, {
+        provider: 'gemini',
+        corrections: text,
+      })
+      applyVisionExtraction(extracted, { ...project, confirmNotes: text, schedule: [] }, { deferMeta: true })
+      setDrawingNote('Take-off updated from your objections. Review the script, then Confirm.')
+    } catch (error) {
+      setDrawingNote(error?.message || 'Could not update from objections.')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  const confirmDrawingDescription = () => {
+    if (!project.jobType) {
+      setNote('No drawing type yet — go back and upload a plan.')
+      return
+    }
+    if (project.jobType === 'structure' && !(project.schedule || []).length) {
+      setNote('No materials to confirm. Update objections or re-read the plan.')
+      return
+    }
+    const script = refreshDrawingScript({ ...project, confirmNotes: objections.trim() })
+    const confirmed = {
+      ...project,
+      confirmNotes: objections.trim(),
+      drawingScript: script,
+      descriptionConfirmed: true,
+    }
+    const extracted = projectToExtraction(confirmed)
+    const nextMaster = updateMasterFromExtraction(
+      master,
+      extracted,
+      confirmed.name || confirmed.drawingName || drawingTypeLabel(confirmed.drawingType),
+    )
+    setMaster(nextMaster)
+    rememberDrawingTemplate(confirmed, priceForm)
+    setProject(confirmed)
+    setNote('')
+    setDrawingNote('Confirmed. Dimensions saved to the master template / memory for this drawing nature.')
     goStep(4)
+  }
+
+  const nextFromPrices = () => {
+    const saved = applySavedPricing(priceForm)
+    rememberDrawingTemplate(project, saved)
+    setNote('')
+    goStep(5)
   }
 
   const finishQuote = () => {
@@ -3346,7 +3668,7 @@ function FabricationCalculator({
       </head><body>
       <h1>Fabrication Quote</h1>
       <p><strong>${project.name || quote.title}</strong>${project.client ? ` · Client: ${project.client}` : ''}</p>
-      <p>${project.jobType === 'structure' ? 'Steel Structure' : 'Gate / Burglar'}</p>
+      <p>${jobTypeLabel(project.jobType, project.drawingType)}</p>
       <div class="box"><strong>Materials</strong><ul>${lines}</ul>
       ${quote.wasteFactor ? `<p>Includes ×${quote.wasteFactor} steel wastage on material total.</p>` : ''}
       </div>
@@ -3387,30 +3709,127 @@ function FabricationCalculator({
     })
   }
 
-  const applyVisionExtraction = (extracted, baseProject) => {
-    const merged = mergeScheduleWithExtraction(extracted, baseProject.schedule || defaultStructureSchedule())
-    const nextMaster = updateMasterFromExtraction(master, extracted, baseProject.name || baseProject.drawingName)
-    setMaster(nextMaster)
+  const applySavedPricing = (pricingPatch, { persist = true } = {}) => {
+    const merged = { ...emptyFabPricing(), ...rates, ...pricingPatch }
+    delete merged.visionApiKey
+    setPriceForm(merged)
+    if (persist) onSavePricing?.(merged)
+    return merged
+  }
+
+  const applyVisionExtraction = (extracted, baseProject, { fromMemory = false, deferMeta = true } = {}) => {
+    const drawingType =
+      extracted?.drawing_type || extracted?.drawingType || baseProject.drawingType || 'steel_structure'
+    const jobType = jobTypeFromDrawingType(drawingType, {
+      notes: extracted?.notes,
+      name: extracted?.building?.name || baseProject.name || baseProject.drawingName,
+    })
+    // Always replace from this drawing — never merge leftover workshop/default rows.
+    const merged = mergeScheduleWithExtraction(extracted, [], { replace: true })
+    const building = merged.building || {}
+    const resolvedType = merged.drawingType || drawingType
+    const source = merged.source || extracted?.source || (fromMemory ? 'memory_pattern' : 'schedule_read')
+    const gateInfo = merged.gate || extracted?.gate || {}
+    const natureKey = drawingNatureKey({
+      drawingType: resolvedType,
+      building: {
+        length_m: building.length_m || null,
+        width_m: building.width_m || null,
+      },
+      schedule: merged.schedule,
+    })
+    const natureMemory =
+      jobType === 'structure'
+        ? findNaturePriceMemory(natureKey, {
+            drawingType: resolvedType,
+            schedule: merged.schedule,
+          })
+        : null
     const pricingPatch = { ...rates }
     Object.entries(merged.pricingUpdates || {}).forEach(([key, value]) => {
       if (pricingPatch[key] === undefined || pricingPatch[key] === '') pricingPatch[key] = value
     })
-    setPriceForm(pricingPatch)
-    onSavePricing?.(pricingPatch)
-    const building = merged.building || {}
+    if (natureMemory?.match === 'exact' && natureMemory?.pricing) {
+      Object.entries(natureMemory.pricing).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') pricingPatch[key] = value
+      })
+    }
+    applySavedPricing(pricingPatch)
+
+    let nextGate = { ...emptyDrawingDraft(), ...(baseProject.gate || {}) }
+    if (jobType === 'gate') {
+      const width = gateInfo.width_m ?? building.width_m ?? building.length_m
+      const height = gateInfo.height_m ?? building.height_m
+      nextGate = {
+        ...nextGate,
+        width: width != null && width !== '' ? String(width) : nextGate.width || '',
+        height: height != null && height !== '' ? String(height) : nextGate.height || '',
+        gateType: normalizeGateType(gateInfo.gate_type) || nextGate.gateType || '',
+        design: normalizeGateDesign(gateInfo.design) || nextGate.design || '',
+      }
+      onChange(nextGate)
+      setGateStep(1)
+    }
+
     const nextProject = {
       ...baseProject,
-      jobType: 'structure',
-      schedule: merged.schedule,
-      roofLength: building.length_m ? String(building.length_m) : baseProject.roofLength,
-      roofWidth: building.width_m ? String(building.width_m) : baseProject.roofWidth,
+      jobType,
+      drawingType: resolvedType,
+      drawingSource: source,
+      natureKey: jobType === 'structure' ? natureKey : '',
+      descriptionConfirmed: false,
+      confirmNotes: baseProject.confirmNotes || '',
+      gate: nextGate,
+      schedule: jobType === 'structure' ? merged.schedule : [],
+      roofLength:
+        jobType === 'structure' && building.length_m
+          ? String(building.length_m)
+          : jobType === 'structure'
+            ? ''
+            : baseProject.roofLength,
+      roofWidth:
+        jobType === 'structure' && building.width_m
+          ? String(building.width_m)
+          : jobType === 'structure'
+            ? ''
+            : baseProject.roofWidth,
+      wallArea: jobType === 'structure' ? baseProject.wallArea || '' : baseProject.wallArea,
+      foundationPads: jobType === 'structure' ? baseProject.foundationPads || '' : baseProject.foundationPads,
     }
+    nextProject.drawingScript = refreshDrawingScript(nextProject)
     setProject(nextProject)
-    rememberDrawingTemplate(nextProject)
-    const added = merged.addedSections?.length
-      ? ` Template grew: added ${merged.addedSections.join(', ')}.`
-      : ' Pattern matched master workshop template.'
-    setDrawingNote(`AI read the drawing and filled the steel schedule.${added}`)
+    if (!deferMeta) {
+      const nextMaster = updateMasterFromExtraction(
+        master,
+        extracted,
+        baseProject.name || baseProject.drawingName,
+      )
+      setMaster(nextMaster)
+      rememberDrawingTemplate(nextProject, pricingPatch)
+    }
+    const typeLabel = drawingTypeLabel(resolvedType)
+    const dims =
+      jobType === 'gate'
+        ? nextGate.width || nextGate.height
+          ? ` Opening: ${nextGate.width || '—'}m × ${nextGate.height || '—'}m.`
+          : ''
+        : building.length_m || building.width_m
+          ? ` Dimensions: ${building.length_m || '—'}m × ${building.width_m || '—'}m${building.height_m ? ` × ${building.height_m}m` : ''}.`
+          : ''
+    const memoryNote =
+      jobType === 'structure'
+        ? natureMemory?.match === 'exact'
+          ? ` Exact unit-price memory for this nature (${natureMemory.label || 'saved rates'}).`
+          : ' Confirm the take-off next, then enter unit prices.'
+        : ' Confirm gate details, then the take-off script, then unit prices.'
+    const sourceNote =
+      source === 'estimated_from_knowledge'
+        ? ' Estimated from fabrication knowledge for this plan type (not another saved job).'
+        : fromMemory
+          ? ' Same file found in drawing memory.'
+          : ' Read from this plan.'
+    const added = merged.addedSections?.length ? ` Sections: ${merged.addedSections.join(', ')}.` : ''
+    setDrawingNote(`${typeLabel}.${dims}${sourceNote}${memoryNote}${added}`)
     setNote('')
     return nextProject
   }
@@ -3422,27 +3841,71 @@ function FabricationCalculator({
     const fingerprint = await fingerprintFile(file)
     const dataUrl = await readFileAsDataUrl(file)
     const kind = file.type.includes('pdf') ? 'pdf' : 'image'
-    const remembered = findDrawingTemplate(fingerprint)
-    if (remembered && (!project.jobType || project.jobType === remembered.jobType)) {
+    // Exact same file only — a new staircase must not inherit a workshop template.
+    const remembered = findSimilarDrawingTemplate(fingerprint)
+
+    if (remembered?.match === 'exact' && remembered.jobType === 'structure' && remembered.schedule?.length) {
       const restored = {
         drawing: dataUrl,
         drawingName: file.name,
         drawingFingerprint: fingerprint,
         drawingKind: kind,
-        jobType: project.jobType || remembered.jobType,
-        gate: remembered.jobType === 'gate' ? { ...emptyDrawingDraft(), ...(remembered.gate || {}) } : project.gate,
-        schedule:
-          remembered.jobType === 'structure'
-            ? JSON.parse(JSON.stringify(remembered.schedule || defaultStructureSchedule()))
-            : project.schedule,
-        roofLength: remembered.roofLength ?? project.roofLength,
-        roofWidth: remembered.roofWidth ?? project.roofWidth,
-        wallArea: remembered.wallArea ?? project.wallArea,
-        foundationPads: remembered.foundationPads ?? project.foundationPads,
+        jobType: 'structure',
+        drawingType: remembered.drawingType || 'steel_structure',
+        drawingSource: 'memory_pattern',
+        natureKey: remembered.natureKey || '',
+        schedule: JSON.parse(JSON.stringify(remembered.schedule)),
+        roofLength: remembered.roofLength || '',
+        roofWidth: remembered.roofWidth || '',
+        wallArea: remembered.wallArea || '',
+        foundationPads: remembered.foundationPads || '',
+        drawingScript: remembered.drawingScript || '',
+        confirmNotes: remembered.confirmNotes || '',
+        descriptionConfirmed: false,
+        gate: emptyDrawingDraft(),
       }
+      restored.drawingScript = restored.drawingScript || refreshDrawingScript(restored)
+      const natureMemory = findNaturePriceMemory(
+        restored.natureKey ||
+          drawingNatureKey({
+            drawingType: restored.drawingType,
+            building: { length_m: restored.roofLength, width_m: restored.roofWidth },
+            schedule: restored.schedule,
+          }),
+        { drawingType: restored.drawingType, schedule: restored.schedule },
+      )
+      if (natureMemory?.match === 'exact' && natureMemory?.pricing) applySavedPricing(natureMemory.pricing)
+      setProject((prev) => ({ ...prev, ...restored, natureKey: natureMemory?.natureKey || restored.natureKey }))
+      setObjections(restored.confirmNotes || '')
+      setDrawingNote(
+        `Same file in memory: “${remembered.label || file.name}” · ${drawingTypeLabel(restored.drawingType)}. Review and confirm the take-off before prices.`,
+      )
+      setNote('')
+      return
+    }
+
+    if (remembered?.match === 'exact' && remembered.jobType === 'gate') {
+      const restoredGate = { ...emptyDrawingDraft(), ...(remembered.gate || {}) }
+      const restored = {
+        drawing: dataUrl,
+        drawingName: file.name,
+        drawingFingerprint: fingerprint,
+        drawingKind: kind,
+        jobType: 'gate',
+        drawingType: remembered.drawingType || 'gate',
+        drawingSource: 'memory_pattern',
+        natureKey: '',
+        schedule: [],
+        descriptionConfirmed: false,
+        gate: restoredGate,
+      }
+      restored.drawingScript = refreshDrawingScript(restored)
       setProject((prev) => ({ ...prev, ...restored }))
-      if (restored.jobType === 'gate') onChange({ ...emptyDrawingDraft(), ...restored.gate })
-      setDrawingNote(`Remembered formula loaded for “${remembered.label || file.name}”.`)
+      onChange(restoredGate)
+      setGateStep(1)
+      setDrawingNote(
+        `Same file in memory: “${remembered.label || file.name}” · ${drawingTypeLabel(restored.drawingType)}. Confirm gate details, then the take-off script.`,
+      )
       setNote('')
       return
     }
@@ -3455,55 +3918,118 @@ function FabricationCalculator({
       drawingName: file.name,
       drawingFingerprint: fingerprint,
       drawingKind: kind,
+      jobType: '',
+      drawingType: '',
+      drawingSource: '',
+      schedule: [],
+      roofLength: '',
+      roofWidth: '',
+      wallArea: '',
+      foundationPads: '',
+      drawingScript: '',
+      confirmNotes: '',
+      descriptionConfirmed: false,
+      natureKey: '',
     }
     setProject(base)
+    setObjections('')
 
-    const wantsStructure = project.jobType === 'structure' || (!project.jobType && kind)
-    const provider = rates.visionProvider === 'openai' ? 'gemini' : rates.visionProvider || 'tesseract'
-    if (wantsStructure) {
-      setAiBusy(true)
-      setDrawingNote(
-        provider === 'tesseract'
-          ? 'Tesseract OCR reading drawing on this phone…'
-          : 'Server Gemini reading drawing… (max 10 / minute).',
-      )
-      try {
-        const extracted = await extractSteelSchedule(dataUrl, { provider })
-        applyVisionExtraction(extracted, { ...base, jobType: 'structure' })
-      } catch (error) {
-        setDrawingNote(
-          error?.message
-            ? `Auto-read failed: ${error.message}. Fill the schedule once — it will still remember this file.`
-            : 'Auto-read failed. Fill the schedule once — it will still remember this file.',
-        )
-      } finally {
-        setAiBusy(false)
-      }
-      return
-    }
-
+    const online = typeof navigator === 'undefined' ? true : navigator.onLine
+    const provider = online ? 'gemini' : 'tesseract'
+    setAiBusy(true)
     setDrawingNote(
-      remembered
-        ? 'This drawing was saved for a different job type. Formula not applied.'
-        : 'New drawing. Fill the formula once — the app will remember it for this file.',
+      online
+        ? 'Reading plan… checking memory patterns and fabrication knowledge for type and dimensions…'
+        : 'Offline OCR reading drawing on this phone…',
     )
+    try {
+      const extracted = await extractSteelSchedule(dataUrl, { provider })
+      applyVisionExtraction(extracted, base)
+    } catch (error) {
+      setDrawingNote(
+        error?.message
+          ? `Auto-read failed: ${error.message}. You can still mark this as a gate or steel structure below.`
+          : 'Auto-read failed. You can still mark this as a gate or steel structure below.',
+      )
+    } finally {
+      setAiBusy(false)
+    }
   }
 
   const runAiReadAgain = async () => {
     if (!project.drawing) return
-    const provider = rates.visionProvider === 'openai' ? 'gemini' : rates.visionProvider || 'tesseract'
-    if (provider === 'gemini' && needOnline(NETWORK_ACTIONS.vision)) return
+    if (needOnline(NETWORK_ACTIONS.vision)) return
     setAiBusy(true)
-    setDrawingNote(
-      provider === 'tesseract' ? 'Tesseract OCR reading drawing…' : 'Server Gemini reading drawing… (max 10 / minute).',
-    )
+    setDrawingNote('Reading plan again… identifying type, dimensions, and materials…')
     try {
-      const extracted = await extractSteelSchedule(project.drawing, { provider })
-      applyVisionExtraction(extracted, { ...project, jobType: 'structure' })
+      const extracted = await extractSteelSchedule(project.drawing, {
+        provider: 'gemini',
+        corrections: objections.trim(),
+      })
+      applyVisionExtraction(extracted, { ...project, schedule: [] }, { deferMeta: true })
     } catch (error) {
       setDrawingNote(error?.message || 'Auto-read failed.')
     } finally {
       setAiBusy(false)
+    }
+  }
+
+  const treatAsJobType = (jobType) => {
+    if (jobType === 'gate') {
+      const nextGate = { ...emptyDrawingDraft(), ...(project.gate || {}) }
+      setProject((prev) => ({
+        ...prev,
+        jobType: 'gate',
+        drawingType: prev.drawingType && ['gate', 'burglar'].includes(prev.drawingType) ? prev.drawingType : 'gate',
+        schedule: [],
+        gate: nextGate,
+      }))
+      onChange(nextGate)
+      setGateStep(1)
+      setDrawingNote('Marked as gate / burglar. Confirm opening size, type, and design.')
+      setNote('')
+      return
+    }
+    setProject((prev) => {
+      const next = {
+        ...prev,
+        jobType: 'structure',
+        drawingType:
+          prev.drawingType && !['gate', 'burglar'].includes(prev.drawingType)
+            ? prev.drawingType
+            : 'steel_structure',
+        schedule: prev.schedule?.length ? prev.schedule : [],
+        descriptionConfirmed: false,
+      }
+      next.drawingScript = refreshDrawingScript(next)
+      return next
+    })
+    setDrawingNote('Marked as steel structure. Re-read the plan or add members, then confirm the take-off.')
+    setNote('')
+  }
+
+  const updateUnitPrice = (priceKey, value) => {
+    const next = applySavedPricing({ [priceKey]: value })
+    if (project.natureKey || project.jobType === 'structure') {
+      const natureKey =
+        project.natureKey ||
+        drawingNatureKey({
+          drawingType: project.drawingType,
+          building: { length_m: project.roofLength, width_m: project.roofWidth },
+          schedule: project.schedule,
+        })
+      rememberNaturePrices({
+        natureKey,
+        drawingType: project.drawingType || 'steel_structure',
+        label: project.name || project.drawingName || 'Latest unit prices',
+        pricing: next,
+        schedule: project.schedule || [],
+        building: {
+          length_m: Number(project.roofLength) || null,
+          width_m: Number(project.roofWidth) || null,
+        },
+      })
+      if (!project.natureKey) updateProject({ natureKey })
     }
   }
 
@@ -3524,15 +4050,9 @@ function FabricationCalculator({
           <button type="button" className="fab-next-btn fab-btn-outline" onClick={openDrawing}>
             Open {project.drawingKind === 'pdf' ? 'PDF' : 'photo'}
           </button>
-          {(project.jobType === 'structure' || !project.jobType) && (
-            <button type="button" className="fab-go-btn" disabled={aiBusy} onClick={runAiReadAgain}>
-              {aiBusy
-                ? 'READING DRAWING…'
-                : (rates.visionProvider || 'tesseract') === 'tesseract'
-                  ? 'OCR READ → FILL SCHEDULE'
-                  : 'GEMINI READ → FILL SCHEDULE'}
-            </button>
-          )}
+          <button type="button" className="fab-go-btn" disabled={aiBusy} onClick={runAiReadAgain}>
+            {aiBusy ? 'READING PLAN…' : 'READ PLAN → DETECT TYPE'}
+          </button>
         </div>
         {drawingNote ? <p className="fab-note fab-remember-note">{drawingNote}</p> : null}
       </div>
@@ -3547,7 +4067,12 @@ function FabricationCalculator({
         <button type="button" className="fab-menu-btn" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
           ☰
         </button>
-        <HistoryNav />
+        <HistoryNav
+          canBack={canHistoryBack}
+          canForward={canHistoryForward}
+          onBack={onHistoryBack}
+          onForward={onHistoryForward}
+        />
         <div>
           <p className="eyebrow">Fabrication calc{online ? '' : ' · offline'}</p>
           <strong>{project.name || 'Fabrication calc'}</strong>
@@ -3611,7 +4136,10 @@ function FabricationCalculator({
         <main className="fab-home">
           <section className="fab-section">
             <h1>Fabrication calc</h1>
-            <p>Two templates: Gate / Burglar jobs, or Steel Structure from a schedule. Upload a structure drawing and the AI brain fills the schedule from your master template.</p>
+            <p>
+              Upload any drawing. The app reads this plan only (same file can reuse memory), shows a take-off script to
+              confirm, then unit prices and quotation.
+            </p>
             <button type="button" className="fab-hero-btn" onClick={startNewProject}>
               CREATE PROJECT
             </button>
@@ -3637,7 +4165,7 @@ function FabricationCalculator({
                     <strong>{item.name || 'Project'}</strong>
                     <small>
                       {item.client ? `${item.client} · ` : ''}
-                      {item.jobType === 'structure' ? 'Steel structure' : 'Gate / Burglar'}
+                      {jobTypeLabel(item.jobType, item.drawingType)}
                     </small>
                     <span>{formatPrice(item.quoteTotal)}</span>
                   </button>
@@ -3654,6 +4182,9 @@ function FabricationCalculator({
         <main className="fab-home">
           <section className="fab-section">
             <h1>Step 1 — Create project</h1>
+            <p className="fab-note">
+              Name the job, then upload any drawing. The app recognises gate, burglar, or steel structure on its own.
+            </p>
             <label className="fab-field">
               Project name
               <input
@@ -3670,22 +4201,6 @@ function FabricationCalculator({
                 onChange={(event) => updateProject({ client: event.target.value })}
               />
             </label>
-            <h2>Job type</h2>
-            <div className="fab-choice-list">
-              {JOB_TYPES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`fab-type-card ${project.jobType === item.id ? 'active' : ''}`}
-                  onClick={() => updateProject({ jobType: item.id })}
-                >
-                  <span>
-                    <strong>{item.label}</strong>
-                    <small>{item.copy}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
             {note ? <p className="form-error">{note}</p> : null}
             <button type="button" className="fab-next-btn" onClick={nextFromProject}>
               NEXT → ADD DRAWING
@@ -3694,245 +4209,304 @@ function FabricationCalculator({
         </main>
       ) : null}
 
-      {wizard && step === 2 && project.jobType === 'gate' ? (
+      {wizard && step === 2 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 2 — Gate drawing</h1>
+            <h1>Step 2 — Add drawing</h1>
+            <p className="fab-note">
+              Upload any gate, burglar, or steel fabrication plan. Memory is checked first; if nothing matches, the plan
+              is read for type, dimensions, and materials.
+            </p>
             <label className="fab-field">
               Upload photo / PDF
-              <input type="file" accept="image/*,application/pdf" onChange={onDrawingFile} />
+              <input type="file" accept="image/*,application/pdf" onChange={onDrawingFile} disabled={aiBusy} />
             </label>
             <DrawingAttach />
 
-            {gateStep === 1 ? (
+            {project.drawing && (project.drawingType || project.jobType || project.drawingSource) ? (
+              <div className="fab-plan-summary">
+                <h2>Recognised drawing</h2>
+                <p>
+                  <strong>Type:</strong> {jobTypeLabel(project.jobType, project.drawingType)}
+                </p>
+                <p>
+                  <strong>Dimensions:</strong>{' '}
+                  {project.jobType === 'gate'
+                    ? `${project.gate?.width || '—'}m × ${project.gate?.height || '—'}m (opening)`
+                    : `${project.roofLength || '—'}m × ${project.roofWidth || '—'}m${
+                        project.wallArea ? ` · walls ${project.wallArea} sqm` : ''
+                      }`}
+                </p>
+                <p>
+                  <strong>Source:</strong>{' '}
+                  {project.drawingSource === 'estimated_from_knowledge'
+                    ? 'Knowledge (new to memory)'
+                    : project.drawingSource === 'memory_pattern'
+                      ? 'Drawing memory'
+                      : project.drawingSource === 'schedule_read'
+                        ? 'Read from plan'
+                        : aiBusy
+                          ? 'Reading…'
+                          : 'Pending'}
+                </p>
+                <div className="fab-result-actions">
+                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => treatAsJobType('gate')}>
+                    Treat as gate
+                  </button>
+                  <button
+                    type="button"
+                    className="fab-next-btn fab-btn-outline"
+                    onClick={() => treatAsJobType('structure')}
+                  >
+                    Treat as steel structure
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!project.jobType && project.drawing && !aiBusy ? (
+              <div className="fab-result-actions">
+                <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => treatAsJobType('gate')}>
+                  This is a gate
+                </button>
+                <button
+                  type="button"
+                  className="fab-next-btn fab-btn-outline"
+                  onClick={() => treatAsJobType('structure')}
+                >
+                  This is a steel structure
+                </button>
+              </div>
+            ) : null}
+
+            {project.jobType === 'gate' ? (
               <>
-                <h2>Size</h2>
-                <label className="fab-field">
-                  Width (m)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="e.g 4.0"
-                    value={project.gate?.width || ''}
-                    onChange={(event) => updateGate({ width: event.target.value })}
-                  />
-                </label>
-                <label className="fab-field">
-                  Height (m)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="e.g 2.0"
-                    value={project.gate?.height || ''}
-                    onChange={(event) => updateGate({ height: event.target.value })}
-                  />
-                </label>
-                <label className="fab-field">
-                  Palisade Spacing (m)
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={project.gate?.spacing || String(FAB_DEFAULT_SPACING)}
-                    onChange={(event) => updateGate({ spacing: event.target.value })}
-                  />
-                  <small>0.10m = High Security, 0.15m = Normal. Default: 0.12m. Used for Palisade / Half & Half.</small>
-                </label>
-                <button type="button" className="fab-next-btn" onClick={() => setGateStep(2)}>
-                  NEXT → TYPE
+                {gateStep === 1 ? (
+                  <>
+                    <h2>Opening size</h2>
+                    <label className="fab-field">
+                      Width (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g 4.0"
+                        value={project.gate?.width || ''}
+                        onChange={(event) => updateGate({ width: event.target.value })}
+                      />
+                    </label>
+                    <label className="fab-field">
+                      Height (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g 2.0"
+                        value={project.gate?.height || ''}
+                        onChange={(event) => updateGate({ height: event.target.value })}
+                      />
+                    </label>
+                    <label className="fab-field">
+                      Palisade Spacing (m)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={project.gate?.spacing || String(FAB_DEFAULT_SPACING)}
+                        onChange={(event) => updateGate({ spacing: event.target.value })}
+                      />
+                      <small>0.10m = High Security, 0.15m = Normal. Default: 0.12m. Used for Palisade / Half & Half.</small>
+                    </label>
+                    <button type="button" className="fab-next-btn" onClick={() => setGateStep(2)}>
+                      NEXT → TYPE
+                    </button>
+                  </>
+                ) : null}
+
+                {gateStep === 2 ? (
+                  <>
+                    <h2>Gate type</h2>
+                    <div className="fab-choice-list">
+                      {FAB_CALC_TYPES.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`fab-type-card ${project.gate?.gateType === item.id ? 'active' : ''}`}
+                          onClick={() => updateGate({ gateType: item.id })}
+                        >
+                          <FabTypeIcon name={item.id} />
+                          <span>
+                            <strong>{item.name}</strong>
+                            {item.copy ? <small>{item.copy}</small> : null}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="fab-result-actions">
+                      <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setGateStep(1)}>
+                        BACK
+                      </button>
+                      <button type="button" className="fab-next-btn" onClick={() => setGateStep(3)}>
+                        NEXT → DESIGN
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+
+                {gateStep === 3 ? (
+                  <>
+                    <h2>Design</h2>
+                    <div className="fab-design-grid">
+                      {FAB_CALC_DESIGNS.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`fab-design-card ${project.gate?.design === item.id ? 'active' : ''}`}
+                          onClick={() => updateGate({ design: item.id })}
+                        >
+                          <FabDesignImage name={item.id} />
+                          <strong>{item.title}</strong>
+                          <small>{item.copy}</small>
+                        </button>
+                      ))}
+                    </div>
+                    {usesPalisadeSpacing ? (
+                      <label className="fab-field">
+                        Palisade Spacing (m)
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={project.gate?.spacing || String(FAB_DEFAULT_SPACING)}
+                          onChange={(event) => updateGate({ spacing: event.target.value })}
+                        />
+                      </label>
+                    ) : null}
+                    {note ? <p className="form-error">{note}</p> : null}
+                    <div className="fab-result-actions">
+                      <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setGateStep(2)}>
+                        BACK
+                      </button>
+                      <button type="button" className="fab-go-btn" onClick={nextFromDrawing}>
+                        NEXT → CONFIRM TAKE-OFF
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+
+            {project.jobType === 'structure' ? (
+              <>
+                <h2>Steel / materials on plan</h2>
+                <p className="fab-note">Lengths and quantities from the drawing. Edit if needed, then enter unit prices.</p>
+                <div className="fab-schedule">
+                  {(project.schedule || []).map((row) => (
+                    <article key={row.id} className="fab-schedule-row">
+                      <strong>
+                        {row.role}
+                        {row.mark ? ` ${row.mark}` : ''} · {row.section}
+                      </strong>
+                      <div className="fab-size-row">
+                        {row.unit !== 'm' || row.qty !== '' ? (
+                          <label>
+                            Qty
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={row.qty}
+                              onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
+                            />
+                          </label>
+                        ) : (
+                          <span />
+                        )}
+                        {row.unit === 'm' ? (
+                          <label>
+                            Total m
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.meters}
+                              onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
+                            />
+                          </label>
+                        ) : null}
+                        {row.unit === 'kg' ? (
+                          <label>
+                            kg each
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.kgEach}
+                              onChange={(event) => updateScheduleRow(row.id, { kgEach: event.target.value })}
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <h2>Cladding & foundation</h2>
+                <div className="fab-size-row">
+                  <label>
+                    Length (m)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={project.roofLength}
+                      onChange={(event) => updateProject({ roofLength: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Width (m)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={project.roofWidth}
+                      onChange={(event) => updateProject({ roofWidth: event.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="fab-size-row">
+                  <label>
+                    Wall area (sqm)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={project.wallArea}
+                      onChange={(event) => updateProject({ wallArea: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Foundation F1 pads
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={project.foundationPads}
+                      onChange={(event) => updateProject({ foundationPads: event.target.value })}
+                    />
+                  </label>
+                </div>
+                {note ? <p className="form-error">{note}</p> : null}
+                <button type="button" className="fab-next-btn" onClick={nextFromDrawing}>
+                  NEXT → CONFIRM TAKE-OFF
                 </button>
               </>
             ) : null}
 
-            {gateStep === 2 ? (
-              <>
-                <h2>Gate type</h2>
-                <div className="fab-choice-list">
-                  {FAB_CALC_TYPES.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`fab-type-card ${project.gate?.gateType === item.id ? 'active' : ''}`}
-                      onClick={() => updateGate({ gateType: item.id })}
-                    >
-                      <FabTypeIcon name={item.id} />
-                      <span>
-                        <strong>{item.name}</strong>
-                        {item.copy ? <small>{item.copy}</small> : null}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="fab-result-actions">
-                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setGateStep(1)}>
-                    BACK
-                  </button>
-                  <button type="button" className="fab-next-btn" onClick={() => setGateStep(3)}>
-                    NEXT → DESIGN
-                  </button>
-                </div>
-              </>
+            {!project.drawing && !aiBusy ? (
+              <p className="empty-note">Upload a drawing to continue.</p>
             ) : null}
-
-            {gateStep === 3 ? (
-              <>
-                <h2>Design</h2>
-                <div className="fab-design-grid">
-                  {FAB_CALC_DESIGNS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`fab-design-card ${project.gate?.design === item.id ? 'active' : ''}`}
-                      onClick={() => updateGate({ design: item.id })}
-                    >
-                      <FabDesignImage name={item.id} />
-                      <strong>{item.title}</strong>
-                      <small>{item.copy}</small>
-                    </button>
-                  ))}
-                </div>
-                {usesPalisadeSpacing ? (
-                  <label className="fab-field">
-                    Palisade Spacing (m)
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={project.gate?.spacing || String(FAB_DEFAULT_SPACING)}
-                      onChange={(event) => updateGate({ spacing: event.target.value })}
-                    />
-                  </label>
-                ) : null}
-                {note ? <p className="form-error">{note}</p> : null}
-                <div className="fab-result-actions">
-                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setGateStep(2)}>
-                    BACK
-                  </button>
-                  <button type="button" className="fab-go-btn" onClick={nextFromDrawing}>
-                    NEXT → PRICES
-                  </button>
-                </div>
-              </>
-            ) : null}
-          </section>
-        </main>
-      ) : null}
-
-      {wizard && step === 2 && project.jobType === 'structure' ? (
-        <main className="fab-home">
-          <section className="fab-section">
-            <h1>Step 2 — Structure schedule</h1>
-            <p className="fab-note">
-              Upload a photo/PDF. With a Vision API key the app auto-reads the steel schedule, compares it to the master
-              workshop template, adds new sizes (e.g. LC 150), then you price and quote.
-            </p>
-            <label className="fab-field">
-              Upload photo / PDF
-              <input type="file" accept="image/*,application/pdf" onChange={onDrawingFile} />
-            </label>
-            <DrawingAttach />
-
-            <div className="fab-schedule">
-              {(project.schedule || []).map((row) => (
-                <article key={row.id} className="fab-schedule-row">
-                  <strong>
-                    {row.role} · {row.section}
-                  </strong>
-                  <div className="fab-size-row">
-                    {row.unit !== 'm' || row.qty !== '' ? (
-                      <label>
-                        Qty
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={row.qty}
-                          onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
-                        />
-                      </label>
-                    ) : (
-                      <span />
-                    )}
-                    {row.unit === 'm' ? (
-                      <label>
-                        Total m
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={row.meters}
-                          onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
-                        />
-                      </label>
-                    ) : null}
-                    {row.unit === 'kg' ? (
-                      <label>
-                        kg each
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={row.kgEach}
-                          onChange={(event) => updateScheduleRow(row.id, { kgEach: event.target.value })}
-                        />
-                      </label>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <h2>Cladding & foundation</h2>
-            <div className="fab-size-row">
-              <label>
-                Roof length (m)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={project.roofLength}
-                  onChange={(event) => updateProject({ roofLength: event.target.value })}
-                />
-              </label>
-              <label>
-                Roof width (m)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={project.roofWidth}
-                  onChange={(event) => updateProject({ roofWidth: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="fab-size-row">
-              <label>
-                Wall area (sqm)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={project.wallArea}
-                  onChange={(event) => updateProject({ wallArea: event.target.value })}
-                />
-              </label>
-              <label>
-                Foundation F1 pads
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={project.foundationPads}
-                  onChange={(event) => updateProject({ foundationPads: event.target.value })}
-                />
-              </label>
-            </div>
-            {note ? <p className="form-error">{note}</p> : null}
-            <button type="button" className="fab-next-btn" onClick={nextFromDrawing}>
-              NEXT → PRICES
-            </button>
+            {note && !project.jobType ? <p className="form-error">{note}</p> : null}
           </section>
         </main>
       ) : null}
@@ -3940,8 +4514,158 @@ function FabricationCalculator({
       {wizard && step === 3 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 3 — Material prices</h1>
-            <p className="fab-note">Your price list — saved once, used on every quote. Edit anytime.</p>
+            <h1>Step 3 — Confirm drawing take-off</h1>
+            <p className="fab-note">
+              This script describes the drawing as read — columns, rafters, purlins, base plates, and dimensions. It is
+              linked to the master template (meta). Confirm only when it matches the plan.
+            </p>
+            <DrawingAttach />
+
+            <div className="fab-plan-summary fab-confirm-meta">
+              <h2>Meta / master link</h2>
+              <p>
+                <strong>Type:</strong> {jobTypeLabel(project.jobType, project.drawingType)}
+              </p>
+              <p>
+                <strong>Nature key:</strong> {project.natureKey || '— (set on confirm)'}
+              </p>
+              <p>
+                <strong>Master learned from:</strong> {master.learned_from || '—'} · {master.learned_count || 0}{' '}
+                drawing{(master.learned_count || 0) === 1 ? '' : 's'}
+              </p>
+            </div>
+
+            <h2>Drawing description</h2>
+            <pre className="fab-drawing-script">
+              {project.drawingScript || refreshDrawingScript(project)}
+            </pre>
+
+            {project.jobType === 'structure' ? (
+              <>
+                <h2>Edit members if needed</h2>
+                <div className="fab-schedule">
+                  {(project.schedule || []).map((row) => (
+                    <article key={row.id} className="fab-schedule-row">
+                      <strong>
+                        {row.role}
+                        {row.mark ? ` ${row.mark}` : ''} · {row.section}
+                      </strong>
+                      <div className="fab-size-row">
+                        {row.unit !== 'm' || row.qty !== '' ? (
+                          <label>
+                            Qty
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={row.qty}
+                              onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
+                            />
+                          </label>
+                        ) : (
+                          <span />
+                        )}
+                        {row.unit === 'm' ? (
+                          <label>
+                            Total m
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.meters}
+                              onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
+                            />
+                          </label>
+                        ) : null}
+                        {row.unit === 'kg' ? (
+                          <label>
+                            kg each
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.kgEach}
+                              onChange={(event) => updateScheduleRow(row.id, { kgEach: event.target.value })}
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="fab-size-row">
+                  <label>
+                    Length (m)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={project.roofLength}
+                      onChange={(event) => updateProject({ roofLength: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Width (m)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={project.roofWidth}
+                      onChange={(event) => updateProject({ roofWidth: event.target.value })}
+                    />
+                  </label>
+                </div>
+              </>
+            ) : null}
+
+            <label className="fab-field">
+              Objections (where the app may have lied)
+              <textarea
+                rows={4}
+                value={objections}
+                placeholder="e.g. This is a staircase, not a workshop. Stringers are PFC 200, no purlins, 12 treads…"
+                onChange={(event) => setObjections(event.target.value)}
+              />
+            </label>
+            <div className="fab-result-actions">
+              <button type="button" className="fab-next-btn fab-btn-outline" disabled={aiBusy} onClick={applyObjectionsUpdate}>
+                {aiBusy ? 'UPDATING…' : 'UPDATE FROM OBJECTIONS'}
+              </button>
+              <button
+                type="button"
+                className="fab-next-btn fab-btn-outline"
+                onClick={() => {
+                  const script = refreshDrawingScript({ ...project, confirmNotes: objections.trim() })
+                  updateProject({ drawingScript: script, confirmNotes: objections.trim() })
+                  setDrawingNote('Script refreshed from current members and dimensions.')
+                }}
+              >
+                REFRESH SCRIPT
+              </button>
+            </div>
+            {drawingNote ? <p className="fab-note fab-remember-note">{drawingNote}</p> : null}
+            {note ? <p className="form-error">{note}</p> : null}
+            <div className="fab-result-actions">
+              <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => goStep(2)}>
+                BACK
+              </button>
+              <button type="button" className="fab-go-btn" disabled={aiBusy} onClick={confirmDrawingDescription}>
+                CONFIRM → UNIT PRICES
+              </button>
+            </div>
+          </section>
+        </main>
+      ) : null}
+
+      {wizard && step === 4 ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>Step 4 — Unit prices</h1>
+            <p className="fab-note">
+              {project.jobType === 'structure'
+                ? 'Prices for materials on this plan. Latest entries update the price list and auto-fill the next similar drawing. Edit anytime.'
+                : 'Your price list — saved once, used on every quote. Edit anytime.'}
+            </p>
             {project.jobType === 'gate' ? (
               <>
                 <div className="fab-size-row">
@@ -3952,7 +4676,7 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.tube50PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, tube50PerM: event.target.value })}
+                      onChange={(event) => updateUnitPrice('tube50PerM', event.target.value)}
                     />
                   </label>
                   <label>
@@ -3962,7 +4686,7 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.tube25PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, tube25PerM: event.target.value })}
+                      onChange={(event) => updateUnitPrice('tube25PerM', event.target.value)}
                     />
                   </label>
                 </div>
@@ -3974,7 +4698,7 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.uChannelPerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, uChannelPerM: event.target.value })}
+                      onChange={(event) => updateUnitPrice('uChannelPerM', event.target.value)}
                     />
                   </label>
                   <label>
@@ -3984,101 +4708,34 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.sheetPerM2}
-                      onChange={(event) => setPriceForm({ ...priceForm, sheetPerM2: event.target.value })}
+                      onChange={(event) => updateUnitPrice('sheetPerM2', event.target.value)}
                     />
                   </label>
                 </div>
               </>
             ) : (
               <>
-                <div className="fab-size-row">
-                  <label>
-                    H 120x120 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.h120PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, h120PerM: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    PFC 150x75 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.pfc150PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, pfc150PerM: event.target.value })}
-                    />
-                  </label>
+                <div className="fab-schedule fab-unit-prices">
+                  {(project.schedule || []).map((row) => (
+                    <article key={`price-${row.id}`} className="fab-schedule-row">
+                      <strong>
+                        {row.role}
+                        {row.mark ? ` ${row.mark}` : ''} · {row.section}
+                      </strong>
+                      <label className="fab-field">
+                        Unit price ({row.unit === 'm' ? 'per m' : row.unit === 'kg' ? 'per kg' : 'each'})
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={priceForm[row.priceKey] ?? ''}
+                          onChange={(event) => updateUnitPrice(row.priceKey, event.target.value)}
+                        />
+                      </label>
+                    </article>
+                  ))}
                 </div>
-                <div className="fab-size-row">
-                  <label>
-                    LC 125 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.lc125PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, lc125PerM: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    LC 100 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.lc100PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, lc100PerM: event.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="fab-size-row">
-                  <label>
-                    L 50x50x5 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.angle50PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, angle50PerM: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Plate / kg
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.platePerKg}
-                      onChange={(event) => setPriceForm({ ...priceForm, platePerKg: event.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="fab-size-row">
-                  <label>
-                    M16 bolt
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.boltM16}
-                      onChange={(event) => setPriceForm({ ...priceForm, boltM16: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    M12 bolt
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.boltM12}
-                      onChange={(event) => setPriceForm({ ...priceForm, boltM12: event.target.value })}
-                    />
-                  </label>
-                </div>
+                <h2>Cladding & foundation</h2>
                 <div className="fab-size-row">
                   <label>
                     IBR / sqm
@@ -4087,7 +4744,7 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.ibrPerM2}
-                      onChange={(event) => setPriceForm({ ...priceForm, ibrPerM2: event.target.value })}
+                      onChange={(event) => updateUnitPrice('ibrPerM2', event.target.value)}
                     />
                   </label>
                   <label>
@@ -4097,22 +4754,9 @@ function FabricationCalculator({
                       min="0"
                       step="0.01"
                       value={priceForm.foundationPad}
-                      onChange={(event) => setPriceForm({ ...priceForm, foundationPad: event.target.value })}
+                      onChange={(event) => updateUnitPrice('foundationPad', event.target.value)}
                     />
                   </label>
-                </div>
-                <div className="fab-size-row">
-                  <label>
-                    LC 150 / m
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceForm.lc150PerM}
-                      onChange={(event) => setPriceForm({ ...priceForm, lc150PerM: event.target.value })}
-                    />
-                  </label>
-                  <span />
                 </div>
               </>
             )}
@@ -4124,7 +4768,7 @@ function FabricationCalculator({
                   min="0"
                   step="1"
                   value={priceForm.labourPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, labourPercent: event.target.value })}
+                  onChange={(event) => updateUnitPrice('labourPercent', event.target.value)}
                 />
               </label>
               <label>
@@ -4134,7 +4778,7 @@ function FabricationCalculator({
                   min="0"
                   step="1"
                   value={priceForm.consumablesPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, consumablesPercent: event.target.value })}
+                  onChange={(event) => updateUnitPrice('consumablesPercent', event.target.value)}
                 />
               </label>
             </div>
@@ -4146,7 +4790,7 @@ function FabricationCalculator({
                   min="0"
                   step="1"
                   value={priceForm.marginPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, marginPercent: event.target.value })}
+                  onChange={(event) => updateUnitPrice('marginPercent', event.target.value)}
                 />
               </label>
               <label>
@@ -4154,7 +4798,7 @@ function FabricationCalculator({
                 <input
                   type="tel"
                   value={priceForm.whatsapp}
-                  onChange={(event) => setPriceForm({ ...priceForm, whatsapp: event.target.value })}
+                  onChange={(event) => updateUnitPrice('whatsapp', event.target.value)}
                 />
               </label>
             </div>
@@ -4165,20 +4809,25 @@ function FabricationCalculator({
         </main>
       ) : null}
 
-      {wizard && step === 4 ? (
+      {wizard && step === 5 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 4 — Quote</h1>
+            <h1>Step 5 — Quote</h1>
             {quote ? (
               <>
                 <div className="fab-result-blue">
                   {project.name || quote.title}
                   {project.client ? ` · ${project.client}` : ''}
                   <small>
-                    {project.jobType === 'structure' ? 'Steel structure schedule' : quote.title}
+                    {project.jobType === 'structure'
+                      ? jobTypeLabel(project.jobType, project.drawingType)
+                      : quote.title}
                   </small>
                 </div>
                 <DrawingAttach />
+                {project.drawingScript ? (
+                  <pre className="fab-drawing-script fab-drawing-script-compact">{project.drawingScript}</pre>
+                ) : null}
                 <div className="fab-cost-list">
                   {quote.lines.map((line) => (
                     <div key={line.name}>
@@ -4220,8 +4869,8 @@ function FabricationCalculator({
                   <p>FINAL ESTIMATED PRICE: {formatPrice(quote.total)}</p>
                 </div>
                 <div className="fab-result-actions">
-                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => goStep(2)}>
-                    EDIT DRAWING
+                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => goStep(3)}>
+                    EDIT TAKE-OFF
                   </button>
                   <button
                     type="button"
@@ -4360,7 +5009,7 @@ function FabricationCalculator({
                     <div>
                       <strong>{item.name}</strong>
                       <span>
-                        {item.client || '—'} · {item.jobType === 'structure' ? 'Structure' : 'Gate'}
+                        {item.client || '—'} · {jobTypeLabel(item.jobType, item.drawingType)}
                       </span>
                     </div>
                     <span>{formatPrice(item.quoteTotal)}</span>
@@ -4379,7 +5028,7 @@ function FabricationCalculator({
                     <div>
                       <strong>{item.label || item.fileName}</strong>
                       <span>
-                        {item.fileName} · {item.jobType === 'structure' ? 'Structure schedule' : 'Gate formula'}
+                        {item.fileName} · {jobTypeLabel(item.jobType, item.drawingType)}
                       </span>
                     </div>
                     {item.preview ? (
@@ -4440,12 +5089,29 @@ function CloneIcon({ paths }) {
   )
 }
 
-function CloneBrandBar({ brand, onMenu, onHome, onNew, onSettings, newLabel, settingsLabel }) {
+function CloneBrandBar({
+  brand,
+  onMenu,
+  onHome,
+  onNew,
+  onSettings,
+  newLabel,
+  settingsLabel,
+  canHistoryBack = false,
+  canHistoryForward = false,
+  onHistoryBack,
+  onHistoryForward,
+}) {
   return (
     <header className="clone-topbar">
       <div className="clone-topbar-inner">
         <div className="clone-topbar-lead">
-          <HistoryNav />
+          <HistoryNav
+            canBack={canHistoryBack}
+            canForward={canHistoryForward}
+            onBack={onHistoryBack}
+            onForward={onHistoryForward}
+          />
           <button type="button" className="clone-icon-btn" aria-label="Open projects menu" onClick={onMenu}>
             <CloneIcon paths={['M3 12h18', 'M3 18h18', 'M3 6h18']} />
           </button>
@@ -4472,7 +5138,15 @@ function CloneBrandBar({ brand, onMenu, onHome, onNew, onSettings, newLabel, set
   )
 }
 
-function ShopStorefront({ shop, owner, onBack }) {
+function ShopStorefront({
+  shop,
+  owner,
+  onBack,
+  canHistoryBack = false,
+  canHistoryForward = false,
+  onHistoryBack,
+  onHistoryForward,
+}) {
   const brand = brandTheme(shop?.name || shop?.brandName || 'Shop')
   const isRetail = shop?.systemType === 'retail' || shop?.isShop
   const authKey = `fortress-clone-auth-${brand.slug}`
@@ -4603,6 +5277,10 @@ function ShopStorefront({ shop, owner, onBack }) {
         onHome={() => setPanel('home')}
         onNew={() => setPanel('stock')}
         onSettings={() => setPanel('settings')}
+        canHistoryBack={canHistoryBack}
+        canHistoryForward={canHistoryForward}
+        onHistoryBack={onHistoryBack}
+        onHistoryForward={onHistoryForward}
       />
       {panel === 'menu' && (
         <div className="clone-menu">
@@ -4664,7 +5342,14 @@ function ShopStorefront({ shop, owner, onBack }) {
   )
 }
 
-function GeneratedWebsite({ site, onBack }) {
+function GeneratedWebsite({
+  site,
+  onBack,
+  canHistoryBack = false,
+  canHistoryForward = false,
+  onHistoryBack,
+  onHistoryForward,
+}) {
   const brand = brandTheme(site?.brandName || site?.name || 'Company')
   const slides = site ? slidesForSite(site) : []
   const [panel, setPanel] = useState('home')
@@ -4724,6 +5409,10 @@ function GeneratedWebsite({ site, onBack }) {
         brand={brand}
         newLabel="New project"
         settingsLabel="Settings"
+        canHistoryBack={canHistoryBack}
+        canHistoryForward={canHistoryForward}
+        onHistoryBack={onHistoryBack}
+        onHistoryForward={onHistoryForward}
         onMenu={() => setPanel((value) => (value === 'menu' ? 'home' : 'menu'))}
         onHome={() => {
           setOpenJob(null)
@@ -4895,7 +5584,7 @@ function PublicCompanyProfile({
 function App() {
   const [accounts, setAccounts] = useState(() => {
     if (typeof window === 'undefined') return []
-    const saved = window.localStorage.getItem(STORE_KEY)
+    const saved = storage.getItem(STORE_KEY)
     if (!saved) {
       return withCompanyAccounts([
         makeAccount(OWNER_LOGIN.email, OWNER_LOGIN.password, '', { withWebsite: false }),
@@ -4911,7 +5600,7 @@ function App() {
   })
   const [signedInId, setSignedInId] = useState(() => {
     if (typeof window === 'undefined') return ''
-    return window.localStorage.getItem(SESSION_KEY) || ''
+    return storage.getItem(SESSION_KEY) || ''
   })
   const [activeProfileId, setActiveProfileId] = useState('')
   const [tab, setTab] = useState('home')
@@ -4923,7 +5612,7 @@ function App() {
   const [comments, setComments] = useState(() => {
     if (typeof window === 'undefined') return { ...DEMO_COMMENTS }
     try {
-      return withDemoComments(JSON.parse(window.localStorage.getItem(COMMENTS_KEY) || '{}'))
+      return withDemoComments(JSON.parse(storage.getItem(COMMENTS_KEY) || '{}'))
     } catch {
       return { ...DEMO_COMMENTS }
     }
@@ -4968,7 +5657,11 @@ function App() {
   const shopItemInputRef = useRef(null)
   const drawingInputRef = useRef(null)
   const skipPushRef = useRef(false)
+  const ignorePopRef = useRef(false)
   const lastPathRef = useRef(readHashPath())
+  const navStackRef = useRef([readHashPath() || '/home'])
+  const navIndexRef = useRef(0)
+  const [navTick, setNavTick] = useState(0)
   const findCompanyRef = useRef(() => null)
   const [shopItemDraft, setShopItemDraft] = useState({ name: '', price: '', photo: '', description: '' })
 
@@ -4983,22 +5676,36 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify(accounts))
+      storage.setItem(STORE_KEY, JSON.stringify(accounts))
     } catch {
       /* Photos stay on this session if the phone storage is full. */
     }
   }, [accounts])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const onStorage = (event) => {
+      if (event.key !== STORE_KEY || !event.newValue) return
+      try {
+        setAccounts(withCompanyAccounts(JSON.parse(event.newValue)))
+      } catch {
+        /* Ignore bad storage sync payloads. */
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments))
+      storage.setItem(COMMENTS_KEY, JSON.stringify(comments))
     }
   }, [comments])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (signedInId) window.localStorage.setItem(SESSION_KEY, signedInId)
-    else window.localStorage.removeItem(SESSION_KEY)
+    if (signedInId) storage.setItem(SESSION_KEY, signedInId)
+    else storage.removeItem(SESSION_KEY)
   }, [signedInId])
 
   useEffect(() => {
@@ -5022,35 +5729,51 @@ function App() {
     return false
   }
 
+  const applyParsedRoute = (parsed) => {
+    skipPushRef.current = true
+    setTab(parsed.tab)
+    if (parsed.tab === 'settings') setSettingsView(parsed.settingsView || 'home')
+    else setSettingsView('home')
+    setOverlay(parsed.overlay)
+    setAppRoute(parsed.route || { kind: '', slug: '' })
+    setMenuOpen(false)
+  }
+
   useEffect(() => {
     const sync = () => {
+      if (ignorePopRef.current) {
+        ignorePopRef.current = false
+        return
+      }
       const path = readHashPath()
       if (path === lastPathRef.current) return
       lastPathRef.current = path
-      const parsed = parseHashPath(path, findCompanyRef.current)
-      skipPushRef.current = true
-      setTab(parsed.tab)
-      if (parsed.tab === 'settings') setSettingsView(parsed.settingsView)
-      setOverlay(parsed.overlay)
-      setAppRoute(parsed.route)
-      setMenuOpen(false)
+      const stack = navStackRef.current
+      const existing = stack.lastIndexOf(path)
+      if (existing >= 0) navIndexRef.current = existing
+      else {
+        navStackRef.current = [...stack.slice(0, navIndexRef.current + 1), path]
+        navIndexRef.current = navStackRef.current.length - 1
+      }
+      setNavTick((value) => value + 1)
+      applyParsedRoute(parseHashPath(path, findCompanyRef.current))
     }
     window.addEventListener('popstate', sync)
     window.addEventListener('hashchange', sync)
     const initial = readHashPath()
     if (!window.location.hash || window.location.hash === '#') {
-      history.replaceState({ fortress: true }, '', '#/home')
+      history.replaceState({ fortress: true, path: '/home' }, '', '#/home')
       lastPathRef.current = '/home'
+      navStackRef.current = ['/home']
+      navIndexRef.current = 0
     } else {
-      history.replaceState({ fortress: true }, '', `#${initial}`)
+      history.replaceState({ fortress: true, path: initial }, '', `#${initial}`)
       lastPathRef.current = initial
-      const parsed = parseHashPath(initial, findCompanyRef.current)
-      skipPushRef.current = true
-      setTab(parsed.tab)
-      if (parsed.tab === 'settings') setSettingsView(parsed.settingsView)
-      setOverlay(parsed.overlay)
-      setAppRoute(parsed.route)
+      navStackRef.current = [initial]
+      navIndexRef.current = 0
+      applyParsedRoute(parseHashPath(initial, findCompanyRef.current))
     }
+    setNavTick((value) => value + 1)
     return () => {
       window.removeEventListener('popstate', sync)
       window.removeEventListener('hashchange', sync)
@@ -5076,6 +5799,13 @@ function App() {
   }, [])
 
   const signedInAccount = accounts.find((account) => account.id === signedInId) || null
+
+  useEffect(() => {
+    if (signedInId && !signedInAccount) {
+      setSignedInId('')
+      setActiveProfileId('')
+    }
+  }, [signedInId, signedInAccount])
 
   useEffect(() => {
     if (!signedInAccount) {
@@ -5238,21 +5968,59 @@ function App() {
   const pushPath = (path, { replace = false } = {}) => {
     const next = path.startsWith('/') ? path : `/${path}`
     if (next === lastPathRef.current && !replace) return
+
+    if (replace) {
+      const stack = [...navStackRef.current]
+      stack[navIndexRef.current] = next
+      navStackRef.current = stack
+    } else {
+      const stack = navStackRef.current.slice(0, navIndexRef.current + 1)
+      stack.push(next)
+      navStackRef.current = stack
+      navIndexRef.current = stack.length - 1
+    }
+
     lastPathRef.current = next
     const url = `${window.location.pathname}${window.location.search}#${next}`
     if (replace) history.replaceState({ fortress: true, path: next }, '', url)
     else history.pushState({ fortress: true, path: next }, '', url)
+    setNavTick((value) => value + 1)
+  }
+
+  const goAppHistory = (delta) => {
+    const nextIndex = navIndexRef.current + delta
+    if (nextIndex < 0 || nextIndex >= navStackRef.current.length) return
+    const path = navStackRef.current[nextIndex]
+    navIndexRef.current = nextIndex
+    lastPathRef.current = path
+    applyParsedRoute(parseHashPath(path, findCompanyRef.current))
+    const url = `${window.location.pathname}${window.location.search}#${path}`
+    // Keep the address bar in sync without depending on the browser stack,
+    // which can be empty or out of sync after external / live-site opens.
+    ignorePopRef.current = true
+    history.replaceState({ fortress: true, path }, '', url)
+    // Clear the ignore flag after any sync hashchange/popstate from replaceState.
+    window.setTimeout(() => {
+      ignorePopRef.current = false
+    }, 0)
+    setNavTick((value) => value + 1)
+  }
+
+  const canGoBack = navIndexRef.current > 0
+  const canGoForward = navIndexRef.current < navStackRef.current.length - 1
+  void navTick
+
+  const historyNavProps = {
+    canHistoryBack: canGoBack,
+    canHistoryForward: canGoForward,
+    onHistoryBack: () => goAppHistory(-1),
+    onHistoryForward: () => goAppHistory(1),
   }
 
   const navigateApp = (path, { replace = false } = {}) => {
     const next = path.startsWith('/') ? path : `/${path}`
     const parsed = parseHashPath(next, findCompanyRef.current)
-    skipPushRef.current = true
-    setTab(parsed.tab)
-    if (parsed.tab === 'settings') setSettingsView(parsed.settingsView)
-    else if (parsed.route?.kind !== 'calc') setSettingsView('home')
-    setOverlay(parsed.overlay)
-    setAppRoute(parsed.route)
+    applyParsedRoute(parsed)
     pushPath(next, { replace })
   }
 
@@ -5967,8 +6735,12 @@ function App() {
   const openOwnGalleryPost = (postIndex) => {
     const company = ownGalleryCompany()
     if (!company?.slides?.length) return
+    const path = `/profile/post/${postIndex}`
+    const url = `${window.location.pathname}${window.location.search}#${path}`
+    const opened = typeof window !== 'undefined' ? window.open(url, '_blank') : null
+    if (opened) return
     setOverlay({ type: 'own-post', postIndex })
-    pushPath(`/profile/post/${postIndex}`)
+    pushPath(path)
   }
 
   const openMallShop = (shop) => {
@@ -6093,6 +6865,11 @@ function App() {
 
   const openGeneratedSite = (site) => {
     if (!site) return
+    const live = companyLiveSite(site)
+    if (live?.home && typeof window !== 'undefined') {
+      window.open(live.home, '_blank', 'noopener,noreferrer')
+      return
+    }
     const slug = site.slug || String(site.id || '').replace(/^mall-/, '')
     if (!slug) return
     const isRetailShop = site.systemType === 'retail' || site.isShop
@@ -6115,6 +6892,11 @@ function App() {
 
   const openPrivateSystem = (site) => {
     if (!site) return
+    const live = companyLiveSite(site)
+    if (live?.home && typeof window !== 'undefined') {
+      window.open(live.home, '_blank', 'noopener,noreferrer')
+      return
+    }
     setOverlay(null)
     if (site.systemType === 'retail' || site.isShop) {
       setActiveProfileId(site.id)
@@ -6259,6 +7041,9 @@ function App() {
     })
     setOverlay(null)
     pushPath('/profile')
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      window.setTimeout(() => window.close(), 0)
+    }
   }
 
   const updateOwnSlideCaption = (index, caption) => {
@@ -6425,12 +7210,13 @@ function App() {
         pricing={fabPricing}
         routePanel={appRoute.panel || 'home'}
         onNavigate={navigateApp}
+        {...historyNavProps}
         onSavePricing={(next) => {
           const merged = { ...emptyFabPricing(), ...next }
           delete merged.visionApiKey
           setFabPricing(merged)
           try {
-            window.localStorage.setItem(PRICING_KEY, JSON.stringify(merged))
+            storage.setItem(PRICING_KEY, JSON.stringify(merged))
           } catch {
             /* ignore */
           }
@@ -6450,6 +7236,7 @@ function App() {
         onBack={() => {
           leavePublished()
         }}
+        {...historyNavProps}
       />
     )
   }
@@ -6462,6 +7249,7 @@ function App() {
           onBack={() => {
             leavePublished()
           }}
+          {...historyNavProps}
         />
       )
     }
@@ -6471,6 +7259,7 @@ function App() {
         onBack={() => {
           leavePublished()
         }}
+        {...historyNavProps}
       />
     )
   }
@@ -6481,7 +7270,12 @@ function App() {
         <header className="phone-header">
           <div className="title-row">
             <div className="title-lead">
-              <HistoryNav />
+              <HistoryNav
+                canBack={canGoBack}
+                canForward={canGoForward}
+                onBack={() => goAppHistory(-1)}
+                onForward={() => goAppHistory(1)}
+              />
               <div>
                 <p className="eyebrow">Run sites from phone{online ? '' : ' · offline'}</p>
                 <h1>Fortress</h1>

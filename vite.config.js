@@ -3,7 +3,11 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+const isElectron = process.env.ELECTRON === '1'
+
 export default defineConfig({
+  // Relative asset paths so the packaged Electron app can load from file://
+  base: isElectron ? './' : '/',
   server: {
     proxy: {
       '/api': {
