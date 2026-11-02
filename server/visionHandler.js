@@ -105,10 +105,11 @@ export const handleVisionExtract = async (req, res) => {
     return
   }
 
-  const apiKey = String(process.env.GEMINI_API_KEY || '').trim()
+  const apiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
   if (!apiKey) {
     res.status(503).json({
-      error: 'Gemini is not configured on the server. Set GEMINI_API_KEY in the backend .env file.',
+      error:
+        'Gemini is not configured on the server. Add GEMINI_API_KEY to the project .env (local) or Vercel Environment Variables (live).',
     })
     return
   }

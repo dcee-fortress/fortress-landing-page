@@ -1,3 +1,4 @@
+import '../server/loadEnv.js'
 import { handleVisionExtract } from '../server/visionHandler.js'
 
 const readJsonBody = async (req) => {

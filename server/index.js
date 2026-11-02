@@ -1,10 +1,10 @@
 /**
  * Fortress Vision backend.
  * Put your key in `.env` as GEMINI_API_KEY=...
- * Run: npm run server
+ * Run: npm run server  (also started automatically by `npm run dev`)
  */
 
-import 'dotenv/config'
+import './loadEnv.js'
 import express from 'express'
 import { handleVisionExtract } from './visionHandler.js'
 

@@ -537,7 +537,7 @@ export const extractSteelScheduleWithGemini = async (dataUrl, { corrections = ''
     })
   } catch {
     throw new Error(
-      'Could not reach the vision server. Keep `npm run server` on (port 8787) and `npm run dev` running, then try again.',
+      'Could not reach the vision server. Run `npm run dev` (starts web + Gemini backend) and try again.',
     )
   }
   const payload = await response.json().catch(() => ({}))
