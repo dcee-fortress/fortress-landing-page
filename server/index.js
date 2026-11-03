@@ -7,6 +7,7 @@
 import './loadEnv.js'
 import express from 'express'
 import { handleVisionExtract } from './visionHandler.js'
+import { handleFabBrain } from './fabBrain.js'
 
 const app = express()
 const port = Number(process.env.VISION_PORT || process.env.PORT || 8787)
@@ -34,6 +35,10 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/vision-extract', (req, res) => {
   handleVisionExtract(req, res)
+})
+
+app.post('/api/fab-brain', (req, res) => {
+  handleFabBrain(req, res)
 })
 
 app.listen(port, () => {

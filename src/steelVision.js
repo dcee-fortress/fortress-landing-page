@@ -1,20 +1,33 @@
 /** Intelligent steel-drawing brain: Vision extract → master template → auto schedule */
 
 import { storage } from './storage.js'
+import {
+  buildRcColumnSchedule,
+  isRcColumnDrawingType,
+  formatRcColumnScript,
+} from './rcColumnFormula.js'
 
 export const FAB_MASTER_KEY = 'fortress-fab-master-template-v1'
 
 const GATE_DRAWING_TYPES = new Set(['gate', 'burglar'])
 
-/** Map vision/memory drawing_type → calc jobType (`gate` | `structure`). */
+/** Map vision/memory drawing_type → calc jobType (`gate` | `structure` | `rc_columns`). */
 export const jobTypeFromDrawingType = (drawingType = '', hints = {}) => {
   const type = String(drawingType || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
   if (GATE_DRAWING_TYPES.has(type)) return 'gate'
-  if (type && type !== 'unknown') return 'structure'
+  if (isRcColumnDrawingType(type)) return 'rc_columns'
   const blob = `${hints.notes || ''} ${hints.name || ''} ${hints.label || ''}`.toLowerCase()
   if (/\bgate\b|burglar|palisade|sliding\s*gate|swing\s*gate/.test(blob)) return 'gate'
+  if (
+    /\bd0[12]\b|column\s*layout|fixing\s*detail|bar\s*bending|rebar|\by8\b|\by16\b|c20\s*\/?\s*25|rc\s*column/.test(
+      blob,
+    )
+  ) {
+    return 'rc_columns'
+  }
+  if (type && type !== 'unknown') return 'structure'
   return 'structure'
 }
 
@@ -40,6 +53,13 @@ export const inferDrawingTypeFromText = (text = '') => {
   const t = String(text || '').toLowerCase()
   if (/burglar/.test(t)) return 'burglar'
   if (/\bgate\b|palisade|sliding\s*gate|swing\s*gate|driveway\s*gate/.test(t)) return 'gate'
+  if (
+    /\bd0[12]\b|column\s*layout|columns?\s*fixing|bar\s*bending\s*schedule|ground\s*floor\s*columns|y8\s*.*y16|c20\s*\/?\s*25/.test(
+      t,
+    )
+  ) {
+    return 'rc_columns'
+  }
   if (/carport/.test(t)) return 'carport'
   if (/warehouse/.test(t)) return 'warehouse'
   if (/workshop/.test(t)) return 'workshop'
@@ -203,6 +223,27 @@ const flattenExtracted = (extracted = {}) => {
 }
 
 export const mergeScheduleWithExtraction = (extracted, previousSchedule = [], { replace = false } = {}) => {
+  const drawingType = extracted?.drawing_type || extracted?.drawingType || ''
+  if (isRcColumnDrawingType(drawingType) || extracted?.rebar?.length || extracted?.storeys?.length) {
+    const rc = buildRcColumnSchedule(extracted)
+    return {
+      schedule: rc.schedule,
+      addedSections: rc.schedule.map((row) => row.section).filter(Boolean),
+      pricingUpdates: rc.pricingUpdates,
+      building: extracted?.building || null,
+      gate: null,
+      drawingType: 'rc_columns',
+      source: extracted?.source || 'schedule_read',
+      notes: rc.notes || extracted?.notes || '',
+      rcMeta: {
+        netSteelKg: rc.netSteelKg,
+        concreteM3: rc.concreteM3,
+        formworkM2: rc.formworkM2,
+        floorHeightM: rc.floorHeightM,
+        storeys: rc.storeys,
+      },
+    }
+  }
   const extractedRows = flattenExtracted(extracted)
   if (!extractedRows.length) {
     return {
@@ -267,7 +308,20 @@ export const formatDrawingScript = ({
   gate = null,
   schedule = [],
   notes = '',
+  name = '',
+  client = '',
+  confirmNotes = '',
+  rcStoreys = null,
 } = {}) => {
+  if (jobType === 'rc_columns' || isRcColumnDrawingType(drawingType)) {
+    return formatRcColumnScript({
+      name,
+      client,
+      schedule,
+      confirmNotes: confirmNotes || notes,
+      rcStoreys,
+    })
+  }
   const lines = []
   const type = drawingType || (jobType === 'gate' ? 'gate' : 'steel_structure')
   lines.push(`Drawing type: ${type.replace(/_/g, ' ')}.`)

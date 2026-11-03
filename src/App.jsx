@@ -16,6 +16,18 @@ import {
   rememberNaturePrices,
   updateMasterFromExtraction,
 } from './steelVision'
+import { RC_COLUMN_DEFAULT_RATES, rcColumnQuote, refreshRcSteelRow, unitWeightForSize } from './rcColumnFormula'
+import DrawingChatSession from './DrawingChatSession'
+import GateChatSession from './GateChatSession'
+import PlanChatSession from './PlanChatSession'
+import {
+  BURGLAR_TYPES,
+  emptyBurglarDraft,
+  emptyPalisadeDraft,
+  PALISADE_DEFAULTS,
+  BURGLAR_DEFAULTS,
+} from './planSession'
+import { DEFAULT_BOQ_PERCENTS } from './drawingSession'
 
 const STORE_KEY = 'fortress-phone-app-phase1'
 const SESSION_KEY = 'fortress-session-phase1'
@@ -522,12 +534,20 @@ const catalog = [
   },
 ]
 
-const mallGood = (id, name, photo, price, description = '') => ({
+const MALL_TYPE_GROUPS = [
+  { id: 'ppe', label: 'Personal protective equipment' },
+  { id: 'machinery', label: 'Production machinery' },
+  { id: 'detergents', label: 'Detergents for cleaning work space' },
+  { id: 'groceries', label: 'Groceries' },
+]
+
+const mallGood = (id, name, photo, price, description = '', type = 'groceries') => ({
   id,
   name,
   photo: photo.startsWith('http') ? photo : shot(photo),
   price,
   description,
+  type,
 })
 
 const shopFromHome = (id, items) => {
@@ -553,46 +573,209 @@ const retailShop = (id, name, cover, items) => ({
   items,
 })
 
+const inferMallProductType = (item = {}) => {
+  if (item.type && MALL_TYPE_GROUPS.some((group) => group.id === item.type)) return item.type
+  const text = `${item.name || ''} ${item.description || ''}`.toLowerCase()
+  if (
+    /helmet|hard hat|vest|boot|glove|goggle|ppe|respirator|ear ?muff|safety|hi-?vis|steel.?toe|protective/.test(
+      text,
+    )
+  ) {
+    return 'ppe'
+  }
+  if (
+    /machine|welder|lathe|compressor|motor|press|drill|generator|conveyor|mill|plant|switch gear|cable drum|bay lamp/.test(
+      text,
+    )
+  ) {
+    return 'machinery'
+  }
+  if (/detergent|bleach|soap|cleaner|disinfectant|mop|sanitize|scrub|floor clean|degreaser/.test(text)) {
+    return 'detergents'
+  }
+  return 'groceries'
+}
+
 const mallCatalog = [
-  shopFromHome('apex', [
-    mallGood('apex-plate', 'Steel plate pack', 'photo-1504917595217-d4dc5ebe6122', 86, 'Mild steel plates for mill and yard work.'),
-    mallGood('apex-bolt', 'Structural bolt set', 'photo-1504148455328-c376907d081c', 24, 'Grade 8.8 bolts with washers for frames.'),
-    mallGood('apex-angle', 'Angle iron length', pexel(3912981), 41, '6 m angle iron cut for lintels and racks.'),
-  ]),
-  shopFromHome('harbor', [
-    mallGood('harbor-beam', 'Framed beam cut', pexel(8487363), 95, 'Framed timber beam ready for a site pour.'),
-    mallGood('harbor-sheet', 'Plywood sheet', 'photo-1517581177682-a085bb7ffb15', 32, '18 mm shuttering plywood, one full sheet.'),
-    mallGood('harbor-fastener', 'Site fastener tin', 'photo-1517581177682-a085bb7ffb15', 18, 'Mixed nails and screws for formwork.'),
-  ]),
   shopFromHome('ridgeline', [
-    mallGood('ridge-helmet', 'Site helmet', shot('photo-1621905252472-943afaa20e20'), 29, 'Hard hat for crew on the scaffold.'),
-    mallGood('ridge-vest', 'Crew vest', pexel(8487367), 22, 'Hi-vis vest with reflective bands.'),
-    mallGood('ridge-boot', 'Work boot pair', 'photo-1590496793929-36417d3117de', 74, 'Steel-toe boots sized for site crews.'),
+    mallGood(
+      'ridge-helmet',
+      'Site helmet',
+      shot('photo-1621905252472-943afaa20e20'),
+      29,
+      'Hard hat for crew on the scaffold.',
+      'ppe',
+    ),
+    mallGood(
+      'ridge-vest',
+      'Crew vest',
+      pexel(8487367),
+      22,
+      'Hi-vis vest with reflective bands.',
+      'ppe',
+    ),
+    mallGood(
+      'ridge-boot',
+      'Work boot pair',
+      'photo-1590496793929-36417d3117de',
+      74,
+      'Steel-toe boots sized for site crews.',
+      'ppe',
+    ),
+    mallGood(
+      'ridge-gloves',
+      'Safety gloves',
+      'photo-1581094794329-c8112a89af12',
+      18,
+      'Cut-resistant gloves for yard and bay work.',
+      'ppe',
+    ),
+    mallGood(
+      'ridge-goggles',
+      'Safety goggles',
+      'photo-1582719478250-c89cae4dc85b',
+      16,
+      'Clear impact goggles for grinding and cutting.',
+      'ppe',
+    ),
   ]),
   shopFromHome('voltform', [
-    mallGood('volt-cable', 'Cable drum', shot('photo-1621905251918-48416bd8575a'), 58, 'Armoured cable on a drum for plant rooms.'),
-    mallGood('volt-switch', 'Switch gear pack', shot('photo-1558494949-ef010cbdcc31'), 46, 'Breakers and switches for a small board.'),
-    mallGood('volt-lamp', 'Bay lamp', 'photo-1504328345606-18bbc8c9d7d1', 37, 'High-bay lamp for mill and warehouse lighting.'),
+    mallGood(
+      'volt-welder',
+      'Arc welder set',
+      'photo-1504328345606-18bbc8c9d7d1',
+      420,
+      'Workshop arc welder with leads for production bays.',
+      'machinery',
+    ),
+    mallGood(
+      'volt-compressor',
+      'Air compressor',
+      shot('photo-1621905251918-48416bd8575a'),
+      310,
+      'Shop compressor for tools and spray lines.',
+      'machinery',
+    ),
+    mallGood(
+      'volt-drillpress',
+      'Drill press',
+      shot('photo-1558494949-ef010cbdcc31'),
+      265,
+      'Bench drill press for fabrication holes.',
+      'machinery',
+    ),
+    mallGood(
+      'volt-switch',
+      'Switch gear pack',
+      shot('photo-1558494949-ef010cbdcc31'),
+      46,
+      'Breakers and switches for a small board.',
+      'machinery',
+    ),
   ]),
-  retailShop('lantern-home', 'Lantern Home Goods', 'photo-1555041469-a586c61ea9bc', [
-    mallGood('lantern-lamp', 'Floor lamp', 'photo-1507473885765-e6ed057f782c', 54, 'Standing lamp with a linen shade.'),
-    mallGood('lantern-throw', 'Wool throw', 'photo-1555041469-a586c61ea9bc', 36, 'Warm throw for a lounge or guest room.'),
-    mallGood('lantern-vase', 'Ceramic vase', 'photo-1484101403633-562f891dc89a', 21, 'Hand-glazed vase for a table or shelf.'),
+  shopFromHome('apex', [
+    mallGood(
+      'apex-lathe',
+      'Bench lathe',
+      'photo-1504917595217-d4dc5ebe6122',
+      580,
+      'Small production lathe for shafts and bushings.',
+      'machinery',
+    ),
+    mallGood(
+      'apex-grinder',
+      'Angle grinder kit',
+      'photo-1504148455328-c376907d081c',
+      75,
+      'Grinder with discs for weld prep and cutting.',
+      'machinery',
+    ),
+  ]),
+  retailShop('clean-bay', 'Clean Bay Supplies', 'photo-1581578731548-c64695cc6952', [
+    mallGood(
+      'clean-detergent',
+      'Industrial floor detergent',
+      'photo-1581578731548-c64695cc6952',
+      14,
+      'Concentrate for scrubbing workshop floors.',
+      'detergents',
+    ),
+    mallGood(
+      'clean-bleach',
+      'Bleach jerrycan',
+      'photo-1585421514284-efb74c2b69ba',
+      11,
+      '5 L bleach for wash-down and disinfection.',
+      'detergents',
+    ),
+    mallGood(
+      'clean-degreaser',
+      'Degreaser spray pack',
+      'photo-1563453392212-326f5e854473',
+      19,
+      'Heavy-duty degreaser for machines and benches.',
+      'detergents',
+    ),
+    mallGood(
+      'clean-mop',
+      'Mop & bucket set',
+      'photo-1581578017090-aa695fd06c1c',
+      27,
+      'Wringer bucket with mop for bay cleaning.',
+      'detergents',
+    ),
   ]),
   retailShop('market-street', 'Market Street Grocers', 'photo-1542838132-92c53300491e', [
-    mallGood('market-crate', 'Produce crate', 'photo-1542838132-92c53300491e', 16, 'Mixed vegetables packed for the week.'),
-    mallGood('market-bread', 'Bakery loaf', 'photo-1509440159596-0249088772ff', 4, 'Fresh loaf from the morning bake.'),
-    mallGood('market-oil', 'Bottle of oil', 'photo-1474979266404-7ea641234fb7', 9, 'Cooking oil in a 750 ml bottle.'),
-  ]),
-  retailShop('thread-needle', 'Thread & Needle', 'photo-1441986300917-64674bd600d8', [
-    mallGood('thread-shirt', 'Cotton shirt', 'photo-1441984904996-e0b6ba687e04', 28, 'Plain cotton shirt, regular fit.'),
-    mallGood('thread-denim', 'Denim pair', 'photo-1441984904996-e0b6ba687e04', 45, 'Mid-wash jeans for everyday wear.'),
-    mallGood('thread-tote', 'Canvas tote', 'photo-1544816155-12df9643f363', 19, 'Sturdy tote for market and site runs.'),
+    mallGood(
+      'market-crate',
+      'Produce crate',
+      'photo-1542838132-92c53300491e',
+      16,
+      'Mixed vegetables packed for the week.',
+      'groceries',
+    ),
+    mallGood(
+      'market-bread',
+      'Bakery loaf',
+      'photo-1509440159596-0249088772ff',
+      4,
+      'Fresh loaf from the morning bake.',
+      'groceries',
+    ),
+    mallGood(
+      'market-oil',
+      'Bottle of oil',
+      'photo-1474979266404-7ea641234fb7',
+      9,
+      'Cooking oil in a 750 ml bottle.',
+      'groceries',
+    ),
   ]),
   retailShop('kettle-pantry', 'Copper Kettle Pantry', 'photo-1495474472287-4d71bcdd2085', [
-    mallGood('kettle-coffee', 'Roast bag', 'photo-1495474472287-4d71bcdd2085', 12, '250 g roasted beans for the office pot.'),
-    mallGood('kettle-mug', 'Stone mug', 'photo-1514228742587-6b1558fcc303', 11, 'Heavy mug that keeps tea hot.'),
-    mallGood('kettle-jar', 'Spice jar set', 'photo-1596040033229-a9821ebd058d', 15, 'Six jars with lids for a kitchen shelf.'),
+    mallGood(
+      'kettle-coffee',
+      'Roast bag',
+      'photo-1495474472287-4d71bcdd2085',
+      12,
+      '250 g roasted beans for the office pot.',
+      'groceries',
+    ),
+    mallGood(
+      'kettle-jar',
+      'Spice jar set',
+      'photo-1596040033229-a9821ebd058d',
+      15,
+      'Six jars with lids for a kitchen shelf.',
+      'groceries',
+    ),
+    mallGood(
+      'kettle-tea',
+      'Tea carton',
+      'photo-1556679343-c7306c197d0d',
+      8,
+      'Black tea bags for the site office.',
+      'groceries',
+    ),
   ]),
 ]
 
@@ -913,6 +1096,32 @@ const FAB_PLANS = [
   { id: 'year', label: '1 year', price: 22, days: 365 },
 ]
 
+/** Freemium: 6 free drawing uploads, then $1/wk · $3.5/mo · $22/yr. */
+const FAB_FREE_DRAWS_KEY = 'fortress-fab-free-draws-v1'
+const FAB_FREE_DRAW_LIMIT = 6
+const FAB_FREE_DRAW_WARN_AT = 2
+
+const loadFreeDrawUsage = () => {
+  try {
+    const n = Number(storage.getItem(FAB_FREE_DRAWS_KEY) || '0')
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0
+  } catch {
+    return 0
+  }
+}
+
+const saveFreeDrawUsage = (count) => {
+  try {
+    storage.setItem(FAB_FREE_DRAWS_KEY, String(Math.max(0, Math.floor(count))))
+  } catch {
+    /* ignore */
+  }
+}
+
+const fabSubscriptionActive = (site) => Number(site?.paidUntil) > Date.now()
+
+const freeDrawsRemaining = (used = 0) => Math.max(0, FAB_FREE_DRAW_LIMIT - Number(used || 0))
+
 const GATE_COMPLEXITY = [
   { id: 'simple', label: 'Simple design', rate: 45, copy: 'Straight frame, rails, and standard infill.' },
   { id: 'medium', label: 'Medium design', rate: 78, copy: 'Spears, mixed panels, and extra rails.' },
@@ -966,18 +1175,28 @@ const DRAWING_TYPE_LABELS = {
   warehouse: 'Warehouse',
   workshop: 'Workshop',
   staircase: 'Staircase',
-  gate: 'Gate / burglar',
+  gate: 'Gate',
   burglar: 'Burglar bars',
+  burglar_bars: 'Burglar bars',
+  palisade_fence: 'Palisade fencing',
   roof_plan: 'Roof plan',
   building_plan: 'Building plan',
   architectural: 'Architectural plan',
+  rc_columns: 'RC columns (D01/D02)',
+  column_layout: 'RC column layout',
   unknown: 'Drawing / plan',
 }
 
 const drawingTypeLabel = (type) => DRAWING_TYPE_LABELS[type] || type || 'Drawing / plan'
+const isScheduleJob = (jobType) => jobType === 'structure' || jobType === 'rc_columns'
 const jobTypeLabel = (jobType, drawingType) => {
+  if (jobType === 'gate') return 'Gate'
+  if (jobType === 'palisade') return 'Palisade fencing'
+  if (jobType === 'burglar') return 'Burglar bars'
   if (drawingType) return drawingTypeLabel(drawingType)
-  return jobType === 'gate' ? 'Gate / Burglar' : jobType === 'structure' ? 'Steel structure' : 'Drawing'
+  if (jobType === 'rc_columns') return 'RC columns (D01/D02)'
+  if (jobType === 'structure') return 'Steel structure'
+  return 'Drawing'
 }
 
 const defaultStructureSchedule = () => [
@@ -1673,11 +1892,16 @@ const ceoFigures = (name = '') => {
   }
 }
 
-const PRICING_KEY = 'fortress-fab-pricing-v4'
+const PRICING_KEY = 'fortress-fab-pricing-v5'
 const emptyFabPricing = () => ({
   // Gate / small job rates
   tube50PerM: '4.50',
   tube25PerM: '2.20',
+  tube16PerM: '1.60',
+  tube76PerM: '12.00',
+  angle30PerM: '2.80',
+  angle40PerM: '3.20',
+  flatBarPerM: '1.40',
   uChannelPerM: '8.00',
   sheetPerM2: '12.00',
   // Structure schedule rates (S-201 style)
@@ -1693,9 +1917,12 @@ const emptyFabPricing = () => ({
   ibrPerM2: '12.00',
   foundationPad: '45',
   lc150PerM: '7.50',
+  // D01/D02 RC column QS rates (Zim)
+  ...RC_COLUMN_DEFAULT_RATES,
   labourPercent: '65',
   consumablesPercent: '15',
   marginPercent: '30',
+  transportPercent: DEFAULT_BOQ_PERCENTS.transportPercent,
   whatsapp: '',
   visionProvider: 'tesseract',
 })
@@ -1739,8 +1966,12 @@ const emptyProject = () => ({
   drawingScript: '',
   confirmNotes: '',
   descriptionConfirmed: false,
+  planKind: '',
   gate: emptyDrawingDraft(),
+  palisade: emptyPalisadeDraft(),
+  burglar: emptyBurglarDraft(),
   schedule: [],
+  rcStoreys: [],
   roofLength: '',
   roofWidth: '',
   wallArea: '',
@@ -1748,6 +1979,7 @@ const emptyProject = () => ({
   labourPercent: '',
   consumablesPercent: '',
   marginPercent: '',
+  transportPercent: '',
   quoteTotal: 0,
   at: 0,
 })
@@ -1808,8 +2040,10 @@ const rememberDrawingTemplate = (project, pricingSnapshot = null) => {
     preview: project.drawingKind === 'image' && project.drawing ? project.drawing : '',
     jobType: project.jobType,
     gate: project.jobType === 'gate' ? { ...(project.gate || {}) } : null,
-    schedule:
-      project.jobType === 'structure' ? JSON.parse(JSON.stringify(project.schedule || [])) : null,
+    schedule: isScheduleJob(project.jobType)
+      ? JSON.parse(JSON.stringify(project.schedule || []))
+      : null,
+    rcStoreys: project.jobType === 'rc_columns' ? JSON.parse(JSON.stringify(project.rcStoreys || [])) : [],
     drawingScript: project.drawingScript || '',
     confirmNotes: project.confirmNotes || '',
     roofLength: project.roofLength,
@@ -1823,10 +2057,10 @@ const rememberDrawingTemplate = (project, pricingSnapshot = null) => {
   if (template.preview && template.preview.length > 400000) template.preview = ''
   const next = [template, ...loadDrawingTemplates().filter((item) => item.fingerprint !== template.fingerprint)]
   saveDrawingTemplates(next)
-  if (project.jobType === 'structure' && pricingSnapshot) {
+  if (isScheduleJob(project.jobType) && pricingSnapshot) {
     rememberNaturePrices({
       natureKey,
-      drawingType: project.drawingType || 'steel_structure',
+      drawingType: project.drawingType || (project.jobType === 'rc_columns' ? 'rc_columns' : 'steel_structure'),
       label: template.label,
       pricing: pricingSnapshot,
       schedule: project.schedule || [],
@@ -3408,6 +3642,9 @@ function FabricationCalculator({
   const [view, setView] = useState(initial.view)
   const [step, setStep] = useState(initial.step)
   const [gateStep, setGateStep] = useState(1)
+  const [planStep, setPlanStep] = useState(1)
+  /** `drawing` | `plan_manual` (gates / palisade / burglar without a drawing). */
+  const [pathMode, setPathMode] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [note, setNote] = useState('')
   const [priceForm, setPriceForm] = useState(() => ({ ...emptyFabPricing(), ...(pricing || {}) }))
@@ -3419,7 +3656,16 @@ function FabricationCalculator({
   const [aiBusy, setAiBusy] = useState(false)
   const [master, setMaster] = useState(() => loadMasterTemplate())
   const [online, setOnline] = useState(() => readOnline())
+  const [freeDrawsUsed, setFreeDrawsUsed] = useState(() => loadFreeDrawUsage())
+  const [freemiumNote, setFreemiumNote] = useState('')
+  /** One freemium credit per project start (drawing upload or gate size entry). */
+  const [freemiumConsumedForProject, setFreemiumConsumedForProject] = useState(false)
   const rates = { ...emptyFabPricing(), ...(pricing || {}), ...(priceForm || {}) }
+  const subActive = fabSubscriptionActive(site)
+  const freeLeft = freeDrawsRemaining(freeDrawsUsed)
+  const canUseFreemiumJob = subActive || freeLeft > 0
+  const canUploadDrawing = canUseFreemiumJob
+  const canStartGateQuote = canUseFreemiumJob
 
   const refreshDrawingScript = (proj) =>
     formatDrawingScript({
@@ -3432,6 +3678,10 @@ function FabricationCalculator({
       gate: proj.gate,
       schedule: proj.schedule,
       notes: proj.confirmNotes || '',
+      name: proj.name,
+      client: proj.client,
+      confirmNotes: proj.confirmNotes || '',
+      rcStoreys: proj.rcStoreys,
     })
 
   useEffect(() => {
@@ -3451,10 +3701,76 @@ function FabricationCalculator({
     setNote(offlineActionMessage(action))
     return true
   }
+
+  const consumeFreeDrawingUpload = () => {
+    if (subActive) {
+      setFreemiumNote('')
+      setFreemiumConsumedForProject(true)
+      return { ok: true, left: null }
+    }
+    if (freeLeft <= 0) {
+      setFreemiumNote(
+        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to upload drawings or start new gate quotes.',
+      )
+      goView('subscriptions')
+      return { ok: false, left: 0 }
+    }
+    const nextUsed = freeDrawsUsed + 1
+    const nextLeft = freeDrawsRemaining(nextUsed)
+    setFreeDrawsUsed(nextUsed)
+    saveFreeDrawUsage(nextUsed)
+    setFreemiumConsumedForProject(true)
+    if (nextLeft === FAB_FREE_DRAW_WARN_AT) {
+      setFreemiumNote(
+        '2 free uses left — then you need a subscription for new drawings or gate width/height quotes.',
+      )
+    } else if (nextLeft === 0) {
+      setFreemiumNote(
+        'That was your last free use. Subscribe to upload drawings or enter new gate sizes.',
+      )
+    } else if (nextLeft < FAB_FREE_DRAW_WARN_AT) {
+      setFreemiumNote(`${nextLeft} free use${nextLeft === 1 ? '' : 's'} left.`)
+    } else {
+      setFreemiumNote('')
+    }
+    return { ok: true, left: nextLeft }
+  }
+
+  const guardDrawingUpload = () => {
+    if (subActive) return true
+    if (freeLeft <= 0) {
+      setFreemiumNote(
+        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to upload drawings or start new gate quotes.',
+      )
+      goView('subscriptions')
+      return false
+    }
+    if (freeLeft === FAB_FREE_DRAW_WARN_AT) {
+      setFreemiumNote('2 free uses left — subscribe anytime under Subscriptions.')
+    }
+    return true
+  }
+
+  const guardGateQuoteStart = () => {
+    if (subActive) return true
+    if (freeLeft <= 0) {
+      setFreemiumNote(
+        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to enter gate width and height.',
+      )
+      goView('subscriptions')
+      return false
+    }
+    if (freeLeft === FAB_FREE_DRAW_WARN_AT) {
+      setFreemiumNote('2 free uses left — subscribe anytime under Subscriptions.')
+    }
+    return true
+  }
   const gateDraft = { ...emptyDrawingDraft(), ...(project.gate || {}) }
   const gateQuote = project.jobType === 'gate' ? fabQuote({ ...gateDraft, ...project.gate }, rates) : null
   const structQuote = project.jobType === 'structure' ? structureQuote(project, rates) : null
-  const quote = project.jobType === 'structure' ? structQuote : gateQuote
+  const rcQuote = project.jobType === 'rc_columns' ? rcColumnQuote(project, rates) : null
+  const quote =
+    project.jobType === 'structure' ? structQuote : project.jobType === 'rc_columns' ? rcQuote : gateQuote
 
   const navigatePanel = (panel, { replace = false } = {}) => {
     const next = calcStateFromPanel(panel)
@@ -3489,7 +3805,23 @@ function FabricationCalculator({
 
   const updateScheduleRow = (id, patch) => {
     updateProject({
-      schedule: (project.schedule || []).map((row) => (row.id === id ? { ...row, ...patch } : row)),
+      schedule: (project.schedule || []).map((row) => {
+        if (row.id !== id) return row
+        const next = { ...row, ...patch }
+        // RC rebar: prefer Weight from the drawing table; only recompute if user edits length
+        if (
+          project.jobType === 'rc_columns' &&
+          (next.group === 'steel' || /^Y\d+/i.test(next.section)) &&
+          next.unit === 'kg'
+        ) {
+          const userEditedLength = patch.meters != null && patch.qty == null
+          if (userEditedLength) next.weightFromDrawing = false
+          return refreshRcSteelRow(next, moneyAmount(rates.rcWasteFactor) || 1.1, {
+            recomputeWeight: userEditedLength,
+          })
+        }
+        return next
+      }),
     })
   }
 
@@ -3521,30 +3853,127 @@ function FabricationCalculator({
     setObjections('')
     setDrawingNote('')
     setGateStep(1)
+    setPlanStep(1)
+    setPathMode('')
+    setFreemiumConsumedForProject(false)
     goStep(1)
   }
 
   const openProject = (item) => {
+    const planKind =
+      item.planKind ||
+      (item.jobType === 'gate' || item.jobType === 'palisade' || item.jobType === 'burglar'
+        ? item.jobType
+        : '')
     setProject({
       ...emptyProject(),
       ...item,
+      planKind,
+      palisade: { ...emptyPalisadeDraft(), ...(item.palisade || {}) },
+      burglar: { ...emptyBurglarDraft(), ...(item.burglar || {}) },
       schedule: item.schedule?.length ? item.schedule : [],
     })
     if (item.jobType === 'gate' && item.gate) onChange({ ...emptyDrawingDraft(), ...item.gate })
     setNote('')
     setObjections(item.confirmNotes || '')
     setGateStep(1)
+    setPlanStep(1)
+    if (item.drawing) {
+      setPathMode('drawing')
+      goStep(2)
+      return
+    }
+    if (planKind) {
+      setPathMode('plan_manual')
+      goStep(5)
+      return
+    }
+    setPathMode(item.drawing ? 'drawing' : 'plan_manual')
     goStep(5)
   }
 
-  const nextFromProject = () => {
+  const nextFromProject = (mode) => {
     if (!project.name.trim()) {
       setNote('Enter a project name.')
       return
     }
     setNote('')
     setGateStep(1)
+    setPlanStep(0)
+    if (mode === 'plan_manual' || mode === 'gate_manual') {
+      if (!guardGateQuoteStart()) return
+      if (!freemiumConsumedForProject) {
+        const consumed = consumeFreeDrawingUpload()
+        if (consumed?.ok === false) return
+      }
+      setPathMode('plan_manual')
+      setProject((prev) => ({
+        ...prev,
+        planKind: '',
+        jobType: '',
+        drawingType: '',
+        gate: { ...emptyDrawingDraft(), ...(prev.gate || {}) },
+        palisade: { ...emptyPalisadeDraft(), ...(prev.palisade || {}) },
+        burglar: { ...emptyBurglarDraft(), ...(prev.burglar || {}) },
+        drawing: '',
+        drawingName: '',
+        drawingFingerprint: '',
+        schedule: [],
+      }))
+      goStep(2)
+      return
+    }
+    setPathMode('drawing')
     goStep(2)
+  }
+
+  const choosePlanKind = (kind) => {
+    setNote('')
+    setGateStep(1)
+    setPlanStep(1)
+    if (kind === 'gate') {
+      const gate = { ...emptyDrawingDraft(), ...(project.gate || {}) }
+      setProject((prev) => ({
+        ...prev,
+        planKind: 'gate',
+        jobType: 'gate',
+        drawingType: 'gate',
+        gate,
+      }))
+      onChange(gate)
+      return
+    }
+    if (kind === 'palisade') {
+      setProject((prev) => ({
+        ...prev,
+        planKind: 'palisade',
+        jobType: 'palisade',
+        drawingType: 'palisade_fence',
+        palisade: { ...emptyPalisadeDraft(), ...(prev.palisade || {}) },
+      }))
+      return
+    }
+    setProject((prev) => ({
+      ...prev,
+      planKind: 'burglar',
+      jobType: 'burglar',
+      drawingType: 'burglar_bars',
+      burglar: { ...emptyBurglarDraft(), ...(prev.burglar || {}) },
+    }))
+  }
+
+  const updatePalisade = (patch) => {
+    setProject((prev) => ({
+      ...prev,
+      palisade: { ...emptyPalisadeDraft(), ...(prev.palisade || {}), ...patch },
+    }))
+  }
+
+  const updateBurglar = (patch) => {
+    setProject((prev) => ({
+      ...prev,
+      burglar: { ...emptyBurglarDraft(), ...(prev.burglar || {}), ...patch },
+    }))
   }
 
   const nextFromDrawing = () => {
@@ -3619,7 +4048,7 @@ function FabricationCalculator({
       setNote('No drawing type yet — go back and upload a plan.')
       return
     }
-    if (project.jobType === 'structure' && !(project.schedule || []).length) {
+    if (isScheduleJob(project.jobType) && !(project.schedule || []).length) {
       setNote('No materials to confirm. Update objections or re-read the plan.')
       return
     }
@@ -3663,21 +4092,32 @@ function FabricationCalculator({
   const printQuote = () => {
     if (!quote) return
     const lines = quote.lines.map((line) => `<li>${line.name}: ${line.detail} — ${formatPrice(line.cost)}</li>`).join('')
+    const rcBlock =
+      quote.kind === 'rc_columns'
+        ? `<div class="box"><strong>QS build-up (columns)</strong>
+            <p>Steel: ${formatPrice(quote.sections?.steel || 0)}</p>
+            <p>Concrete: ${formatPrice(quote.sections?.concrete || 0)}</p>
+            <p>Formwork: ${formatPrice(quote.sections?.formwork || 0)}</p>
+            <p>Direct cost: ${formatPrice(quote.subtotal)}</p>
+            <p>Contractor profit (${quote.marginPercent}%): ${formatPrice(quote.margin)}</p>
+            ${quote.concreteM3 ? `<p>All-in ≈ ${formatPrice(quote.allInPerM3)} / m³ of column</p>` : ''}
+          </div>`
+        : `<div class="box">
+        <p>Materials: ${formatPrice(quote.materials)}</p>
+        <p>Labour (${quote.labourPercent}%): ${formatPrice(quote.labour)}</p>
+        <p>Consumables (${quote.consumablesPercent}%): ${formatPrice(quote.consumables)}</p>
+        <p>Margin (${quote.marginPercent}%): ${formatPrice(quote.margin)}</p>
+      </div>`
     const page = `<!doctype html><html><head><title>Quote</title>
       <style>body{font-family:Arial,sans-serif;padding:24px;color:#1c1915}h1{font-size:22px}.box{border:1px solid #ccc;padding:16px;margin:12px 0;border-radius:12px}.green{background:#ecfdf3}.total{font-size:28px;font-weight:800}</style>
       </head><body>
       <h1>Fabrication Quote</h1>
       <p><strong>${project.name || quote.title}</strong>${project.client ? ` · Client: ${project.client}` : ''}</p>
       <p>${jobTypeLabel(project.jobType, project.drawingType)}</p>
-      <div class="box"><strong>Materials</strong><ul>${lines}</ul>
-      ${quote.wasteFactor ? `<p>Includes ×${quote.wasteFactor} steel wastage on material total.</p>` : ''}
+      <div class="box"><strong>${quote.kind === 'rc_columns' ? 'Steel · Concrete · Formwork' : 'Materials'}</strong><ul>${lines}</ul>
+      ${quote.wasteFactor ? `<p>Includes ×${quote.wasteFactor} steel wastage / laps on supply tonnage.</p>` : ''}
       </div>
-      <div class="box">
-        <p>Materials: ${formatPrice(quote.materials)}</p>
-        <p>Labour (${quote.labourPercent}%): ${formatPrice(quote.labour)}</p>
-        <p>Consumables (${quote.consumablesPercent}%): ${formatPrice(quote.consumables)}</p>
-        <p>Margin (${quote.marginPercent}%): ${formatPrice(quote.margin)}</p>
-      </div>
+      ${rcBlock}
       <div class="box green"><div class="total">FINAL PRICE: ${formatPrice(quote.total)}</div></div>
       </body></html>`
     const popup = window.open('', '_blank')
@@ -3739,7 +4179,7 @@ function FabricationCalculator({
       schedule: merged.schedule,
     })
     const natureMemory =
-      jobType === 'structure'
+      isScheduleJob(jobType)
         ? findNaturePriceMemory(natureKey, {
             drawingType: resolvedType,
             schedule: merged.schedule,
@@ -3776,11 +4216,16 @@ function FabricationCalculator({
       jobType,
       drawingType: resolvedType,
       drawingSource: source,
-      natureKey: jobType === 'structure' ? natureKey : '',
+      natureKey: isScheduleJob(jobType) ? natureKey : '',
       descriptionConfirmed: false,
       confirmNotes: baseProject.confirmNotes || '',
       gate: nextGate,
-      schedule: jobType === 'structure' ? merged.schedule : [],
+      // Keep schedule for structure/RC always; for gate drawings keep rows when vision found members.
+      schedule:
+        isScheduleJob(jobType) || (jobType === 'gate' && (merged.schedule || []).length)
+          ? merged.schedule
+          : [],
+      rcStoreys: jobType === 'rc_columns' ? merged.rcMeta?.storeys || [] : [],
       roofLength:
         jobType === 'structure' && building.length_m
           ? String(building.length_m)
@@ -3795,6 +4240,10 @@ function FabricationCalculator({
             : baseProject.roofWidth,
       wallArea: jobType === 'structure' ? baseProject.wallArea || '' : baseProject.wallArea,
       foundationPads: jobType === 'structure' ? baseProject.foundationPads || '' : baseProject.foundationPads,
+      marginPercent:
+        jobType === 'rc_columns'
+          ? pricingPatch.rcMarginPercent || RC_COLUMN_DEFAULT_RATES.rcMarginPercent
+          : baseProject.marginPercent,
     }
     nextProject.drawingScript = refreshDrawingScript(nextProject)
     setProject(nextProject)
@@ -3813,14 +4262,18 @@ function FabricationCalculator({
         ? nextGate.width || nextGate.height
           ? ` Opening: ${nextGate.width || '—'}m × ${nextGate.height || '—'}m.`
           : ''
-        : building.length_m || building.width_m
-          ? ` Dimensions: ${building.length_m || '—'}m × ${building.width_m || '—'}m${building.height_m ? ` × ${building.height_m}m` : ''}.`
-          : ''
+        : jobType === 'rc_columns' && merged.rcMeta?.netSteelKg
+          ? ` Net rebar ~${merged.rcMeta.netSteelKg.toLocaleString()} kg · Concrete ~${merged.rcMeta.concreteM3} m³.`
+          : building.length_m || building.width_m
+            ? ` Dimensions: ${building.length_m || '—'}m × ${building.width_m || '—'}m${building.height_m ? ` × ${building.height_m}m` : ''}.`
+            : ''
     const memoryNote =
-      jobType === 'structure'
+      isScheduleJob(jobType)
         ? natureMemory?.match === 'exact'
           ? ` Exact unit-price memory for this nature (${natureMemory.label || 'saved rates'}).`
-          : ' Confirm the take-off next, then enter unit prices.'
+          : jobType === 'rc_columns'
+            ? ' Confirm steel/concrete/formwork take-off, then unit prices (QS build-up).'
+            : ' Confirm the take-off next, then enter unit prices.'
         : ' Confirm gate details, then the take-off script, then unit prices.'
     const sourceNote =
       source === 'estimated_from_knowledge'
@@ -3844,17 +4297,24 @@ function FabricationCalculator({
     // Exact same file only — a new staircase must not inherit a workshop template.
     const remembered = findSimilarDrawingTemplate(fingerprint)
 
-    if (remembered?.match === 'exact' && remembered.jobType === 'structure' && remembered.schedule?.length) {
+    if (
+      remembered?.match === 'exact' &&
+      isScheduleJob(remembered.jobType) &&
+      remembered.schedule?.length
+    ) {
       const restored = {
         drawing: dataUrl,
         drawingName: file.name,
         drawingFingerprint: fingerprint,
         drawingKind: kind,
-        jobType: 'structure',
-        drawingType: remembered.drawingType || 'steel_structure',
+        jobType: remembered.jobType,
+        drawingType:
+          remembered.drawingType ||
+          (remembered.jobType === 'rc_columns' ? 'rc_columns' : 'steel_structure'),
         drawingSource: 'memory_pattern',
         natureKey: remembered.natureKey || '',
         schedule: JSON.parse(JSON.stringify(remembered.schedule)),
+        rcStoreys: JSON.parse(JSON.stringify(remembered.rcStoreys || [])),
         roofLength: remembered.roofLength || '',
         roofWidth: remembered.roofWidth || '',
         wallArea: remembered.wallArea || '',
@@ -4010,7 +4470,7 @@ function FabricationCalculator({
 
   const updateUnitPrice = (priceKey, value) => {
     const next = applySavedPricing({ [priceKey]: value })
-    if (project.natureKey || project.jobType === 'structure') {
+    if (project.natureKey || isScheduleJob(project.jobType)) {
       const natureKey =
         project.natureKey ||
         drawingNatureKey({
@@ -4078,7 +4538,13 @@ function FabricationCalculator({
           <strong>{project.name || 'Fabrication calc'}</strong>
         </div>
         {onBack ? (
-          <button type="button" className="text-back" onClick={onBack}>
+          <button
+            type="button"
+            className="text-back fab-fortress-home"
+            onClick={onBack}
+            aria-label="Back to Fortress"
+          >
+            <FabMenuIcon name="home" />
             Fortress
           </button>
         ) : (
@@ -4135,25 +4601,38 @@ function FabricationCalculator({
       {wizard && step === 0 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Fabrication calc</h1>
+            <div className="fab-title-row">
+              <h1>Fabrication calc</h1>
+              {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
+            </div>
             <p>
               Upload any drawing. The app reads this plan only (same file can reuse memory), shows a take-off script to
               confirm, then unit prices and quotation.
             </p>
+            {!subActive ? (
+              <p className="fab-freemium-meter" role="status">
+                {freeLeft > 0
+                  ? `${freeLeft} of ${FAB_FREE_DRAW_LIMIT} free uses left (drawings or gate quotes)`
+                  : 'Free uses gone — subscribe to upload drawings or enter gate sizes'}
+              </p>
+            ) : (
+              <p className="fab-freemium-meter fab-freemium-meter-active" role="status">
+                Subscription active — unlimited drawings and gate quotes
+              </p>
+            )}
+            {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
             <button type="button" className="fab-hero-btn" onClick={startNewProject}>
               CREATE PROJECT
             </button>
+            <p className="fab-note">
+              Upload a CAD plan, scan, or hand-drawn sketch, or price a gate with no drawing. Freemium allows 6 free jobs
+              total.
+            </p>
             <div className="fab-master-card">
               <strong>Master template</strong>
               <small>
-                Learned from: {master.learned_from || 'Workshop'} · {master.learned_count || 1} drawing
-                {(master.learned_count || 1) === 1 ? '' : 's'}
+                {master.learned_count || 0} drawing{(master.learned_count || 0) === 1 ? '' : 's'} learned
               </small>
-              <p>
-                {(master.patterns?.known_sections || []).slice(0, 8).join(' · ') ||
-                  'H 120x120 · PFC 150x75 · LC 125 · LC 100'}
-              </p>
-              <span>{master.patterns?.formula}</span>
             </div>
           </section>
           <section className="fab-section">
@@ -4181,10 +4660,22 @@ function FabricationCalculator({
       {wizard && step === 1 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 1 — Create project</h1>
+            <div className="fab-title-row">
+              <h1>Create project</h1>
+              {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
+            </div>
             <p className="fab-note">
-              Name the job, then upload any drawing. The app recognises gate, burglar, or steel structure on its own.
+              Name the job, then upload a drawing — or price a gate with no drawing. Both use the same 6 free freemium
+              credits.
             </p>
+            {!subActive ? (
+              <p className="fab-freemium-meter" role="status">
+                {freeLeft > 0
+                  ? `${freeLeft} of ${FAB_FREE_DRAW_LIMIT} free uses left`
+                  : 'No free uses left — subscribe to continue'}
+              </p>
+            ) : null}
+            {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
             <label className="fab-field">
               Project name
               <input
@@ -4202,85 +4693,148 @@ function FabricationCalculator({
               />
             </label>
             {note ? <p className="form-error">{note}</p> : null}
-            <button type="button" className="fab-next-btn" onClick={nextFromProject}>
-              NEXT → ADD DRAWING
-            </button>
+            <div className="fab-path-choice">
+              <button
+                type="button"
+                className="fab-next-btn"
+                onClick={() => nextFromProject('drawing')}
+                disabled={!canUploadDrawing}
+              >
+                Upload drawing
+              </button>
+              <button
+                type="button"
+                className="fab-next-btn fab-btn-outline"
+                onClick={() => nextFromProject('plan_manual')}
+                disabled={!canStartGateQuote}
+              >
+                Plan without drawing
+              </button>
+              {!canUseFreemiumJob ? (
+                <button type="button" className="fab-next-btn" onClick={() => goView('subscriptions')}>
+                  View subscriptions
+                </button>
+              ) : null}
+            </div>
           </section>
         </main>
       ) : null}
 
-      {wizard && step === 2 ? (
+      {wizard && pathMode === 'drawing' && step >= 2 ? (
+        <DrawingChatSession
+          project={project}
+          pricing={rates}
+          online={online}
+          jobTypeLabel={jobTypeLabel}
+          canUploadDrawing={canUploadDrawing}
+          freeDrawsLeft={freeLeft}
+          subscriptionActive={subActive}
+          freemiumNote={freemiumNote}
+          onNeedOnline={(actionKey) =>
+            needOnline(NETWORK_ACTIONS[actionKey] || NETWORK_ACTIONS.vision)
+          }
+          onOpenDrawing={openDrawing}
+          onGuardUpload={guardDrawingUpload}
+          onConsumeFreeUpload={consumeFreeDrawingUpload}
+          onRequireSubscription={() => {
+            setFreemiumNote('Subscribe to upload more drawings — $1/week, $3.5/month, or $22/year.')
+            goView('subscriptions')
+          }}
+          onUpdateProject={(patch) => updateProject(patch)}
+          onApplyExtraction={(extracted, meta = {}) => {
+            const dataUrl = meta.dataUrl || project.drawing
+            const kindFromData =
+              typeof dataUrl === 'string' && dataUrl.startsWith('data:application/pdf')
+                ? 'pdf'
+                : typeof dataUrl === 'string' && dataUrl.startsWith('data:image')
+                  ? 'image'
+                  : ''
+            const base = {
+              ...project,
+              drawing: dataUrl,
+              drawingName: meta.drawingName || project.drawingName,
+              drawingFingerprint: meta.fingerprint || project.drawingFingerprint,
+              drawingKind: kindFromData || project.drawingKind || 'image',
+              confirmNotes: meta.corrections || project.confirmNotes || '',
+            }
+            return applyVisionExtraction(extracted, base, { deferMeta: true })
+          }}
+          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onSaveQuote={(finalQuote) => {
+            saveCurrentProject(finalQuote)
+            setNote('Quote saved.')
+          }}
+        />
+      ) : null}
+
+      {wizard && pathMode === 'plan_manual' && step === 2 ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 2 — Add drawing</h1>
-            <p className="fab-note">
-              Upload any gate, burglar, or steel fabrication plan. Memory is checked first; if nothing matches, the plan
-              is read for type, dimensions, and materials.
-            </p>
-            <label className="fab-field">
-              Upload photo / PDF
-              <input type="file" accept="image/*,application/pdf" onChange={onDrawingFile} disabled={aiBusy} />
-            </label>
-            <DrawingAttach />
+            <div className="fab-title-row">
+              <h1>Plan without drawing</h1>
+              {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
+            </div>
+            {!project.planKind ? (
+              <p className="fab-note">Choose what to price — Zimbabwe shop formulas, no drawing needed.</p>
+            ) : null}
+            {!subActive ? (
+              <p className="fab-freemium-meter" role="status">
+                {freeLeft > 0
+                  ? `${freeLeft} of ${FAB_FREE_DRAW_LIMIT} free uses left`
+                  : 'No free uses left — subscribe to continue'}
+              </p>
+            ) : null}
+            {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
 
-            {project.drawing && (project.drawingType || project.jobType || project.drawingSource) ? (
-              <div className="fab-plan-summary">
-                <h2>Recognised drawing</h2>
-                <p>
-                  <strong>Type:</strong> {jobTypeLabel(project.jobType, project.drawingType)}
+            {!canStartGateQuote && !freemiumConsumedForProject ? (
+              <div className="drawing-paywall">
+                <p className="fab-freemium-alert">
+                  You used all 6 free uses. Subscribe ($1/week, $3.5/month, or $22/year) to continue.
                 </p>
-                <p>
-                  <strong>Dimensions:</strong>{' '}
-                  {project.jobType === 'gate'
-                    ? `${project.gate?.width || '—'}m × ${project.gate?.height || '—'}m (opening)`
-                    : `${project.roofLength || '—'}m × ${project.roofWidth || '—'}m${
-                        project.wallArea ? ` · walls ${project.wallArea} sqm` : ''
-                      }`}
-                </p>
-                <p>
-                  <strong>Source:</strong>{' '}
-                  {project.drawingSource === 'estimated_from_knowledge'
-                    ? 'Knowledge (new to memory)'
-                    : project.drawingSource === 'memory_pattern'
-                      ? 'Drawing memory'
-                      : project.drawingSource === 'schedule_read'
-                        ? 'Read from plan'
-                        : aiBusy
-                          ? 'Reading…'
-                          : 'Pending'}
-                </p>
-                <div className="fab-result-actions">
-                  <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => treatAsJobType('gate')}>
-                    Treat as gate
-                  </button>
-                  <button
-                    type="button"
-                    className="fab-next-btn fab-btn-outline"
-                    onClick={() => treatAsJobType('structure')}
-                  >
-                    Treat as steel structure
-                  </button>
-                </div>
+                <button type="button" className="fab-next-btn" onClick={() => goView('subscriptions')}>
+                  View subscriptions
+                </button>
               </div>
             ) : null}
 
-            {!project.jobType && project.drawing && !aiBusy ? (
-              <div className="fab-result-actions">
-                <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => treatAsJobType('gate')}>
-                  This is a gate
+            {(canStartGateQuote || freemiumConsumedForProject) && !project.planKind ? (
+              <div className="fab-choice-list">
+                <button type="button" className="fab-type-card" onClick={() => choosePlanKind('gate')}>
+                  <span>
+                    <strong>Gates</strong>
+                    <small>Sliding, swing double, swing single — same take-off as before</small>
+                  </span>
                 </button>
+                <button type="button" className="fab-type-card" onClick={() => choosePlanKind('palisade')}>
+                  <span>
+                    <strong>Palisade fencing</strong>
+                    <small>Pales, rails, posts — L / Ws + 1 · 10% waste</small>
+                  </span>
+                </button>
+                <button type="button" className="fab-type-card" onClick={() => choosePlanKind('burglar')}>
+                  <span>
+                    <strong>Burglar bars</strong>
+                    <small>Square tube, flat bar, or heavy duty — window frame formulas</small>
+                  </span>
+                </button>
+              </div>
+            ) : null}
+
+            {project.planKind === 'gate' && (canStartGateQuote || freemiumConsumedForProject) ? (
+              <>
+                <p className="fab-note">
+                  Enter opening size, gate type, and design. Materials use the classic fabrication formulas.
+                </p>
                 <button
                   type="button"
                   className="fab-next-btn fab-btn-outline"
-                  onClick={() => treatAsJobType('structure')}
+                  onClick={() => {
+                    setProject((prev) => ({ ...prev, planKind: '', jobType: '', drawingType: '' }))
+                    setGateStep(1)
+                  }}
                 >
-                  This is a steel structure
+                  ← All plans
                 </button>
-              </div>
-            ) : null}
-
-            {project.jobType === 'gate' ? (
-              <>
                 {gateStep === 1 ? (
                   <>
                     <h2>Opening size</h2>
@@ -4387,8 +4941,34 @@ function FabricationCalculator({
                       <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setGateStep(2)}>
                         BACK
                       </button>
-                      <button type="button" className="fab-go-btn" onClick={nextFromDrawing}>
-                        NEXT → CONFIRM TAKE-OFF
+                      <button
+                        type="button"
+                        className="fab-go-btn"
+                        onClick={() => {
+                          const g = project.gate || {}
+                          if (!Number(g.width) || !Number(g.height)) {
+                            setNote('Enter gate width and height first.')
+                            setGateStep(1)
+                            return
+                          }
+                          if (!g.gateType) {
+                            setNote('Choose a gate type.')
+                            setGateStep(2)
+                            return
+                          }
+                          if (!g.design) {
+                            setNote('Choose a gate design.')
+                            return
+                          }
+                          if ((g.design === 'palisade' || g.design === 'half') && !(Number(g.spacing) > 0)) {
+                            setNote('Enter palisade spacing.')
+                            return
+                          }
+                          setNote('')
+                          goStep(3)
+                        }}
+                      >
+                        NEXT → GATE TAKE-OFF
                       </button>
                     </div>
                   </>
@@ -4396,128 +4976,267 @@ function FabricationCalculator({
               </>
             ) : null}
 
-            {project.jobType === 'structure' ? (
+            {project.planKind === 'palisade' && (canStartGateQuote || freemiumConsumedForProject) ? (
               <>
-                <h2>Steel / materials on plan</h2>
-                <p className="fab-note">Lengths and quantities from the drawing. Edit if needed, then enter unit prices.</p>
-                <div className="fab-schedule">
-                  {(project.schedule || []).map((row) => (
-                    <article key={row.id} className="fab-schedule-row">
-                      <strong>
-                        {row.role}
-                        {row.mark ? ` ${row.mark}` : ''} · {row.section}
-                      </strong>
-                      <div className="fab-size-row">
-                        {row.unit !== 'm' || row.qty !== '' ? (
-                          <label>
-                            Qty
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={row.qty}
-                              onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
-                            />
-                          </label>
-                        ) : (
-                          <span />
-                        )}
-                        {row.unit === 'm' ? (
-                          <label>
-                            Total m
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.meters}
-                              onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
-                            />
-                          </label>
-                        ) : null}
-                        {row.unit === 'kg' ? (
-                          <label>
-                            kg each
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.kgEach}
-                              onChange={(event) => updateScheduleRow(row.id, { kgEach: event.target.value })}
-                            />
-                          </label>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-
-                <h2>Cladding & foundation</h2>
-                <div className="fab-size-row">
-                  <label>
-                    Length (m)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={project.roofLength}
-                      onChange={(event) => updateProject({ roofLength: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Width (m)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={project.roofWidth}
-                      onChange={(event) => updateProject({ roofWidth: event.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="fab-size-row">
-                  <label>
-                    Wall area (sqm)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={project.wallArea}
-                      onChange={(event) => updateProject({ wallArea: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Foundation F1 pads
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={project.foundationPads}
-                      onChange={(event) => updateProject({ foundationPads: event.target.value })}
-                    />
-                  </label>
-                </div>
+                <p className="fab-note">
+                  Zim shop formula: pales (L/Ws)+1, rails by height, posts round(L/spacing)+1, then ×1.1 waste.
+                </p>
+                <button
+                  type="button"
+                  className="fab-next-btn fab-btn-outline"
+                  onClick={() => {
+                    setProject((prev) => ({ ...prev, planKind: '', jobType: '', drawingType: '' }))
+                    setPlanStep(1)
+                  }}
+                >
+                  ← All plans
+                </button>
+                <h2>Fence size</h2>
+                <label className="fab-field">
+                  Total length L (m)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g 30"
+                    value={project.palisade?.length || ''}
+                    onChange={(event) => updatePalisade({ length: event.target.value })}
+                  />
+                </label>
+                <label className="fab-field">
+                  Pale height H (m)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g 1.8"
+                    value={project.palisade?.height || ''}
+                    onChange={(event) => updatePalisade({ height: event.target.value })}
+                  />
+                </label>
+                <label className="fab-field">
+                  Pale spacing Ws (m)
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={project.palisade?.spacing || String(PALISADE_DEFAULTS.spacing)}
+                    onChange={(event) => updatePalisade({ spacing: event.target.value })}
+                  />
+                  <small>Standard security = 0.11 m (110 mm centres).</small>
+                </label>
+                <label className="fab-field">
+                  Post spacing (m)
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.05"
+                    value={project.palisade?.postSpacing || String(PALISADE_DEFAULTS.postSpacing)}
+                    onChange={(event) => updatePalisade({ postSpacing: event.target.value })}
+                  />
+                  <small>Standard 2.75 m (usually 2.5–3 m).</small>
+                </label>
                 {note ? <p className="form-error">{note}</p> : null}
-                <button type="button" className="fab-next-btn" onClick={nextFromDrawing}>
-                  NEXT → CONFIRM TAKE-OFF
+                <button
+                  type="button"
+                  className="fab-go-btn"
+                  onClick={() => {
+                    const p = project.palisade || {}
+                    if (!Number(p.length) || !Number(p.height)) {
+                      setNote('Enter fence length and pale height.')
+                      return
+                    }
+                    if (!(Number(p.spacing) > 0)) {
+                      setNote('Enter pale spacing.')
+                      return
+                    }
+                    if (!(Number(p.postSpacing) > 0)) {
+                      setNote('Enter post spacing.')
+                      return
+                    }
+                    setNote('')
+                    goStep(3)
+                  }}
+                >
+                  NEXT → FENCE TAKE-OFF
                 </button>
               </>
             ) : null}
 
-            {!project.drawing && !aiBusy ? (
-              <p className="empty-note">Upload a drawing to continue.</p>
+            {project.planKind === 'burglar' && (canStartGateQuote || freemiumConsumedForProject) ? (
+              <>
+                <p className="fab-note">
+                  Zim shop formula: frame 2×(W+Ht), verticals (W/spacing)−1, middle bars by height, then ×1.05 waste.
+                </p>
+                <button
+                  type="button"
+                  className="fab-next-btn fab-btn-outline"
+                  onClick={() => {
+                    setProject((prev) => ({ ...prev, planKind: '', jobType: '', drawingType: '' }))
+                    setPlanStep(1)
+                  }}
+                >
+                  ← All plans
+                </button>
+                {planStep === 1 ? (
+                  <>
+                    <h2>Window size</h2>
+                    <label className="fab-field">
+                      Width W (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g 1.5"
+                        value={project.burglar?.width || ''}
+                        onChange={(event) => updateBurglar({ width: event.target.value })}
+                      />
+                    </label>
+                    <label className="fab-field">
+                      Height Ht (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g 1.2"
+                        value={project.burglar?.height || ''}
+                        onChange={(event) => updateBurglar({ height: event.target.value })}
+                      />
+                    </label>
+                    <label className="fab-field">
+                      Bar spacing (m)
+                      <input
+                        type="number"
+                        min="0.05"
+                        step="0.01"
+                        value={project.burglar?.spacing || String(BURGLAR_DEFAULTS.spacing)}
+                        onChange={(event) => updateBurglar({ spacing: event.target.value })}
+                      />
+                      <small>Standard 0.12 m — security not more than 0.15 m.</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="fab-next-btn"
+                      onClick={() => {
+                        const b = project.burglar || {}
+                        if (!Number(b.width) || !Number(b.height)) {
+                          setNote('Enter window width and height.')
+                          return
+                        }
+                        setNote('')
+                        setPlanStep(2)
+                      }}
+                    >
+                      NEXT → TYPE
+                    </button>
+                  </>
+                ) : null}
+                {planStep === 2 ? (
+                  <>
+                    <h2>Burglar bar type</h2>
+                    <div className="fab-choice-list">
+                      {BURGLAR_TYPES.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`fab-type-card ${project.burglar?.barType === item.id ? 'active' : ''}`}
+                          onClick={() => updateBurglar({ barType: item.id })}
+                        >
+                          <span>
+                            <strong>{item.name}</strong>
+                            <small>{item.copy}</small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {note ? <p className="form-error">{note}</p> : null}
+                    <div className="fab-result-actions">
+                      <button type="button" className="fab-next-btn fab-btn-outline" onClick={() => setPlanStep(1)}>
+                        BACK
+                      </button>
+                      <button
+                        type="button"
+                        className="fab-go-btn"
+                        onClick={() => {
+                          const b = project.burglar || {}
+                          if (!Number(b.width) || !Number(b.height)) {
+                            setNote('Enter window width and height.')
+                            setPlanStep(1)
+                            return
+                          }
+                          if (!b.barType) {
+                            setNote('Choose a burglar bar type.')
+                            return
+                          }
+                          setNote('')
+                          goStep(3)
+                        }}
+                      >
+                        NEXT → BURGLAR TAKE-OFF
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </>
             ) : null}
-            {note && !project.jobType ? <p className="form-error">{note}</p> : null}
+
+            {note ? <p className="form-error">{note}</p> : null}
           </section>
         </main>
       ) : null}
 
-      {wizard && step === 3 ? (
+      {wizard && pathMode === 'plan_manual' && step >= 3 && project.planKind === 'gate' ? (
+        <GateChatSession
+          project={project}
+          pricing={rates}
+          onUpdateGate={(patch) => updateGate(patch)}
+          onUpdateProject={(patch) => updateProject(patch)}
+          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onSaveQuote={(finalQuote) => {
+            saveCurrentProject(finalQuote)
+            setNote('Quote saved.')
+          }}
+        />
+      ) : null}
+
+      {wizard &&
+      pathMode === 'plan_manual' &&
+      step >= 3 &&
+      (project.planKind === 'palisade' || project.planKind === 'burglar') ? (
+        <PlanChatSession
+          key={`${project.planKind}-${project.id || project.name}`}
+          kind={project.planKind}
+          project={project}
+          draft={project.planKind === 'palisade' ? project.palisade : project.burglar}
+          pricing={rates}
+          onUpdateDraft={(next) => {
+            if (project.planKind === 'palisade') {
+              setProject((prev) => ({
+                ...prev,
+                palisade: { ...emptyPalisadeDraft(), ...next },
+              }))
+            } else {
+              setProject((prev) => ({
+                ...prev,
+                burglar: { ...emptyBurglarDraft(), ...next },
+              }))
+            }
+          }}
+          onUpdateProject={(patch) => updateProject(patch)}
+          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onSaveQuote={(finalQuote) => {
+            saveCurrentProject(finalQuote)
+            setNote('Quote saved.')
+          }}
+        />
+      ) : null}
+
+      {wizard && pathMode === 'gate_manual' && step === 3 && false ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Step 3 — Confirm drawing take-off</h1>
+            <h1>Confirm gate take-off</h1>
             <p className="fab-note">
-              This script describes the drawing as read — columns, rafters, purlins, base plates, and dimensions. It is
-              linked to the master template (meta). Confirm only when it matches the plan.
+              Review the calculated materials for this gate opening, then continue to unit prices.
             </p>
             <DrawingAttach />
 
@@ -4540,9 +5259,9 @@ function FabricationCalculator({
               {project.drawingScript || refreshDrawingScript(project)}
             </pre>
 
-            {project.jobType === 'structure' ? (
+            {isScheduleJob(project.jobType) ? (
               <>
-                <h2>Edit members if needed</h2>
+                <h2>{project.jobType === 'rc_columns' ? 'Edit take-off if needed' : 'Edit members if needed'}</h2>
                 <div className="fab-schedule">
                   {(project.schedule || []).map((row) => (
                     <article key={row.id} className="fab-schedule-row">
@@ -4551,93 +5270,123 @@ function FabricationCalculator({
                         {row.mark ? ` ${row.mark}` : ''} · {row.section}
                       </strong>
                       <div className="fab-size-row">
-                        {row.unit !== 'm' || row.qty !== '' ? (
+                        {row.unit === 'kg' ? (
+                          <>
+                            <label>
+                              kg/m (unit weight)
+                              <input type="number" min="0" step="0.001" value={row.kgEach} readOnly />
+                            </label>
+                            <label>
+                              Total m (all floors)
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={row.meters}
+                                onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
+                              />
+                            </label>
+                            <label>
+                              Weight kg (from drawing table)
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={row.qty}
+                                onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
+                              />
+                            </label>
+                            {row.mark ? <p className="fab-note">Buy {row.mark}</p> : null}
+                          </>
+                        ) : row.unit === 'm3' || row.unit === 'm2' ? (
                           <label>
-                            Qty
+                            Qty ({row.unit})
                             <input
                               type="number"
                               min="0"
-                              step="1"
+                              step="0.01"
                               value={row.qty}
                               onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
                             />
                           </label>
                         ) : (
-                          <span />
+                          <>
+                            {row.unit !== 'm' || row.qty !== '' ? (
+                              <label>
+                                Qty
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={row.qty}
+                                  onChange={(event) => updateScheduleRow(row.id, { qty: event.target.value })}
+                                />
+                              </label>
+                            ) : (
+                              <span />
+                            )}
+                            {row.unit === 'm' ? (
+                              <label>
+                                Total m
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={row.meters}
+                                  onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
+                                />
+                              </label>
+                            ) : null}
+                          </>
                         )}
-                        {row.unit === 'm' ? (
-                          <label>
-                            Total m
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.meters}
-                              onChange={(event) => updateScheduleRow(row.id, { meters: event.target.value })}
-                            />
-                          </label>
-                        ) : null}
-                        {row.unit === 'kg' ? (
-                          <label>
-                            kg each
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.kgEach}
-                              onChange={(event) => updateScheduleRow(row.id, { kgEach: event.target.value })}
-                            />
-                          </label>
-                        ) : null}
                       </div>
                     </article>
                   ))}
                 </div>
-                <div className="fab-size-row">
-                  <label>
-                    Length (m)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={project.roofLength}
-                      onChange={(event) => updateProject({ roofLength: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Width (m)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={project.roofWidth}
-                      onChange={(event) => updateProject({ roofWidth: event.target.value })}
-                    />
-                  </label>
-                </div>
+                {project.jobType === 'structure' ? (
+                  <div className="fab-size-row">
+                    <label>
+                      Length (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={project.roofLength}
+                        onChange={(event) => updateProject({ roofLength: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Width (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={project.roofWidth}
+                        onChange={(event) => updateProject({ roofWidth: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                ) : null}
               </>
             ) : null}
 
             <label className="fab-field">
-              Objections (where the app may have lied)
+              Notes
               <textarea
-                rows={4}
+                rows={3}
                 value={objections}
-                placeholder="e.g. This is a staircase, not a workshop. Stringers are PFC 200, no purlins, 12 treads…"
+                placeholder="Optional notes for this gate quote…"
                 onChange={(event) => setObjections(event.target.value)}
               />
             </label>
             <div className="fab-result-actions">
-              <button type="button" className="fab-next-btn fab-btn-outline" disabled={aiBusy} onClick={applyObjectionsUpdate}>
-                {aiBusy ? 'UPDATING…' : 'UPDATE FROM OBJECTIONS'}
-              </button>
               <button
                 type="button"
                 className="fab-next-btn fab-btn-outline"
                 onClick={() => {
                   const script = refreshDrawingScript({ ...project, confirmNotes: objections.trim() })
                   updateProject({ drawingScript: script, confirmNotes: objections.trim() })
-                  setDrawingNote('Script refreshed from current members and dimensions.')
+                  setDrawingNote('Script refreshed from current gate details.')
                 }}
               >
                 REFRESH SCRIPT
@@ -4657,14 +5406,16 @@ function FabricationCalculator({
         </main>
       ) : null}
 
-      {wizard && step === 4 ? (
+      {wizard && pathMode === 'gate_manual' && step === 4 && false ? (
         <main className="fab-home">
           <section className="fab-section">
             <h1>Step 4 — Unit prices</h1>
             <p className="fab-note">
-              {project.jobType === 'structure'
-                ? 'Prices for materials on this plan. Latest entries update the price list and auto-fill the next similar drawing. Edit anytime.'
-                : 'Your price list — saved once, used on every quote. Edit anytime.'}
+              {project.jobType === 'rc_columns'
+                ? 'Zim QS rates for columns: rebar $/kg, fixing labour $/kg, concrete $/m³, formwork $/m², then contractor %.'
+                : project.jobType === 'structure'
+                  ? 'Prices for materials on this plan. Latest entries update the price list and auto-fill the next similar drawing. Edit anytime.'
+                  : 'Your price list — saved once, used on every quote. Edit anytime.'}
             </p>
             {project.jobType === 'gate' ? (
               <>
@@ -4711,6 +5462,73 @@ function FabricationCalculator({
                       onChange={(event) => updateUnitPrice('sheetPerM2', event.target.value)}
                     />
                   </label>
+                </div>
+              </>
+            ) : project.jobType === 'rc_columns' ? (
+              <>
+                <h2>1. Steel</h2>
+                <div className="fab-size-row">
+                  <label>
+                    Rebar supply $/kg
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={priceForm.rebarPerKg}
+                      onChange={(event) => updateUnitPrice('rebarPerKg', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Fixing labour $/kg
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={priceForm.rebarFixPerKg}
+                      onChange={(event) => updateUnitPrice('rebarFixPerKg', event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="fab-size-row">
+                  <label>
+                    Wastage / laps factor
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={priceForm.rcWasteFactor}
+                      onChange={(event) => updateUnitPrice('rcWasteFactor', event.target.value)}
+                    />
+                  </label>
+                  <span />
+                </div>
+                <h2>2. Concrete</h2>
+                <div className="fab-size-row">
+                  <label>
+                    C25 concrete $/m³
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={priceForm.concreteC25PerM3}
+                      onChange={(event) => updateUnitPrice('concreteC25PerM3', event.target.value)}
+                    />
+                  </label>
+                  <span />
+                </div>
+                <h2>3. Formwork</h2>
+                <div className="fab-size-row">
+                  <label>
+                    Formwork $/m²
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={priceForm.formworkPerM2}
+                      onChange={(event) => updateUnitPrice('formworkPerM2', event.target.value)}
+                    />
+                  </label>
+                  <span />
                 </div>
               </>
             ) : (
@@ -4760,6 +5578,7 @@ function FabricationCalculator({
                 </div>
               </>
             )}
+            {project.jobType !== 'rc_columns' ? (
             <div className="fab-size-row">
               <label>
                 Labour %
@@ -4782,15 +5601,25 @@ function FabricationCalculator({
                 />
               </label>
             </div>
+            ) : null}
             <div className="fab-size-row">
               <label>
-                Profit %
+                {project.jobType === 'rc_columns' ? 'Contractor profit %' : 'Profit %'}
                 <input
                   type="number"
                   min="0"
                   step="1"
-                  value={priceForm.marginPercent}
-                  onChange={(event) => updateUnitPrice('marginPercent', event.target.value)}
+                  value={
+                    project.jobType === 'rc_columns'
+                      ? priceForm.rcMarginPercent
+                      : priceForm.marginPercent
+                  }
+                  onChange={(event) =>
+                    updateUnitPrice(
+                      project.jobType === 'rc_columns' ? 'rcMarginPercent' : 'marginPercent',
+                      event.target.value,
+                    )
+                  }
                 />
               </label>
               <label>
@@ -4809,7 +5638,7 @@ function FabricationCalculator({
         </main>
       ) : null}
 
-      {wizard && step === 5 ? (
+      {wizard && pathMode === 'gate_manual' && step === 5 && false ? (
         <main className="fab-home">
           <section className="fab-section">
             <h1>Step 5 — Quote</h1>
@@ -4819,7 +5648,7 @@ function FabricationCalculator({
                   {project.name || quote.title}
                   {project.client ? ` · ${project.client}` : ''}
                   <small>
-                    {project.jobType === 'structure'
+                    {isScheduleJob(project.jobType)
                       ? jobTypeLabel(project.jobType, project.drawingType)
                       : quote.title}
                   </small>
@@ -4829,6 +5658,22 @@ function FabricationCalculator({
                   <pre className="fab-drawing-script fab-drawing-script-compact">{project.drawingScript}</pre>
                 ) : null}
                 <div className="fab-cost-list">
+                  {quote.kind === 'rc_columns' ? (
+                    <>
+                      <div className="fab-cost-total">
+                        <span>1. Steel</span>
+                        <strong>{formatPrice(quote.sections?.steel || 0)}</strong>
+                      </div>
+                      <div className="fab-cost-total">
+                        <span>2. Concrete</span>
+                        <strong>{formatPrice(quote.sections?.concrete || 0)}</strong>
+                      </div>
+                      <div className="fab-cost-total">
+                        <span>3. Formwork</span>
+                        <strong>{formatPrice(quote.sections?.formwork || 0)}</strong>
+                      </div>
+                    </>
+                  ) : null}
                   {quote.lines.map((line) => (
                     <div key={line.name}>
                       <span>
@@ -4840,30 +5685,51 @@ function FabricationCalculator({
                   ))}
                   {quote.wasteFactor ? (
                     <div>
-                      <span>Steel wastage ×{quote.wasteFactor}</span>
-                      <strong>included</strong>
+                      <span>Steel wastage / laps ×{quote.wasteFactor}</span>
+                      <strong>included on supply</strong>
                     </div>
                   ) : null}
-                  <div className="fab-cost-total">
-                    <span>Materials</span>
-                    <strong>{formatPrice(quote.materials)}</strong>
-                  </div>
-                  <div>
-                    <span>Labour ({quote.labourPercent}%)</span>
-                    <strong>{formatPrice(quote.labour)}</strong>
-                  </div>
-                  <div>
-                    <span>Consumables ({quote.consumablesPercent}%)</span>
-                    <strong>{formatPrice(quote.consumables)}</strong>
-                  </div>
-                  <div>
-                    <span>Subtotal</span>
-                    <strong>{formatPrice(quote.subtotal)}</strong>
-                  </div>
-                  <div>
-                    <span>Profit ({quote.marginPercent}%)</span>
-                    <strong>{formatPrice(quote.margin)}</strong>
-                  </div>
+                  {quote.kind === 'rc_columns' ? (
+                    <>
+                      <div className="fab-cost-total">
+                        <span>Direct cost (steel + concrete + formwork)</span>
+                        <strong>{formatPrice(quote.subtotal)}</strong>
+                      </div>
+                      <div>
+                        <span>Contractor profit ({quote.marginPercent}%)</span>
+                        <strong>{formatPrice(quote.margin)}</strong>
+                      </div>
+                      {quote.concreteM3 > 0 ? (
+                        <div>
+                          <span>All-in per m³ of column</span>
+                          <strong>{formatPrice(quote.allInPerM3)}</strong>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <div className="fab-cost-total">
+                        <span>Materials</span>
+                        <strong>{formatPrice(quote.materials)}</strong>
+                      </div>
+                      <div>
+                        <span>Labour ({quote.labourPercent}%)</span>
+                        <strong>{formatPrice(quote.labour)}</strong>
+                      </div>
+                      <div>
+                        <span>Consumables ({quote.consumablesPercent}%)</span>
+                        <strong>{formatPrice(quote.consumables)}</strong>
+                      </div>
+                      <div>
+                        <span>Subtotal</span>
+                        <strong>{formatPrice(quote.subtotal)}</strong>
+                      </div>
+                      <div>
+                        <span>Profit ({quote.marginPercent}%)</span>
+                        <strong>{formatPrice(quote.margin)}</strong>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="fab-result-green">
                   <p>FINAL ESTIMATED PRICE: {formatPrice(quote.total)}</p>
@@ -4907,12 +5773,38 @@ function FabricationCalculator({
       {view === 'subscriptions' ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Subscriptions</h1>
+            <div className="fab-title-row">
+              <h1>Subscriptions</h1>
+              {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
+            </div>
+            <p className="fab-note">
+              After 6 free uses, new drawing uploads and new gate size entries need a paid plan ($1/week, $3.5/month, or
+              $22/year).
+            </p>
+            {!subActive ? (
+              <p className="fab-freemium-meter" role="status">
+                {freeLeft > 0
+                  ? `${freeLeft} of ${FAB_FREE_DRAW_LIMIT} free uses left (drawings or gate quotes)`
+                  : '0 free uses left — pick a plan below'}
+              </p>
+            ) : (
+              <p className="fab-freemium-meter fab-freemium-meter-active" role="status">
+                Active until {new Date(Number(site?.paidUntil)).toLocaleDateString()}
+              </p>
+            )}
+            {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
             <div className="fab-subs">
               {FAB_PLANS.map((plan) => (
                 <article key={plan.id}>
                   <strong>{plan.label}</strong>
                   <p>{formatPrice(plan.price)}</p>
+                  <small>
+                    {plan.id === 'week'
+                      ? 'Unlimited drawings & gate quotes for 7 days'
+                      : plan.id === 'month'
+                        ? 'Unlimited drawings & gate quotes for 30 days'
+                        : 'Unlimited drawings & gate quotes for 1 year'}
+                  </small>
                   {onRenew ? (
                     <button type="button" className="primary-button" onClick={() => onRenew(plan.id)}>
                       Pay with EcoCash
@@ -4940,11 +5832,65 @@ function FabricationCalculator({
                 />
               </label>
               <label>
+                25x25 / m
+                <input
+                  type="number"
+                  value={priceForm.tube25PerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, tube25PerM: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
+                16x16 / m
+                <input
+                  type="number"
+                  value={priceForm.tube16PerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, tube16PerM: event.target.value })}
+                />
+              </label>
+              <label>
+                76x76 post / m
+                <input
+                  type="number"
+                  value={priceForm.tube76PerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, tube76PerM: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
+                40×40 angle / m
+                <input
+                  type="number"
+                  value={priceForm.angle40PerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, angle40PerM: event.target.value })}
+                />
+              </label>
+              <label>
+                Flat bar / m
+                <input
+                  type="number"
+                  value={priceForm.flatBarPerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, flatBarPerM: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
                 H 120x120 / m
                 <input
                   type="number"
                   value={priceForm.h120PerM}
                   onChange={(event) => setPriceForm({ ...priceForm, h120PerM: event.target.value })}
+                />
+              </label>
+              <label>
+                30×30 angle / m
+                <input
+                  type="number"
+                  value={priceForm.angle30PerM}
+                  onChange={(event) => setPriceForm({ ...priceForm, angle30PerM: event.target.value })}
                 />
               </label>
             </div>
@@ -6046,6 +6992,7 @@ function App() {
     const products = source.flatMap((shop) =>
       (shop.items || []).map((item) => ({
         ...item,
+        type: inferMallProductType(item),
         shopId: shop.id,
         shopName: shop.name,
         shop,
@@ -6053,11 +7000,20 @@ function App() {
     )
     if (!needle) return products
     return products.filter((product) =>
-      `${product.name} ${product.shopName} ${product.description || ''} ${product.price}`
+      `${product.name} ${product.shopName} ${product.description || ''} ${product.type} ${product.price}`
         .toLowerCase()
         .includes(needle),
     )
   }, [builtCards, mallQuery])
+
+  const mallProductGroups = useMemo(
+    () =>
+      MALL_TYPE_GROUPS.map((group) => ({
+        ...group,
+        products: mallProducts.filter((product) => product.type === group.id),
+      })).filter((group) => group.products.length > 0),
+    [mallProducts],
+  )
 
   const companyMatchesQuery = (company, query) => {
     const needle = query.trim().toLowerCase()
@@ -8192,30 +9148,39 @@ function App() {
                 <input
                   type="search"
                   value={mallQuery}
-                  placeholder="Search a product"
+                  placeholder="Search PPE, machinery, detergents, groceries…"
                   onChange={(event) => setMallQuery(event.target.value)}
                 />
               </form>
-              <div className="mall-product-grid">
-                {mallProducts.map((product) => (
-                  <button
-                    key={`${product.shopId}-${product.id}`}
-                    type="button"
-                    className="mall-product-card"
-                    onClick={() => openMallProduct(product)}
-                  >
-                    {product.photo ? (
-                      <img src={product.photo} alt="" />
-                    ) : (
-                      <span className="mall-item-fallback">{product.name.slice(0, 1)}</span>
-                    )}
-                    <div className="mall-product-copy">
-                      <strong>{product.name}</strong>
-                      <span>{formatPrice(product.price)}</span>
-                      <small>{product.shopName}</small>
-                      {product.description ? <p>{product.description}</p> : null}
+              <div className="mall-type-sections">
+                {mallProductGroups.map((group) => (
+                  <section key={group.id} className="mall-type-section" aria-labelledby={`mall-type-${group.id}`}>
+                    <h4 id={`mall-type-${group.id}`} className="mall-type-heading">
+                      {group.label}
+                    </h4>
+                    <div className="mall-product-grid">
+                      {group.products.map((product) => (
+                        <button
+                          key={`${product.shopId}-${product.id}`}
+                          type="button"
+                          className="mall-product-card"
+                          onClick={() => openMallProduct(product)}
+                        >
+                          {product.photo ? (
+                            <img src={product.photo} alt={product.name} />
+                          ) : (
+                            <span className="mall-item-fallback">{product.name.slice(0, 1)}</span>
+                          )}
+                          <div className="mall-product-copy">
+                            <strong>{product.name}</strong>
+                            <span>{formatPrice(product.price)}</span>
+                            <small>{product.shopName}</small>
+                            {product.description ? <p>{product.description}</p> : null}
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
+                  </section>
                 ))}
               </div>
               {!mallProducts.length && (
