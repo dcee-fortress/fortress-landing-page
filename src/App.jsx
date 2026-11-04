@@ -3,6 +3,11 @@ import './App.css'
 import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
 import { storage } from './storage'
 import {
+  fetchLiveFeed,
+  loadLiveFeedCache,
+  publishLiveUpload,
+} from './liveFeed'
+import {
   drawingNatureKey,
   extractSteelSchedule,
   findNaturePriceMemory,
@@ -4554,8 +4559,8 @@ function FabricationCalculator({
 
       {!online ? (
         <p className="fab-offline-banner" role="status">
-          Offline — open saved projects, prices, and remembered drawings. New drawing uploads, Gemini, WhatsApp, and
-          EcoCash need internet.
+          Offline — open saved projects, drawings, and photos from this device. Live uploads from other users, new uploads,
+          Fortress chat AI, Gemini, WhatsApp, EcoCash, and app updates need internet data.
         </p>
       ) : null}
 
@@ -6552,6 +6557,7 @@ function App() {
   const [tab, setTab] = useState('home')
   const [online, setOnline] = useState(() => readOnline())
   const [offlineNotice, setOfflineNotice] = useState('')
+  const [liveFeedItems, setLiveFeedItems] = useState(() => loadLiveFeedCache())
   const [menuOpen, setMenuOpen] = useState(false)
   const [mallQuery, setMallQuery] = useState('')
   const [homeQuery, setHomeQuery] = useState('')
@@ -6654,17 +6660,38 @@ function App() {
     else storage.removeItem(SESSION_KEY)
   }, [signedInId])
 
+  const refreshLiveFeed = async () => {
+    if (!readOnline()) {
+      setLiveFeedItems(loadLiveFeedCache())
+      return
+    }
+    try {
+      const { items } = await fetchLiveFeed()
+      setLiveFeedItems(items)
+    } catch {
+      setLiveFeedItems(loadLiveFeedCache())
+    }
+  }
+
   useEffect(() => {
     const goOnline = () => {
       setOnline(true)
       setOfflineNotice('')
+      refreshLiveFeed()
     }
-    const goOffline = () => setOnline(false)
+    const goOffline = () => {
+      setOnline(false)
+    }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
+    refreshLiveFeed()
+    const timer = window.setInterval(() => {
+      if (readOnline()) refreshLiveFeed()
+    }, 45_000)
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
+      window.clearInterval(timer)
     }
   }, [])
 
@@ -7043,8 +7070,29 @@ function App() {
     )
     const showcase = liveCatalog.filter((company) => company.showOnGrid)
     const rest = liveCatalog.filter((company) => company.shelf !== 'Best selling' && !company.showOnGrid)
-    return [...showcase, ...rest, ...extras].filter((company) => companyMatchesQuery(company, homeQuery))
-  }, [builtCards, homeQuery, liveCatalog])
+    const liveCards = (liveFeedItems || [])
+      .filter((row) => row?.photo || row?.video || row?.caption)
+      .map((row) => ({
+        id: `live-${row.id}`,
+        name: row.authorName || 'Live upload',
+        hue: '#c5a028',
+        shelf: 'Live',
+        showOnGrid: true,
+        liveRemote: true,
+        slides: [
+          {
+            id: row.id,
+            photo: row.photo || '',
+            video: row.video || '',
+            testimonial: row.caption || '',
+            shelf: row.shelf || 'Live',
+          },
+        ],
+      }))
+    return [...liveCards, ...showcase, ...rest, ...extras].filter((company) =>
+      companyMatchesQuery(company, homeQuery),
+    )
+  }, [builtCards, homeQuery, liveCatalog, liveFeedItems])
 
   const updateCurrentWebsite = (updates) => {
     if (!signedInAccount || !currentProfile) return
@@ -7340,6 +7388,14 @@ function App() {
       }),
     )
     if (publishedId) setActiveProfileId(publishedId)
+    // Share to the live feed so other online Fortress users see it (needs data).
+    if (readOnline()) {
+      publishLiveUpload(slide, signedInAccount)
+        .then(() => refreshLiveFeed())
+        .catch(() => {
+          /* local post still saved; live share can retry when online */
+        })
+    }
     return true
   }
 
@@ -8270,7 +8326,7 @@ function App() {
           <div className="app-offline-banner" role="status">
             <p>
               {!online
-                ? 'Offline mode — browse saved posts, sites, drawings, and quotes from this phone. Upload posts, new drawings, or buy a system when you reconnect.'
+                ? 'Offline mode — open saved posts, sites, drawings, and photos on this device. Live uploads from other users, new posts, Fortress chat AI, payments, and app updates need internet data.'
                 : offlineNotice}
             </p>
             {offlineNotice ? (

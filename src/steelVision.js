@@ -1,6 +1,8 @@
 /** Intelligent steel-drawing brain: Vision extract → master template → auto schedule */
 
 import { storage } from './storage.js'
+import { apiUrl } from './native.js'
+import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline.js'
 import {
   buildRcColumnSchedule,
   isRcColumnDrawingType,
@@ -564,21 +566,13 @@ const splitDataUrl = (dataUrl) => {
 const visionExtractUrl = () => {
   const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_VISION_API_URL
   if (fromEnv) return String(fromEnv)
-  // Electron (file://) and direct browser hits need the vision server absolute URL.
-  if (typeof window !== 'undefined' && window.electronAPI?.isElectron) {
-    return 'http://127.0.0.1:8787/api/vision-extract'
-  }
-  if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
-    return 'http://127.0.0.1:8787/api/vision-extract'
-  }
-  // Vite/web: relative path is proxied to the vision server in vite.config.js
-  return '/api/vision-extract'
+  return apiUrl('/api/vision-extract')
 }
 
 /** Calls Fortress backend — Gemini API key never leaves the server. Limit: 10 drawings / min. */
 export const extractSteelScheduleWithGemini = async (dataUrl, { corrections = '' } = {}) => {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    throw new Error('Gemini needs internet. Switch to Tesseract (free, on-device) for offline reads.')
+  if (!readOnline()) {
+    throw new Error(offlineActionMessage(NETWORK_ACTIONS.vision))
   }
   splitDataUrl(dataUrl) // validate early
   const url = visionExtractUrl()

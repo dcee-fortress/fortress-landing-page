@@ -3,11 +3,11 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-const isElectron = process.env.ELECTRON === '1'
+const isPackaged = process.env.ELECTRON === '1' || process.env.CAPACITOR === '1'
 
 export default defineConfig({
-  // Relative asset paths so the packaged Electron app can load from file://
-  base: isElectron ? './' : '/',
+  // Relative asset paths so Electron / Capacitor can load from local files.
+  base: isPackaged ? './' : '/',
   server: {
     proxy: {
       '/api': {
@@ -19,27 +19,30 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Prompt + online gate in registerUpdates.js — no silent update while offline.
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'fab-icon.svg', 'icons.svg', 'media/**/*.{jpeg,jpg,png,svg,webp}'],
       manifest: {
         name: 'Fortress',
         short_name: 'Fortress',
-        description: 'Run company sites, mall, and fabrication offline from cached data on this phone.',
+        description:
+          'Fortress Zimbabwe — live website and installable app. Same feed on fortress-zw for everyone online.',
         theme_color: '#1c1915',
         background_color: '#f4efe8',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/#/home',
-        scope: '/',
+        start_url: './#/home',
+        scope: './',
+        id: '/',
         icons: [
           {
-            src: '/fab-icon.svg',
+            src: 'fab-icon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
-            src: '/fab-icon.svg',
+            src: 'fab-icon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'maskable',
@@ -47,7 +50,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/index.html',
+        skipWaiting: false,
+        clientsClaim: false,
+        navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
         globPatterns: ['**/*.{js,css,html,svg,ico,png,jpg,jpeg,webp,woff2}'],
         globIgnores: ['**/media/**/*.mp4'],

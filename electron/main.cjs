@@ -103,6 +103,8 @@ app.whenReady().then(async () => {
   registerStorageIpc()
   createWindow()
 
+  // Packaged Fortress is offline-first for local SQLite + cached files.
+  // Network is only required when the UI calls vision / chat / uploads / payments.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

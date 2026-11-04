@@ -1,15 +1,13 @@
 /** Client for Fortress fab-brain (Gemini explain + correction learning). */
 
-const fabBrainUrl = () => {
-  if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
-    return 'http://127.0.0.1:8787/api/fab-brain'
-  }
-  return '/api/fab-brain'
-}
+import { apiUrl } from './native'
+import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
+
+const fabBrainUrl = () => apiUrl('/api/fab-brain')
 
 export const askFabBrain = async ({ mode = 'explain', question = '', context = {} } = {}) => {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    throw new Error('Offline — local reason will be used.')
+  if (!readOnline()) {
+    throw new Error(offlineActionMessage(NETWORK_ACTIONS.chat))
   }
   let response
   try {
@@ -19,7 +17,7 @@ export const askFabBrain = async ({ mode = 'explain', question = '', context = {
       body: JSON.stringify({ mode, question, context }),
     })
   } catch {
-    throw new Error('Could not reach fab-brain. Is `npm run dev` running?')
+    throw new Error('Could not reach Fortress chat AI. Check internet or your API host (VITE_API_BASE).')
   }
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload?.error || 'Fab brain failed')

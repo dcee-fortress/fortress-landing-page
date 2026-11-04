@@ -15,16 +15,24 @@ extraMetadata:
   main: electron/main.cjs
 win:
   target:
+    # Full installer — share on WhatsApp / Drive after build.
     - target: nsis
       arch:
         - x64
+    # Single .exe — no admin needed; easy to forward on WhatsApp.
+    - target: portable
+      arch:
+        - x64
   artifactName: Fortress-Setup-${version}-${arch}.${ext}
+portable:
+  artifactName: Fortress-Portable-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Fortress
+  uninstallDisplayName: Fortress
 mac:
   target:
     - dmg
@@ -33,3 +41,4 @@ linux:
   target:
     - AppImage
   category: Office
+publish: null

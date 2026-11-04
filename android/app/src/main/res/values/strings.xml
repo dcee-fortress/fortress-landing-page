@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fortress</string>
+    <string name="title_activity_main">Fortress</string>
+    <string name="package_name">com.fortress.app</string>
+    <string name="custom_url_scheme">com.fortress.app</string>
+</resources>

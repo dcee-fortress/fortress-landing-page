@@ -17,6 +17,26 @@ release
 .env.*
 !.env.example
 
+# Capacitor / Android local build noise (keep android/ project in repo)
+android/.gradle
+android/app/build
+android/build
+android/local.properties
+android/.idea
+android/captures
+*.apk
+*.aab
+
+# Capacitor / iOS local noise (keep ios/ project in repo; build on Mac)
+ios/App/Pods
+ios/App/build
+ios/DerivedData
+ios/App/App/public
+*.ipa
+
+# Live feed store (runtime)
+server/data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

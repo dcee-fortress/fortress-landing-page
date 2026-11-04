@@ -8,13 +8,14 @@ import './loadEnv.js'
 import express from 'express'
 import { handleVisionExtract } from './visionHandler.js'
 import { handleFabBrain } from './fabBrain.js'
+import { handleLiveFeedGet, handleLiveFeedPublish } from './liveFeed.js'
 
 const app = express()
 const port = Number(process.env.VISION_PORT || process.env.PORT || 8787)
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') {
     res.status(204).end()
@@ -30,7 +31,16 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     geminiConfigured: Boolean(String(process.env.GEMINI_API_KEY || '').trim()),
     drawingLimitPerMinute: 10,
+    liveFeed: true,
   })
+})
+
+app.get('/api/live/feed', (req, res) => {
+  handleLiveFeedGet(req, res)
+})
+
+app.post('/api/live/publish', (req, res) => {
+  handleLiveFeedPublish(req, res)
 })
 
 app.post('/api/vision-extract', (req, res) => {
