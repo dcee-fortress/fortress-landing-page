@@ -5953,10 +5953,16 @@ function FabricationCalculator({
         <main className="fab-home">
           <section className="fab-section">
             <h1>Documents</h1>
+            <p className="fab-note">Finished quotations open offline. Uploading a new drawing still needs data.</p>
             {projects.length ? (
               <div className="fab-saved">
                 {projects.map((item) => (
-                  <article key={item.id}>
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="fab-saved-open"
+                    onClick={() => openProject(item)}
+                  >
                     <div>
                       <strong>{item.name}</strong>
                       <span>
@@ -5964,14 +5970,14 @@ function FabricationCalculator({
                       </span>
                     </div>
                     <span>{formatPrice(item.quoteTotal)}</span>
-                  </article>
+                  </button>
                 ))}
               </div>
             ) : (
               <p className="empty-note">No saved projects yet.</p>
             )}
             <h2>Remembered drawing formulas</h2>
-            <p className="fab-note">Upload the same photo/PDF again and the linked formula fills the template.</p>
+            <p className="fab-note">Saved drawings and formulas open offline. A new upload needs internet.</p>
             {loadDrawingTemplates().length ? (
               <div className="fab-saved">
                 {loadDrawingTemplates().map((item) => (
@@ -7922,7 +7928,7 @@ function App() {
   }
 
   const openBuyWebsite = () => {
-    if (!requireOnline(NETWORK_ACTIONS.buy)) return
+    // Browse / open Buy CEO website UI offline; EcoCash pay still needs data later.
     setOverlay(null)
     setMenuOpen(false)
     setPendingSignup(null)
@@ -8842,7 +8848,6 @@ function App() {
                         type="button"
                         className="primary-button"
                         onClick={() => {
-                          if (!requireOnline(NETWORK_ACTIONS.buy)) return
                           if (!owned.has('retail') && (owned.has('construction') || owned.has('manufacturing'))) {
                             shopFlowRef.current = true
                             setSystemType('retail')

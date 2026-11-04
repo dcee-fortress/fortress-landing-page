@@ -632,11 +632,30 @@
   gap: 8px;
 }
 
-.fab-saved article {
+.fab-saved article,
+.fab-saved-open {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(28, 25, 21, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 14px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.fab-saved article {
+  grid-template-columns: 64px 1fr auto;
+  cursor: default;
+}
+
+.fab-saved-open:hover,
+.fab-saved-open:focus-visible {
+  border-color: rgba(197, 160, 40, 0.55);
 }
 
 .fab-saved img {
