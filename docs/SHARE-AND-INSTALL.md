@@ -1,5 +1,9 @@
 # Fortress — website + app (Instagram-style)
 
+**Quick share file for friends:** see [`SETUP-FRIENDS.txt`](../SETUP-FRIENDS.txt)  
+**One-click builds on this PC:** double-click [`Build-Fortress-Apps.bat`](../Build-Fortress-Apps.bat)  
+**Install page on the live site:** [fortress-zw.vercel.app/install.html](https://fortress-zw.vercel.app/install.html)
+
 Fortress runs as:
 
 1. **Live website** — open [fortress-zw.vercel.app](https://fortress-zw.vercel.app) (or your custom `fortress-zw` domain)

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1c1915" />
+    <title>Install Fortress</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1c1915;
+        --paper: #f4efe8;
+        --line: #d6cdc0;
+        --accent: #8b4513;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background:
+          radial-gradient(circle at top right, #efe6d8, transparent 40%),
+          linear-gradient(180deg, #faf7f2, var(--paper));
+        color: var(--ink);
+        padding: 28px 18px 48px;
+      }
+      main {
+        max-width: 640px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: clamp(2rem, 6vw, 3rem);
+        letter-spacing: -0.04em;
+        margin: 0 0 8px;
+      }
+      .lead { font-size: 1.05rem; line-height: 1.5; opacity: 0.85; }
+      section {
+        margin-top: 22px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.55);
+      }
+      h2 { margin: 0 0 10px; font-size: 1.15rem; }
+      ol { margin: 0; padding-left: 1.2rem; line-height: 1.55; }
+      a.button {
+        display: inline-block;
+        margin-top: 14px;
+        padding: 12px 16px;
+        background: var(--ink);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .muted { opacity: 0.7; font-size: 0.92rem; margin-top: 10px; }
+      code { background: #efe8de; padding: 0.1em 0.35em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Install Fortress</h1>
+      <p class="lead">
+        Use Fortress like an app on your phone or laptop. Same live site:
+        <a href="https://fortress-zw.vercel.app/">fortress-zw.vercel.app</a>
+      </p>
+
+      <section>
+        <h2>Phone — Add to Home Screen</h2>
+        <p><strong>Android (Chrome)</strong></p>
+        <ol>
+          <li>Open the Fortress website.</li>
+          <li>Menu (⋮) → <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+          <li>Open the Fortress icon — it runs full screen like an app.</li>
+        </ol>
+        <p style="margin-top:14px"><strong>iPhone (Safari)</strong></p>
+        <ol>
+          <li>Open the Fortress website in Safari.</li>
+          <li>Share → <strong>Add to Home Screen</strong>.</li>
+          <li>Open Fortress from your home screen.</li>
+        </ol>
+        <a class="button" href="/#/home">Open Fortress</a>
+      </section>
+
+      <section>
+        <h2>Laptop — Windows app</h2>
+        <ol>
+          <li>Get <code>Fortress-Setup-…exe</code> or <code>Fortress-Portable-…exe</code> from the Fortress owner.</li>
+          <li>Portable: double-click to run (no install).</li>
+          <li>Setup: run the installer for Start Menu + desktop shortcut.</li>
+        </ol>
+        <p class="muted">Owner builds those files with <code>Build-Fortress-Apps.bat</code> in the project folder.</p>
+      </section>
+
+      <section>
+        <h2>Android APK (optional)</h2>
+        <p>
+          If you received <code>Fortress.apk</code>, allow install from that source, open the file, and tap Install.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+FORTRESS — install on phone + laptop
+====================================
+Live website (same app for everyone online):
+  https://fortress-zw.vercel.app
+
+------------------------------------------------
+1) PHONE (easiest — no APK needed)
+------------------------------------------------
+Android (Chrome):
+  1. Open https://fortress-zw.vercel.app
+  2. Tap the menu (⋮) → "Install app" or "Add to Home screen"
+  3. Open the Fortress icon on your home screen — it runs like an app
+
+iPhone (Safari):
+  1. Open https://fortress-zw.vercel.app in Safari
+  2. Tap Share → "Add to Home Screen"
+  3. Open Fortress from the home screen
+
+Optional Android APK (installable file you can WhatsApp):
+  - Ask the Fortress owner for: Fortress.apk
+  - On the phone: allow "Install unknown apps" for Files/Chrome
+  - Open the APK and Install
+  - Owner builds it with:  Build-Fortress-Apps.bat  (option 2)
+
+------------------------------------------------
+2) LAPTOP / PC (Windows app)
+------------------------------------------------
+Option A — Portable (no install, easiest to share on WhatsApp):
+  Run:  Fortress-Portable-0.1.0-x64.exe
+  Double-click — Fortress opens. No admin password needed.
+
+Option B — Full installer (Start Menu + desktop shortcut):
+  Run:  Fortress-Setup-0.1.0-x64.exe
+  Follow Next → Install → Finish
+
+Where to get those .exe files:
+  Owner builds them on this PC with:
+    Build-Fortress-Apps.bat
+  Then look in the folder:
+    release\
+
+Share the .exe on WhatsApp / Google Drive / USB.
+
+Mac / Linux friends:
+  Use the website, or ask owner to build with electron-builder for mac/linux.
+
+------------------------------------------------
+3) WHAT WORKS OFFLINE / ONLINE
+------------------------------------------------
+  Offline: open saved projects / cached photos on that device
+  Online:  live feed, uploads, Gemini drawing reader (same as website)
+
+------------------------------------------------
+4) OWNER — BUILD THE FILES ON THIS COMPUTER
+------------------------------------------------
+  Double-click:  Build-Fortress-Apps.bat
+
+  Or in a terminal inside this project folder:
+
+    npm install
+    npm run electron:build          → Windows Setup + Portable in release\
+    npm run android:apk             → needs Android Studio + JDK
+                                    → APK: android\app\build\outputs\apk\debug\
+
+Need help: open docs\SHARE-AND-INSTALL.md
