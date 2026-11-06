@@ -169,7 +169,7 @@ export default function DrawingChatSession({
       pushMessages(
         makeMsg(
           'assistant',
-          'Free drawing uploads are used up. Open Subscriptions and pay $1/week, $3.5/month, or $22/year to upload more plans.',
+          'Free drawing uploads are used up. Open Subscriptions and pay $100/month to upload more plans.',
         ),
       )
       return
@@ -649,7 +649,7 @@ export default function DrawingChatSession({
           ) : (
             <div className="drawing-paywall">
               <p className="fab-freemium-alert">
-                You used all 6 free drawing uploads. Subscribe ($1/week, $3.5/month, or $22/year) to upload new plans.
+                You used all 6 free drawing uploads. Subscribe ($100/month) to upload new plans.
               </p>
               <button type="button" className="fab-next-btn" onClick={() => onRequireSubscription?.()}>
                 View subscriptions

@@ -1095,13 +1095,9 @@ const readMediaFile = async (file) => {
   return { kind: 'photo', src: await compressImageFile(file) }
 }
 
-const FAB_PLANS = [
-  { id: 'week', label: '1 week', price: 1, days: 7 },
-  { id: 'month', label: '1 month', price: 3.5, days: 30 },
-  { id: 'year', label: '1 year', price: 22, days: 365 },
-]
+const FAB_PLANS = [{ id: 'month', label: '1 month', price: 100, days: 30 }]
 
-/** Freemium: 6 free drawing uploads, then $1/wk · $3.5/mo · $22/yr. */
+/** Freemium: 6 free drawing uploads, then $100/month. */
 const FAB_FREE_DRAWS_KEY = 'fortress-fab-free-draws-v1'
 const FAB_FREE_DRAW_LIMIT = 6
 const FAB_FREE_DRAW_WARN_AT = 2
@@ -1232,7 +1228,7 @@ const HOME_ADS = [
     id: 'ad-fab',
     kicker: 'Ad',
     title: 'Fabrication calculator',
-    copy: '$1 a week · $3.50 a month · $22 a year',
+    copy: '$100 a month',
   },
   {
     id: 'ad-site',
@@ -1247,7 +1243,7 @@ const SYSTEM_TYPES = [
     id: 'fabrication',
     label: 'Fabrication calculator',
     style: 'Free to open',
-    how: 'Open the calculator webpage. Pick a gate design, enter width and height, then choose simple, medium, or complex laser cut. Use it for $1 a week, $3.50 a month, or $22 a year.',
+    how: 'Open the calculator webpage. Pick a gate design, enter width and height, then choose simple, medium, or complex laser cut. Use it for $100 a month.',
     preview: GATE_DESIGNS.slice(0, 4).map((gate) => gate.photo),
     slides: GATE_DESIGNS.slice(0, 5).map((gate, index) => ({
       photo: gate.photo,
@@ -1256,7 +1252,7 @@ const SYSTEM_TYPES = [
         'Width and height in metres turn into area. The quote is not a guess — it is the size of the gate times the design rate.',
         'Simple, medium, or laser-cut complexity changes the rate. A spear-top driveway is not priced like a laser leaf.',
         'Saved quotations sit on your fabrication webpage so the workshop can open the same numbers on the phone.',
-        'Pay $1 a week, $3.50 a month, or $22 a year. The exclusive calculator link stays on the owner profile; other people do not see it.',
+        'Pay $100 a month. The exclusive calculator link stays on the owner profile; other people do not see it.',
       ][index],
     })),
   },
@@ -3715,7 +3711,7 @@ function FabricationCalculator({
     }
     if (freeLeft <= 0) {
       setFreemiumNote(
-        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to upload drawings or start new gate quotes.',
+        'Free uses used up. Subscribe ($100/month) to upload drawings or start new gate quotes.',
       )
       goView('subscriptions')
       return { ok: false, left: 0 }
@@ -3745,7 +3741,7 @@ function FabricationCalculator({
     if (subActive) return true
     if (freeLeft <= 0) {
       setFreemiumNote(
-        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to upload drawings or start new gate quotes.',
+        'Free uses used up. Subscribe ($100/month) to upload drawings or start new gate quotes.',
       )
       goView('subscriptions')
       return false
@@ -3760,7 +3756,7 @@ function FabricationCalculator({
     if (subActive) return true
     if (freeLeft <= 0) {
       setFreemiumNote(
-        'Free uses used up. Subscribe ($1/week, $3.5/month, or $22/year) to enter gate width and height.',
+        'Free uses used up. Subscribe ($100/month) to enter gate width and height.',
       )
       goView('subscriptions')
       return false
@@ -4742,7 +4738,7 @@ function FabricationCalculator({
           onGuardUpload={guardDrawingUpload}
           onConsumeFreeUpload={consumeFreeDrawingUpload}
           onRequireSubscription={() => {
-            setFreemiumNote('Subscribe to upload more drawings — $1/week, $3.5/month, or $22/year.')
+            setFreemiumNote('Subscribe to upload more drawings — $100/month.')
             goView('subscriptions')
           }}
           onUpdateProject={(patch) => updateProject(patch)}
@@ -4794,7 +4790,7 @@ function FabricationCalculator({
             {!canStartGateQuote && !freemiumConsumedForProject ? (
               <div className="drawing-paywall">
                 <p className="fab-freemium-alert">
-                  You used all 6 free uses. Subscribe ($1/week, $3.5/month, or $22/year) to continue.
+                  You used all 6 free uses. Subscribe ($100/month) to continue.
                 </p>
                 <button type="button" className="fab-next-btn" onClick={() => goView('subscriptions')}>
                   View subscriptions
@@ -5783,8 +5779,7 @@ function FabricationCalculator({
               {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
             </div>
             <p className="fab-note">
-              After 6 free uses, new drawing uploads and new gate size entries need a paid plan ($1/week, $3.5/month, or
-              $22/year).
+              After 6 free uses, new drawing uploads and new gate size entries need a paid plan ($100/month).
             </p>
             {!subActive ? (
               <p className="fab-freemium-meter" role="status">
@@ -5803,13 +5798,7 @@ function FabricationCalculator({
                 <article key={plan.id}>
                   <strong>{plan.label}</strong>
                   <p>{formatPrice(plan.price)}</p>
-                  <small>
-                    {plan.id === 'week'
-                      ? 'Unlimited drawings & gate quotes for 7 days'
-                      : plan.id === 'month'
-                        ? 'Unlimited drawings & gate quotes for 30 days'
-                        : 'Unlimited drawings & gate quotes for 1 year'}
-                  </small>
+                  <small>Unlimited drawings and gate quotes for 30 days</small>
                   {onRenew ? (
                     <button type="button" className="primary-button" onClick={() => onRenew(plan.id)}>
                       Pay with EcoCash
@@ -7282,7 +7271,7 @@ function App() {
 
     const isRetailShop = type.id === 'retail'
     const isFabrication = type.id === 'fabrication'
-    const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[1]
+    const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[0]
     const slides = type.id === 'construction' || type.id === 'manufacturing' ? type.slides : []
     const [first, ...rest] = slides
     const slug = uniqueSlug(name, accounts)
@@ -9122,8 +9111,8 @@ function App() {
                 <h3>{chosenSystem ? chosenSystem.label : 'Fortress system'}</h3>
                 {systemType === 'fabrication' ? (
                   <p className="shop-copy">
-                    {formatPrice((FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[1]).price)} ·{' '}
-                    {(FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[1]).label}
+                    {formatPrice((FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[0]).price)} ·{' '}
+                    {(FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[0]).label}
                   </p>
                 ) : null}
                 <label>
