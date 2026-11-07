@@ -29,7 +29,21 @@ export const usesFileProtocolAssets = () => isNativeShell()
  * Local Vite → relative `/api` (proxied to :8787).
  */
 export const apiBaseUrl = () => {
-  const fromEnv = String(import.meta.env?.VITE_API_BASE || '').trim().replace(/\/$/, '')
+  let fromEnv = ''
+  try {
+    fromEnv = String(import.meta.env?.VITE_API_BASE || '').trim().replace(/\/$/, '')
+  } catch {
+    /* ignore */
+  }
+  if (!fromEnv) {
+    try {
+      if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
+        fromEnv = String(process.env.NEXT_PUBLIC_API_BASE).trim().replace(/\/$/, '')
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   if (fromEnv) return fromEnv
 
   if (typeof window !== 'undefined') {
@@ -38,7 +52,7 @@ export const apiBaseUrl = () => {
     // Live website / PWA on fortress-zw — Instagram-style: site and API are one place.
     if (protocol !== 'file:' && isFortressZwHost(host)) return ''
     // Local web dev
-    if (host === 'localhost' || host === '127.0.0.1') return ''
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) return ''
   }
 
   if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
@@ -49,9 +63,6 @@ export const apiBaseUrl = () => {
   if (isCapacitorApp() || isElectronApp()) {
     return FORTRESS_ZW_ORIGIN
   }
-
-  // Production web build on an unknown host — still prefer fortress-zw API so feeds match.
-  if (import.meta.env?.PROD) return FORTRESS_ZW_ORIGIN
 
   return ''
 }

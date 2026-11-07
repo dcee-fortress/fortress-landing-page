@@ -564,8 +564,13 @@ const splitDataUrl = (dataUrl) => {
 }
 
 const visionExtractUrl = () => {
-  const fromEnv = typeof import.meta !== 'undefined' && import.meta.env?.VITE_VISION_API_URL
-  if (fromEnv) return String(fromEnv)
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_VISION_API_URL) {
+      return String(import.meta.env.VITE_VISION_API_URL)
+    }
+  } catch {
+    /* ignore */
+  }
   return apiUrl('/api/vision-extract')
 }
 
@@ -786,7 +791,8 @@ export const extractSteelScheduleWithTesseract = async (dataUrl) => {
   if (/pdf/i.test(mime)) {
     throw new Error('Tesseract reads photos. Snap a picture of the schedule page, or use free Gemini for PDFs.')
   }
-  const { createWorker } = await import('tesseract.js')
+  const pkg = 'tesseract.js'
+  const { createWorker } = await import(/* @vite-ignore */ /* webpackIgnore: true */ pkg)
   const worker = await createWorker('eng')
   try {
     const {

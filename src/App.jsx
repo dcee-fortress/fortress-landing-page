@@ -25,6 +25,18 @@ import { RC_COLUMN_DEFAULT_RATES, rcColumnQuote, refreshRcSteelRow, unitWeightFo
 import DrawingChatSession from './DrawingChatSession'
 import GateChatSession from './GateChatSession'
 import PlanChatSession from './PlanChatSession'
+import RodcroftTemplate from './RodcroftTemplate'
+import PrixburgTemplate from './PrixburgTemplate'
+import CeoProjectsOverview from './CeoProjectsOverview'
+import {
+  buildDefaultTemplateMetadata,
+  cleanSlug,
+  detectActiveSubdomain,
+  getSiteCeoMetadata,
+  saveSiteCeoMetadata,
+  subdomainLabelFor,
+  subdomainUrlFor,
+} from './fortressMetadata'
 import {
   BURGLAR_TYPES,
   emptyBurglarDraft,
@@ -75,16 +87,16 @@ const COMPANY_LOGINS = [
 
 const COMPANY_LIVE_SITES = {
   rodcroft: {
-    home: 'https://rodcroft-fortress.vercel.app/',
-    ceo: 'https://rodcroft-fortress.vercel.app/project/p-1789313935790/dashboard/ceo-dashboards',
-    label: 'rodcroft-fortress.vercel.app',
+    home: 'https://rodcroft.fortress.vercel.app/',
+    ceo: 'https://rodcroft.fortress.vercel.app/project/p-1789313935790/dashboard/ceo-dashboards',
+    label: 'rodcroft.fortress.vercel.app',
   },
   prixburg: {
-    home: 'https://prixburg.vercel.app/',
-    ceo: 'https://prixburg.vercel.app/ceo-analysis.html',
-    ceoNet: 'https://prixburg.vercel.app/ceo-net-profit.html',
-    ceoGross: 'https://prixburg.vercel.app/ceo-gross-profit.html',
-    label: 'prixburg.vercel.app',
+    home: 'https://prixburg.fortress.vercel.app/',
+    ceo: 'https://prixburg.fortress.vercel.app/ceo-analysis.html',
+    ceoNet: 'https://prixburg.fortress.vercel.app/ceo-net-profit.html',
+    ceoGross: 'https://prixburg.fortress.vercel.app/ceo-gross-profit.html',
+    label: 'prixburg.fortress.vercel.app',
   },
 }
 
@@ -92,7 +104,14 @@ const companyLiveSite = (site) => {
   const key = String(site?.catalogId || site?.slug || site?.id || '')
     .toLowerCase()
     .replace(/^site-/, '')
-  return COMPANY_LIVE_SITES[key] || null
+  if (COMPANY_LIVE_SITES[key]) return COMPANY_LIVE_SITES[key]
+  if (!key) return null
+  const label = subdomainLabelFor(key)
+  return {
+    home: `https://${label}/`,
+    ceo: `https://${label}/`,
+    label,
+  }
 }
 const PHASE1_COMPLETE = true
 const PHASE1_ECOCASH_NOTE = 'Phase 2 will be unlocked for exclusive CEOs soon.'
@@ -539,251 +558,6 @@ const catalog = [
   },
 ]
 
-const MALL_TYPE_GROUPS = [
-  { id: 'ppe', label: 'Personal protective equipment' },
-  { id: 'machinery', label: 'Production machinery' },
-  { id: 'detergents', label: 'Detergents for cleaning work space' },
-  { id: 'groceries', label: 'Groceries' },
-]
-
-const mallGood = (id, name, photo, price, description = '', type = 'groceries') => ({
-  id,
-  name,
-  photo: photo.startsWith('http') ? photo : shot(photo),
-  price,
-  description,
-  type,
-})
-
-const shopFromHome = (id, items) => {
-  const company = catalog.find((entry) => entry.id === id)
-  return {
-    id: `mall-${id}`,
-    name: company.name,
-    category: company.category,
-    hue: company.hue,
-    cover: company.slides[0].photo,
-    source: 'home',
-    items,
-  }
-}
-
-const retailShop = (id, name, cover, items) => ({
-  id,
-  name,
-  category: 'Retail',
-  hue: '#7c2d12',
-  cover: shot(cover),
-  source: 'retail',
-  items,
-})
-
-const inferMallProductType = (item = {}) => {
-  if (item.type && MALL_TYPE_GROUPS.some((group) => group.id === item.type)) return item.type
-  const text = `${item.name || ''} ${item.description || ''}`.toLowerCase()
-  if (
-    /helmet|hard hat|vest|boot|glove|goggle|ppe|respirator|ear ?muff|safety|hi-?vis|steel.?toe|protective/.test(
-      text,
-    )
-  ) {
-    return 'ppe'
-  }
-  if (
-    /machine|welder|lathe|compressor|motor|press|drill|generator|conveyor|mill|plant|switch gear|cable drum|bay lamp/.test(
-      text,
-    )
-  ) {
-    return 'machinery'
-  }
-  if (/detergent|bleach|soap|cleaner|disinfectant|mop|sanitize|scrub|floor clean|degreaser/.test(text)) {
-    return 'detergents'
-  }
-  return 'groceries'
-}
-
-const mallCatalog = [
-  shopFromHome('ridgeline', [
-    mallGood(
-      'ridge-helmet',
-      'Site helmet',
-      shot('photo-1621905252472-943afaa20e20'),
-      29,
-      'Hard hat for crew on the scaffold.',
-      'ppe',
-    ),
-    mallGood(
-      'ridge-vest',
-      'Crew vest',
-      pexel(8487367),
-      22,
-      'Hi-vis vest with reflective bands.',
-      'ppe',
-    ),
-    mallGood(
-      'ridge-boot',
-      'Work boot pair',
-      'photo-1590496793929-36417d3117de',
-      74,
-      'Steel-toe boots sized for site crews.',
-      'ppe',
-    ),
-    mallGood(
-      'ridge-gloves',
-      'Safety gloves',
-      'photo-1581094794329-c8112a89af12',
-      18,
-      'Cut-resistant gloves for yard and bay work.',
-      'ppe',
-    ),
-    mallGood(
-      'ridge-goggles',
-      'Safety goggles',
-      'photo-1582719478250-c89cae4dc85b',
-      16,
-      'Clear impact goggles for grinding and cutting.',
-      'ppe',
-    ),
-  ]),
-  shopFromHome('voltform', [
-    mallGood(
-      'volt-welder',
-      'Arc welder set',
-      'photo-1504328345606-18bbc8c9d7d1',
-      420,
-      'Workshop arc welder with leads for production bays.',
-      'machinery',
-    ),
-    mallGood(
-      'volt-compressor',
-      'Air compressor',
-      shot('photo-1621905251918-48416bd8575a'),
-      310,
-      'Shop compressor for tools and spray lines.',
-      'machinery',
-    ),
-    mallGood(
-      'volt-drillpress',
-      'Drill press',
-      shot('photo-1558494949-ef010cbdcc31'),
-      265,
-      'Bench drill press for fabrication holes.',
-      'machinery',
-    ),
-    mallGood(
-      'volt-switch',
-      'Switch gear pack',
-      shot('photo-1558494949-ef010cbdcc31'),
-      46,
-      'Breakers and switches for a small board.',
-      'machinery',
-    ),
-  ]),
-  shopFromHome('apex', [
-    mallGood(
-      'apex-lathe',
-      'Bench lathe',
-      'photo-1504917595217-d4dc5ebe6122',
-      580,
-      'Small production lathe for shafts and bushings.',
-      'machinery',
-    ),
-    mallGood(
-      'apex-grinder',
-      'Angle grinder kit',
-      'photo-1504148455328-c376907d081c',
-      75,
-      'Grinder with discs for weld prep and cutting.',
-      'machinery',
-    ),
-  ]),
-  retailShop('clean-bay', 'Clean Bay Supplies', 'photo-1581578731548-c64695cc6952', [
-    mallGood(
-      'clean-detergent',
-      'Industrial floor detergent',
-      'photo-1581578731548-c64695cc6952',
-      14,
-      'Concentrate for scrubbing workshop floors.',
-      'detergents',
-    ),
-    mallGood(
-      'clean-bleach',
-      'Bleach jerrycan',
-      'photo-1585421514284-efb74c2b69ba',
-      11,
-      '5 L bleach for wash-down and disinfection.',
-      'detergents',
-    ),
-    mallGood(
-      'clean-degreaser',
-      'Degreaser spray pack',
-      'photo-1563453392212-326f5e854473',
-      19,
-      'Heavy-duty degreaser for machines and benches.',
-      'detergents',
-    ),
-    mallGood(
-      'clean-mop',
-      'Mop & bucket set',
-      'photo-1581578017090-aa695fd06c1c',
-      27,
-      'Wringer bucket with mop for bay cleaning.',
-      'detergents',
-    ),
-  ]),
-  retailShop('market-street', 'Market Street Grocers', 'photo-1542838132-92c53300491e', [
-    mallGood(
-      'market-crate',
-      'Produce crate',
-      'photo-1542838132-92c53300491e',
-      16,
-      'Mixed vegetables packed for the week.',
-      'groceries',
-    ),
-    mallGood(
-      'market-bread',
-      'Bakery loaf',
-      'photo-1509440159596-0249088772ff',
-      4,
-      'Fresh loaf from the morning bake.',
-      'groceries',
-    ),
-    mallGood(
-      'market-oil',
-      'Bottle of oil',
-      'photo-1474979266404-7ea641234fb7',
-      9,
-      'Cooking oil in a 750 ml bottle.',
-      'groceries',
-    ),
-  ]),
-  retailShop('kettle-pantry', 'Copper Kettle Pantry', 'photo-1495474472287-4d71bcdd2085', [
-    mallGood(
-      'kettle-coffee',
-      'Roast bag',
-      'photo-1495474472287-4d71bcdd2085',
-      12,
-      '250 g roasted beans for the office pot.',
-      'groceries',
-    ),
-    mallGood(
-      'kettle-jar',
-      'Spice jar set',
-      'photo-1596040033229-a9821ebd058d',
-      15,
-      'Six jars with lids for a kitchen shelf.',
-      'groceries',
-    ),
-    mallGood(
-      'kettle-tea',
-      'Tea carton',
-      'photo-1556679343-c7306c197d0d',
-      8,
-      'Black tea bags for the site office.',
-      'groceries',
-    ),
-  ]),
-]
-
 const seedNote = (id, author, text, replies = []) => ({
   id,
   authorId: 'seed',
@@ -841,15 +615,6 @@ const DEMO_COMMENTS = {
   'photo:fieldnote:0': [
     seedNote('fn0a', 'Tatenda Chirwa, CEO', 'From day one the phone is the trailer. Zvakanaka.'),
   ],
-  'item:mall-apex:apex-plate': [
-    seedNote('itap', 'Nyasha Mutasa, CEO', 'This plate pack is what left the rack nhasi. Ndatenda.'),
-  ],
-  'item:mall-ridgeline:ridge-vest': [
-    seedNote('itrg', 'Tawanda Ncube, CEO', 'Crew vest from the yard. Zvakanaka for the mall card.'),
-  ],
-  'item:market-street:market-bread': [
-    seedNote('itmb', 'Tendai Moyo, CEO', 'Fresh loaf pano. Ndatenda to the baker.'),
-  ],
 }
 
 const BLOCKED_COMMENT_AUTHORS = ['patrick mbizvo', 'tawanda chitukutuku']
@@ -902,19 +667,18 @@ const formatPrice = (price) =>
 
 const MENU_ACTIONS = [
   { id: 'buy', label: 'Buy CEO Website' },
+  { id: 'calc', label: 'Fabrication Calculator' },
 ]
 
 const NAV = [
   { id: 'home', label: 'Home' },
   { id: 'profile', label: 'Profile' },
-  { id: 'mall', label: 'Online mall' },
   ...MENU_ACTIONS,
   { id: 'settings', label: 'Settings' },
 ]
 
 const GUEST_NAV = [
   { id: 'home', label: 'Home' },
-  { id: 'mall', label: 'Online mall' },
   ...MENU_ACTIONS,
   { id: 'login', label: 'Login' },
 ]
@@ -944,17 +708,6 @@ function IconSettings() {
       <path
         fill="currentColor"
         d="M19.4 13.5a7.7 7.7 0 0 0 .1-1.5 7.7 7.7 0 0 0-.1-1.5l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-2.6-1.5l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 0 0-2.6 1.5l-2.4-1-2 3.4 2 1.6a7.7 7.7 0 0 0-.1 1.5 7.7 7.7 0 0 0 .1 1.5l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 2.6 1.5l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.6zM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5z"
-      />
-    </svg>
-  )
-}
-
-function IconMall() {
-  return (
-    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M4 9.2 6.2 4h11.6L20 9.2V20H4V9.2zm2.4 0h11.2l-1.2-3.2H7.6L6.4 9.2zM7 11.5V18h2.2v-6.5H7zm3.8 0V18h2.4v-6.5h-2.4zm4 0V18H17v-6.5h-2.2z"
       />
     </svg>
   )
@@ -1008,7 +761,6 @@ const NAV_ICONS = {
   home: IconHome,
   profile: IconProfile,
   settings: IconSettings,
-  mall: IconMall,
   login: IconLogin,
   logout: IconLogout,
   calc: IconCalc,
@@ -1021,17 +773,6 @@ function IconGrid() {
       <path
         fill="currentColor"
         d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"
-      />
-    </svg>
-  )
-}
-
-function IconStoreTab() {
-  return (
-    <svg className="ig-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M4 9.2 6.2 4h11.6L20 9.2V20H4V9.2zm2.4 0h11.2l-1.2-3.2H7.6L6.4 9.2z"
       />
     </svg>
   )
@@ -1234,7 +975,7 @@ const HOME_ADS = [
     id: 'ad-site',
     kicker: 'Ad',
     title: 'Buy a Fortress website',
-    copy: 'Construction, manufacturing, or a shop in the online mall.',
+    copy: 'Construction (Rodcroft) or manufacturing (Prixburg) websites.',
   },
 ]
 
@@ -1259,8 +1000,8 @@ const SYSTEM_TYPES = [
   {
     id: 'construction',
     label: 'Construction website',
-    style: 'Rodcroft style',
-    how: 'A private Rodcroft-style website for the CEO. The phone shows sites, valuations, storeroom stock, and SHEQ. Crews enter the live numbers on the domain Fortress gives you after EcoCash. Nobody else can open this link.',
+    style: 'Rodcroft template',
+    how: 'A private Rodcroft-template website generated from CEO metadata. Hosted on <company>.fortress.vercel.app showing sites, valuations, storeroom stock, fuel schedules, and SHEQ.',
     preview: [MEDIA.rodcroftPhoto1, MEDIA.rodcroftPhoto2, MEDIA.rodcroftPhoto3, MEDIA.rodcroftPhoto4],
     slides: [
       {
@@ -1294,8 +1035,8 @@ const SYSTEM_TYPES = [
   {
     id: 'manufacturing',
     label: 'Manufacturing website',
-    style: 'Prixburg style',
-    how: 'A private Prixburg-style website for the CEO. The phone shows storeroom materials, consumed stock, and sales. The plant enters those numbers on the live domain. Nobody else can open this link.',
+    style: 'Prixburg template',
+    how: 'A private Prixburg-template website generated from CEO metadata. Hosted on <company>.fortress.vercel.app showing storeroom materials, formulas, consumed stock, sales, and CEO profit analysis.',
     preview: [MEDIA.prixburg1, MEDIA.prixburg2, MEDIA.prixburg3, MEDIA.prixburg4, MEDIA.prixburg5],
     slides: [
       {
@@ -1325,53 +1066,13 @@ const SYSTEM_TYPES = [
       },
     ],
   },
-  {
-    id: 'retail',
-    label: 'Retail website',
-    style: 'Shop inside Fortress',
-    how: 'This is not an outside website. It is your shop control inside Fortress. Add items and prices here. Buyers see them on the online mall and pay with EcoCash.',
-    preview: [
-      shot('photo-1441986300917-64674bd600d8'),
-      shot('photo-1441984904996-e0b6ba687e04'),
-      shot('photo-1472851294608-062f824d29cc'),
-    ],
-    slides: [
-      {
-        photo: shot('photo-1441986300917-64674bd600d8'),
-        testimonial:
-          'A shop that only lives on WhatsApp loses prices and photos. This retail system is shop control inside Fortress, not an outside website.',
-      },
-      {
-        photo: shot('photo-1441984904996-e0b6ba687e04'),
-        testimonial:
-          'You add the product, the price, and a short description. Buyers see those cards on the online mall instead of hunting a shop name.',
-      },
-      {
-        photo: shot('photo-1472851294608-062f824d29cc'),
-        testimonial:
-          'When a buyer searches the mall they find the item, the shop name, and the EcoCash price in one grid.',
-      },
-      {
-        photo: shot('photo-1555529669-e69e7aa0ba9a'),
-        testimonial:
-          'Payment is EcoCash from the product card. Sold notes stay on the shop so the owner sees what left the shelf.',
-      },
-      {
-        photo: shot('photo-1555041469-a586c61ea9bc'),
-        testimonial:
-          'The exclusive shop link stays on your profile. Other people browsing Fortress only see public posts, not your shop control.',
-      },
-    ],
-  },
 ]
 
 const systemIdFromCompany = (company) => {
   if (company?.systemType && SYSTEM_TYPES.some((item) => item.id === company.systemType)) {
     return company.systemType
   }
-  if (company?.isShop) return 'retail'
   const label = `${company?.category || ''} ${company?.type || ''}`.toLowerCase()
-  if (label.includes('retail') || label.includes('shop')) return 'retail'
   if (label.includes('manufactur')) return 'manufacturing'
   return 'construction'
 }
@@ -1607,16 +1308,8 @@ const pathFromNav = ({ tab, settingsView, overlay }) => {
     const id = overlay.company?.id
     return id ? `/${tab || 'home'}/card/${encodeId(id)}/gate` : `/${tab || 'home'}/gate`
   }
-  if (overlay?.type === 'shop' && overlay.company?.id) {
-    return `/mall/open/${encodeId(overlay.company.id)}`
-  }
-  if (overlay?.type === 'product' && overlay.company?.id && overlay.item?.id) {
-    return `/mall/item/${encodeId(overlay.company.id)}/${encodeId(overlay.item.id)}`
-  }
   if (overlay?.type === 'own-photo') return '/profile/photo'
   if (overlay?.type === 'own-post') return `/profile/post/${overlay.postIndex}`
-  if (overlay?.type === 'shop-item-add') return '/profile/shop/add'
-  if (overlay?.type === 'shop-item' && overlay.itemId) return `/profile/shop/item/${encodeId(overlay.itemId)}`
   if (overlay?.type === 'buy-system') return '/settings/buy'
   if (overlay?.type === 'live-link') return '/profile/live'
   if (overlay?.type === 'add-media') return '/profile/add'
@@ -1640,15 +1333,12 @@ const parseHashPath = (path, findCompany) => {
       tab: 'home',
       settingsView: 'home',
       overlay: null,
-      route: { kind: 'site', slug: decodeURIComponent(b) },
-    }
-  }
-  if (a === 'shop' && b) {
-    return {
-      tab: 'mall',
-      settingsView: 'home',
-      overlay: null,
-      route: { kind: 'shop', slug: decodeURIComponent(b) },
+      route: {
+        kind: 'site',
+        slug: decodeURIComponent(b),
+        projectId: c ? decodeURIComponent(c) : '',
+        view: d ? decodeURIComponent(d) : '',
+      },
     }
   }
   if (a === 'calc') {
@@ -1661,7 +1351,7 @@ const parseHashPath = (path, findCompany) => {
     }
   }
 
-  const tab = ['home', 'profile', 'settings', 'mall', 'login'].includes(a) ? a : 'home'
+  const tab = ['home', 'profile', 'settings', 'login'].includes(a) ? a : 'home'
   let settingsView = tab === 'settings' && b ? decodeURIComponent(b) : 'home'
   if (tab === 'settings' && (!b || b === 'card' || b === 'open' || b === 'add')) settingsView = 'home'
   let overlay = null
@@ -1676,27 +1366,9 @@ const parseHashPath = (path, findCompany) => {
     }
     else if (d === 'gate') overlay = { type: 'gate', company }
     else if (company) overlay = { type: 'gallery', company }
-  } else if (a === 'mall' && b === 'open' && c) {
-    const shop = findCompany(decodeURIComponent(c))
-    if (shop) overlay = { type: 'shop', company: shop }
-  } else if (a === 'mall' && b === 'item' && c && d) {
-    const shop = findCompany(decodeURIComponent(c))
-    const itemId = decodeURIComponent(d)
-    const item = shop?.items?.find((entry) => entry.id === itemId)
-    if (shop && item) {
-      overlay = {
-        type: 'product',
-        company: shop,
-        item: { ...item, shopId: shop.id, shopName: shop.name, shop },
-      }
-    }
   } else if (a === 'profile' && b === 'photo') overlay = { type: 'own-photo' }
   else if (a === 'profile' && b === 'post' && c !== undefined) {
     overlay = { type: 'own-post', postIndex: Number(c) || 0 }
-  }
-  else if (a === 'profile' && b === 'shop' && c === 'add') overlay = { type: 'shop-item-add' }
-  else if (a === 'profile' && b === 'shop' && c === 'item' && d) {
-    overlay = { type: 'shop-item', itemId: decodeURIComponent(d) }
   }
   else if (a === 'profile' && b === 'live') overlay = { type: 'live-link' }
   else if (a === 'profile' && b === 'add') overlay = { type: 'add-media' }
@@ -1717,40 +1389,7 @@ const uniqueSlug = (name, accounts) => {
   return `${base}-${count}`
 }
 
-const siteHref = (slug) => {
-  const url = new URL(window.location.href)
-  url.hash = `/site/${slug}`
-  return url.toString()
-}
-
-const shopHref = (slug) => {
-  const url = new URL(window.location.origin + window.location.pathname)
-  url.hash = `/shop/${slug}`
-  return url.toString()
-}
-
-const shopBySlug = (slug, accountList) => {
-  const fromUser = accountList
-    .flatMap((account) => account.websites)
-    .find((site) => site.slug === slug && site.systemType === 'retail')
-  if (fromUser) {
-    return {
-      id: fromUser.id,
-      name: fromUser.name,
-      slug: fromUser.slug,
-      brandName: fromUser.brandName || fromUser.name,
-      systemType: fromUser.systemType || 'retail',
-      isShop: true,
-      category: fromUser.type || 'Retail',
-      cover: fromUser.items?.[0]?.photo || fromUser.profilePhoto || fromUser.gallery?.[0] || '',
-      items: fromUser.items || [],
-    }
-  }
-  return (
-    mallCatalog.find((shop) => shop.id === slug || shop.id === `mall-${slug}` || shop.id.replace(/^mall-/, '') === slug) ||
-    null
-  )
-}
+const siteHref = (slug) => subdomainUrlFor(slug)
 
 const slidesForSite = (site) => {
   const slides = [...(site?.slides || [])]
@@ -1860,23 +1499,13 @@ function StarRanking({ rating }) {
 
 const displayLivePath = (site) => {
   if (!site?.slug) return ''
-  if (site.systemType === 'retail' || site.isShop) return 'Shop control'
   if (site.systemType === 'fabrication') return site.slug ? `#/site/${site.slug}` : '#/calc'
-  return `#/site/${site.slug}`
+  return subdomainLabelFor(site)
 }
 
 const liveDomain = (site) => {
-  const live = companyLiveSite(site)
-  if (live?.label) return live.label
-  if (live?.home) {
-    try {
-      return new URL(live.home).host
-    } catch {
-      return live.home
-    }
-  }
-  const slug = site?.slug || slugify(site?.name || 'site')
-  return `${slug}.fortress.site`
+  if (!site) return ''
+  return subdomainLabelFor(site)
 }
 
 const ceoFigures = (name = '') => {
@@ -2365,17 +1994,6 @@ const fabQuote = (draft, pricing = emptyFabPricing()) => {
     quote: total,
     lines,
   }
-}
-
-const companyShopHref = (company) => {
-  if (company?.link) return company.link
-  if ((company?.systemType === 'retail' || company?.isShop) && company.slug) return shopHref(company.slug)
-  if (company?.slug) return siteHref(company.slug)
-  const shop =
-    mallCatalog.find((item) => item.id === `mall-${company.id}` || item.id === company.id) ||
-    (company.items?.length ? company : null)
-  if (shop) return shopHref(String(shop.id).replace(/^mall-/, ''))
-  return ''
 }
 
 function MenuButton({ item, active, onSelect, className }) {
@@ -2928,363 +2546,35 @@ function OpenedCard({
   )
 }
 
-function ShopItemSheet({ draft, isNew, onClose, onChange, onSave, onPickPhoto }) {
-  return (
-    <section className="detail-sheet opened-sheet" aria-label={isNew ? 'Add shop item' : draft.name || 'Shop item'} onClick={onClose}>
-      <div className="opened-card shop-item-card" onClick={(event) => event.stopPropagation()}>
-        <div className="opened-stage shop-item-stage">
-          <button
-            type="button"
-            className="card-x"
-            aria-label="Close"
-            onClick={(event) => {
-              event.stopPropagation()
-              onClose()
-            }}
-          >
-            ×
-          </button>
-          {draft.photo ? (
-            <img src={draft.photo} alt={draft.name || 'Shop item'} />
-          ) : (
-            <button type="button" className="shop-item-photo-wait" onClick={onPickPhoto}>
-              Upload image
-              <small>Optional</small>
-            </button>
-          )}
-          {draft.photo ? (
-            <button type="button" className="shop-change-photo" onClick={onPickPhoto}>
-              Change photo
-            </button>
-          ) : null}
-        </div>
-        <div className="shop-item-fields">
-          <input
-            type="text"
-            placeholder="Item name"
-            value={draft.name}
-            onChange={(event) => onChange({ name: event.target.value })}
-          />
-          <label className="price-card">
-            <span>Price</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0"
-              value={draft.price}
-              onChange={(event) => onChange({ price: event.target.value })}
-            />
-          </label>
-          <textarea
-            rows="4"
-            placeholder="Description"
-            value={draft.description}
-            onChange={(event) => onChange({ description: event.target.value })}
-          />
-          {isNew ? (
-            <button type="button" className="primary-button" onClick={onSave}>
-              Add item
-            </button>
-          ) : (
-            <p className="shop-copy">Changes save to the shop and this grid as you type.</p>
-          )}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function MallProductSheet({ product, onClose, comments, onAddComment, onReplyComment, viewer, onNeedAccount }) {
-  if (!product) return null
-  return (
-    <section className="detail-sheet shop-sheet" aria-label={product.name} onClick={onClose}>
-      <div className="opened-card shop-item-card" onClick={(event) => event.stopPropagation()}>
-        <div className="opened-stage shop-item-stage">
-          <button type="button" className="card-x" aria-label="Close" onClick={onClose}>
-            ×
-          </button>
-          {product.photo ? <img src={product.photo} alt={product.name} /> : null}
-        </div>
-        <div className="shop-item-fields">
-          <p className="eyebrow">{product.shopName}</p>
-          <h2>{product.name}</h2>
-          <p className="fab-quote">{formatPrice(product.price)}</p>
-          {product.description ? <p className="shop-copy">{product.description}</p> : null}
-          <MallEcoCash item={product} />
-          <CommentThread
-            targetId={`item:${product.shopId}:${product.id}`}
-            comments={comments}
-            viewer={viewer}
-            onAdd={onAddComment}
-            onReply={onReplyComment}
-            onNeedAccount={onNeedAccount}
-          />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function MallShopSheet({ shop, onClose, comments, onAddComment, onReplyComment, viewer, onNeedAccount }) {
-  const items = shop.items || []
-  return (
-    <section className="detail-sheet shop-sheet" aria-label={`${shop.name} shop`}>
-      <button type="button" className="detail-close" onClick={onClose}>
-        Close
-      </button>
-      <div className="mall-shop-head">
-        {shop.cover ? <img src={shop.cover} alt="" /> : null}
-        <div>
-          <p className="eyebrow">{shop.category}</p>
-          <h2>{shop.name}</h2>
-        </div>
-      </div>
-      <div className="mall-goods">
-        {items.length ? (
-          items.map((item) => (
-            <article className="mall-good" key={item.id}>
-              <img src={item.photo} alt="" />
-              <div className="mall-good-copy">
-                <strong>{item.name}</strong>
-                <span>{formatPrice(item.price)}</span>
-                {item.description ? <p>{item.description}</p> : null}
-                <MallEcoCash item={item} />
-              </div>
-              <CommentThread
-                targetId={`item:${shop.id}:${item.id}`}
-                comments={comments}
-                viewer={viewer}
-                onAdd={onAddComment}
-                onReply={onReplyComment}
-                onNeedAccount={onNeedAccount}
-              />
-            </article>
-          ))
-        ) : (
-          <p className="empty-note">This shop has no items yet.</p>
-        )}
-      </div>
-    </section>
-  )
-}
-
-function MallEcoCash({ item }) {
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ number: '', password: '', name: '' })
-  const [note, setNote] = useState('')
-  const [sold, setSold] = useState(false)
-
-  const pay = (event) => {
-    event.preventDefault()
-    if (!readOnline()) {
-      setNote(offlineActionMessage(NETWORK_ACTIONS.pay))
-      return
-    }
-    const number = form.number.replace(/\s/g, '')
-    if (!/^07\d{8}$/.test(number)) {
-      setNote('Enter a 10-digit EcoCash number starting with 07.')
-      return
-    }
-    if (!form.password.trim() || !form.name.trim()) {
-      setNote('Enter the EcoCash password and the name on the account.')
-      return
-    }
-    setNote('')
-    setSold(true)
-    setOpen(false)
-  }
-
-  if (sold) return <p className="sold-note">Sold via EcoCash · {formatPrice(item.price)}</p>
-
-  return (
-    <div className="mall-pay">
-      <button
-        type="button"
-        className="primary-button"
-        onClick={() => {
-          if (!readOnline()) {
-            setNote(offlineActionMessage(NETWORK_ACTIONS.pay))
-            setOpen(true)
-            return
-          }
-          setOpen((value) => !value)
-        }}
-      >
-        Buy with EcoCash
-      </button>
-      {open && (
-        <form className="ecocash-card mall-ecocash" onSubmit={pay}>
-          <p className="ecocash-kicker">EcoCash</p>
-          <input
-            type="tel"
-            placeholder="07xxxxxxxx"
-            value={form.number}
-            onChange={(event) => setForm((value) => ({ ...value, number: event.target.value }))}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={(event) => setForm((value) => ({ ...value, password: event.target.value }))}
-          />
-          <input
-            type="text"
-            placeholder="Name on EcoCash"
-            value={form.name}
-            onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
-          />
-          {note ? <p className="form-error">{note}</p> : null}
-          <button type="submit" className="primary-button">
-            Pay {formatPrice(item.price)}
-          </button>
-        </form>
-      )}
-    </div>
-  )
-}
-
 function CeoDashboard({
   site,
   onBack,
   embedded = false,
-  canHistoryBack = false,
-  canHistoryForward = false,
-  onHistoryBack,
-  onHistoryForward,
+  initialProjectId = '',
+  initialView = 'home',
+  onMetadataUpdated,
 }) {
-  const brand = brandTheme(site?.brandName || site?.name || 'Company')
-  const figures = ceoFigures(brand.name)
-  const manufacturing = site?.systemType === 'manufacturing'
-  const live = companyLiveSite(site)
-  const domain = liveDomain(site)
-  const openLive = (url) => {
-    if (!url || typeof window === 'undefined') return
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-
-  const liveCeoBody = live?.ceo ? (
-    <main className="clone-page ceo-page ceo-live-page">
-      <p className="eyebrow">Live CEO dashboard</p>
-      <h1>{brand.name}</h1>
-      <p className="clone-muted">
-        {manufacturing
-          ? 'CEO analysis for net profit and gross profit from the live Prixburg site.'
-          : 'CEO EXCLUSIVE live page with project-to-date materials, workers, materials overview, and fuel consumed.'}
-      </p>
-      <div className="ceo-live-actions">
-        <button type="button" className="primary-button" onClick={() => openLive(live.ceo)}>
-          Open live CEO page
-        </button>
-        {live.home ? (
-          <button type="button" className="clone-text-btn" onClick={() => openLive(live.home)}>
-            Open {live.label || domain}
-          </button>
-        ) : null}
-      </div>
-      {manufacturing && (live.ceoNet || live.ceoGross) ? (
-        <div className="ceo-live-actions">
-          {live.ceoNet ? (
-            <button type="button" className="clone-text-btn" onClick={() => openLive(live.ceoNet)}>
-              Net profit table
-            </button>
-          ) : null}
-          {live.ceoGross ? (
-            <button type="button" className="clone-text-btn" onClick={() => openLive(live.ceoGross)}>
-              Gross profit table
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      <iframe
-        className="ceo-live-frame"
-        title={`${brand.name} live CEO dashboard`}
-        src={live.ceo}
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-      />
-      {onBack ? (
-        <button type="button" className="clone-text-btn" onClick={onBack}>
-          Back to Fortress
-        </button>
-      ) : null}
-    </main>
-  ) : null
-
-  const body = liveCeoBody || (
-    <main className="clone-page ceo-page">
-      <p className="eyebrow">{manufacturing ? 'Prixburg style' : 'Rodcroft style'}</p>
-      <h1>{brand.name}</h1>
-      <p className="clone-muted">
-        CEO control area. Live data entry stays on {domain}. This page only shows the dashboards.
-      </p>
-      <div className="ceo-grid">
-        {manufacturing ? (
-          <>
-            <article>
-              <span>Storeroom lines</span>
-              <strong>{figures.stock}</strong>
-            </article>
-            <article>
-              <span>Consumed today</span>
-              <strong>{figures.consumed}</strong>
-            </article>
-            <article>
-              <span>Sales</span>
-              <strong>{formatPrice(figures.sales)}</strong>
-            </article>
-          </>
-        ) : (
-          <>
-            <article>
-              <span>Live sites</span>
-              <strong>{figures.sites}</strong>
-            </article>
-            <article>
-              <span>Valuations</span>
-              <strong>{formatPrice(figures.valuation)}</strong>
-            </article>
-            <article>
-              <span>SHEQ files</span>
-              <strong>{figures.sheq}</strong>
-            </article>
-            <article>
-              <span>Storeroom lines</span>
-              <strong>{figures.stock}</strong>
-            </article>
-          </>
-        )}
-      </div>
-      <p className="clone-muted">Domain for data entry: {domain}</p>
-      {onBack ? (
-        <button type="button" className="clone-text-btn" onClick={onBack}>
-          Back to Fortress
-        </button>
-      ) : null}
-    </main>
+  const meta = getSiteCeoMetadata(site)
+  const isManufacturing = site?.systemType === 'manufacturing' || meta?.template === 'prixburg'
+  const content = isManufacturing ? (
+    <PrixburgTemplate
+      site={site}
+      initialProjectId={initialProjectId}
+      initialView={initialView}
+      onBack={embedded ? undefined : onBack}
+      onMetadataUpdated={onMetadataUpdated}
+    />
+  ) : (
+    <RodcroftTemplate
+      site={site}
+      initialProjectId={initialProjectId}
+      initialView={initialView}
+      onBack={embedded ? undefined : onBack}
+      onMetadataUpdated={onMetadataUpdated}
+    />
   )
-
-  if (embedded) return <div className="ceo-embedded">{body}</div>
-
-  return (
-    <div className={`clone-app ${manufacturing ? 'clone-prixburg' : 'clone-rodcroft'}`} style={brand.vars}>
-      <header className="clone-topbar">
-        <div className="clone-topbar-inner">
-          <HistoryNav
-            canBack={canHistoryBack}
-            canForward={canHistoryForward}
-            onBack={onHistoryBack}
-            onForward={onHistoryForward}
-          />
-          <button type="button" className="clone-brand" onClick={onBack}>
-            <span className="clone-brand-mark">{brand.mark}</span>
-            <span className="clone-brand-name">{brand.name}</span>
-          </button>
-        </div>
-      </header>
-      {body}
-    </div>
-  )
+  if (embedded) return <div className="ceo-embedded">{content}</div>
+  return content
 }
 
 function HistoryNav({ className = '', onBack, onForward, canBack = false, canForward = false }) {
@@ -6025,299 +5315,13 @@ function FabricationCalculator({
 }
 
 
-function CloneIcon({ paths }) {
-  return (
-    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {paths.map((d) => (
-        <path key={d} d={d} />
-      ))}
-    </svg>
-  )
-}
-
-function CloneBrandBar({
-  brand,
-  onMenu,
-  onHome,
-  onNew,
-  onSettings,
-  newLabel,
-  settingsLabel,
-  canHistoryBack = false,
-  canHistoryForward = false,
-  onHistoryBack,
-  onHistoryForward,
-}) {
-  return (
-    <header className="clone-topbar">
-      <div className="clone-topbar-inner">
-        <div className="clone-topbar-lead">
-          <HistoryNav
-            canBack={canHistoryBack}
-            canForward={canHistoryForward}
-            onBack={onHistoryBack}
-            onForward={onHistoryForward}
-          />
-          <button type="button" className="clone-icon-btn" aria-label="Open projects menu" onClick={onMenu}>
-            <CloneIcon paths={['M3 12h18', 'M3 18h18', 'M3 6h18']} />
-          </button>
-          <button type="button" className="clone-brand" onClick={onHome} aria-label={brand.name}>
-            <span className="clone-brand-mark">{brand.mark}</span>
-            <span className="clone-brand-name">{brand.name}</span>
-          </button>
-        </div>
-        <button type="button" className="clone-icon-btn clone-icon-wide" aria-label={newLabel} onClick={onNew}>
-          <CloneIcon paths={['M5 12h14', 'M12 5v14']} />
-          <span className="clone-icon-label">{newLabel}</span>
-        </button>
-        <button type="button" className="clone-icon-btn clone-icon-wide clone-icon-muted" aria-label={settingsLabel} onClick={onSettings}>
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M14 17H5" />
-            <path d="M19 7h-9" />
-            <circle cx="17" cy="17" r="3" />
-            <circle cx="7" cy="7" r="3" />
-          </svg>
-          <span className="clone-icon-label">{settingsLabel}</span>
-        </button>
-      </div>
-    </header>
-  )
-}
-
-function ShopStorefront({
-  shop,
-  owner,
-  onBack,
-  canHistoryBack = false,
-  canHistoryForward = false,
-  onHistoryBack,
-  onHistoryForward,
-}) {
-  const brand = brandTheme(shop?.name || shop?.brandName || 'Shop')
-  const isRetail = shop?.systemType === 'retail' || shop?.isShop
-  const authKey = `fortress-clone-auth-${brand.slug}`
-  const [authed, setAuthed] = useState(() => {
-    try {
-      return sessionStorage.getItem(authKey) === '1'
-    } catch {
-      return false
-    }
-  })
-  const [panel, setPanel] = useState('home')
-  const [login, setLogin] = useState({ username: '', password: '' })
-  const [loginError, setLoginError] = useState('')
-
-  useEffect(() => {
-    document.title = shop ? `${brand.name}` : 'Shop'
-    return () => {
-      document.title = 'Fortress'
-    }
-  }, [shop, brand.name])
-
-  const persistAuth = (value) => {
-    setAuthed(value)
-    try {
-      if (value) sessionStorage.setItem(authKey, '1')
-      else sessionStorage.removeItem(authKey)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const submitLogin = (event) => {
-    event.preventDefault()
-    const user = login.username.trim()
-    const pass = login.password
-    if (!user || !pass) {
-      setLoginError('Enter username and password.')
-      return
-    }
-    const userOk =
-      user.toLowerCase() === brand.name.toLowerCase() ||
-      user.toLowerCase() === brand.slug ||
-      (owner?.email && user.toLowerCase() === owner.email.toLowerCase())
-    const passOk = owner?.password ? pass === owner.password : pass.length >= 1
-    if (!userOk || !passOk) {
-      setLoginError('Invalid username or password.')
-      return
-    }
-    setLoginError('')
-    persistAuth(true)
-    setPanel('home')
-  }
-
-  if (!shop) {
-    return (
-      <div className="clone-app clone-prixburg">
-        <main className="clone-login-page">
-          <h1>Shop not found</h1>
-          <p>This link does not match a shop on this domain.</p>
-          <button type="button" className="clone-login-btn" onClick={onBack}>
-            Back to Fortress
-          </button>
-        </main>
-      </div>
-    )
-  }
-
-  if (!authed) {
-    return (
-      <div
-        className={`clone-app clone-prixburg clone-${brand.slug} brand-${brand.cssName}`}
-        style={brand.vars}
-        data-company={brand.name}
-        data-css-name={brand.cssName}
-      >
-        <main className="clone-login-page">
-          <div className="clone-login-card">
-            <div className="clone-login-header">
-              <h1>
-                {isRetail ? brand.name : `${brand.name} Stock Production System`}
-              </h1>
-              <p>Secure Login Portal</p>
-            </div>
-            <form onSubmit={submitLogin}>
-              <label>
-                Username
-                <input
-                  type="text"
-                  autoComplete="username"
-                  value={login.username}
-                  onChange={(event) => setLogin((value) => ({ ...value, username: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={login.password}
-                  onChange={(event) => setLogin((value) => ({ ...value, password: event.target.value }))}
-                  required
-                />
-              </label>
-              {loginError ? <p className="clone-login-error">{loginError}</p> : null}
-              <button type="submit" className="clone-login-btn">
-                Login
-              </button>
-            </form>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className={`clone-app clone-prixburg clone-${brand.slug} brand-${brand.cssName}`}
-      style={brand.vars}
-      data-company={brand.name}
-      data-css-name={brand.cssName}
-    >
-      <CloneBrandBar
-        brand={brand}
-        newLabel="New stock"
-        settingsLabel="Settings"
-        onMenu={() => setPanel((value) => (value === 'menu' ? 'home' : 'menu'))}
-        onHome={() => setPanel('home')}
-        onNew={() => setPanel('stock')}
-        onSettings={() => setPanel('settings')}
-        canHistoryBack={canHistoryBack}
-        canHistoryForward={canHistoryForward}
-        onHistoryBack={onHistoryBack}
-        onHistoryForward={onHistoryForward}
-      />
-      {panel === 'menu' && (
-        <div className="clone-menu">
-          <button type="button" onClick={() => setPanel('home')}>
-            Home
-          </button>
-          <button type="button" onClick={() => setPanel('stock')}>
-            Stock
-          </button>
-          <button type="button" onClick={onBack}>
-            Back to Fortress
-          </button>
-        </div>
-      )}
-      {panel === 'home' && (
-        <div className="clone-home-stage">
-          <h1 className="clone-prixburg-wordmark" aria-label={brand.name}>
-            {brand.name}
-          </h1>
-        </div>
-      )}
-      {panel === 'stock' && (
-        <main className="clone-page">
-          <div className="clone-top-row">
-            <h2>{brand.name} stock</h2>
-          </div>
-          <div className="mall-goods clone-stock-grid">
-            {(shop.items || []).length ? (
-              shop.items.map((item) => (
-                <article className="mall-good" key={item.id}>
-                  {item.photo ? <img src={item.photo} alt="" /> : null}
-                  <div className="mall-good-copy">
-                    <strong>{item.name}</strong>
-                    <span>{formatPrice(item.price)}</span>
-                    {item.description ? <p>{item.description}</p> : null}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <p className="empty-note">No stock items yet. Add them from the Fortress shop profile.</p>
-            )}
-          </div>
-        </main>
-      )}
-      {panel === 'settings' && (
-        <main className="clone-page">
-          <h2>Settings</h2>
-          <p className="clone-muted">Company class: {brand.cssName}</p>
-          <p className="clone-muted">Shop domain: {brand.slug}</p>
-          <button type="button" className="clone-login-btn" onClick={() => persistAuth(false)}>
-            Log out
-          </button>
-          <button type="button" className="clone-text-btn" onClick={onBack}>
-            Back to Fortress
-          </button>
-        </main>
-      )}
-    </div>
-  )
-}
-
 function GeneratedWebsite({
   site,
   onBack,
-  canHistoryBack = false,
-  canHistoryForward = false,
-  onHistoryBack,
-  onHistoryForward,
+  initialProjectId = '',
+  initialView = 'home',
+  onMetadataUpdated,
 }) {
-  const brand = brandTheme(site?.brandName || site?.name || 'Company')
-  const slides = site ? slidesForSite(site) : []
-  const [panel, setPanel] = useState('home')
-  const [projects, setProjects] = useState(() =>
-    slides.map((slide, index) => ({
-      id: `job-${index + 1}`,
-      name: `Project ${index + 1}`,
-      photo: slide.photo,
-      note: slide.testimonial,
-    })),
-  )
-  const [draftName, setDraftName] = useState('')
-  const [openJob, setOpenJob] = useState(null)
-  const kindLabel = site?.systemType === 'manufacturing' ? 'Manufacturing' : 'Construction'
-
-  useEffect(() => {
-    document.title = site ? brand.name : 'Website'
-    return () => {
-      document.title = 'Fortress'
-    }
-  }, [site, brand.name])
-
   if (!site) {
     return (
       <div className="clone-app clone-rodcroft">
@@ -6331,120 +5335,14 @@ function GeneratedWebsite({
       </div>
     )
   }
-
-  const addProject = (event) => {
-    event.preventDefault()
-    const name = draftName.trim()
-    if (!name) return
-    setProjects((previous) => [
-      { id: `job-${Date.now()}`, name, photo: slides[0]?.photo || '', note: `${brand.name} ${kindLabel.toLowerCase()} job.` },
-      ...previous,
-    ])
-    setDraftName('')
-    setPanel('projects')
-  }
-
   return (
-    <div
-      className={`clone-app clone-rodcroft clone-${brand.slug} brand-${brand.cssName}`}
-      style={brand.vars}
-      data-company={brand.name}
-      data-css-name={brand.cssName}
-    >
-      <CloneBrandBar
-        brand={brand}
-        newLabel="New project"
-        settingsLabel="Settings"
-        canHistoryBack={canHistoryBack}
-        canHistoryForward={canHistoryForward}
-        onHistoryBack={onHistoryBack}
-        onHistoryForward={onHistoryForward}
-        onMenu={() => setPanel((value) => (value === 'menu' ? 'home' : 'menu'))}
-        onHome={() => {
-          setOpenJob(null)
-          setPanel('home')
-        }}
-        onNew={() => {
-          setOpenJob(null)
-          setPanel('new')
-        }}
-        onSettings={() => {
-          setOpenJob(null)
-          setPanel('settings')
-        }}
-      />
-      {panel === 'menu' && (
-        <div className="clone-menu">
-          <button type="button" onClick={() => setPanel('projects')}>
-            Open projects
-          </button>
-          <button type="button" onClick={() => setPanel('home')}>
-            Home
-          </button>
-          <button type="button" onClick={onBack}>
-            Back to Fortress
-          </button>
-        </div>
-      )}
-      {panel === 'home' && !openJob && (
-        <div className="clone-home-stage">
-          <h1 className="clone-wordmark" aria-label={brand.name}>
-            {brand.name}
-          </h1>
-        </div>
-      )}
-      {panel === 'new' && (
-        <main className="clone-page">
-          <h2>Create new project</h2>
-          <form className="clone-form" onSubmit={addProject}>
-            <label>
-              Project name
-              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} required />
-            </label>
-            <button type="submit" className="clone-login-btn">
-              Create project
-            </button>
-          </form>
-        </main>
-      )}
-      {(panel === 'projects' || openJob) && (
-        <main className="clone-page">
-          {openJob ? (
-            <>
-              <button type="button" className="clone-text-btn" onClick={() => setOpenJob(null)}>
-                All projects
-              </button>
-              <h2>{openJob.name}</h2>
-              {openJob.photo ? <img className="clone-job-photo" src={openJob.photo} alt="" /> : null}
-              {openJob.note ? <p>{openJob.note}</p> : null}
-            </>
-          ) : (
-            <>
-              <h2>{brand.name} projects</h2>
-              <div className="clone-project-list">
-                {projects.map((job) => (
-                  <button key={job.id} type="button" className="clone-project-card" onClick={() => setOpenJob(job)}>
-                    {job.photo ? <img src={job.photo} alt="" /> : <span className="clone-brand-mark">{brand.mark}</span>}
-                    <strong>{job.name}</strong>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </main>
-      )}
-      {panel === 'settings' && (
-        <main className="clone-page">
-          <h2>Settings</h2>
-          <p className="clone-muted">{kindLabel} earned-value reporting and project dashboards.</p>
-          <p className="clone-muted">Company class: {brand.cssName}</p>
-          <p className="clone-muted">Domain: {brand.slug}</p>
-          <button type="button" className="clone-text-btn" onClick={onBack}>
-            Back to Fortress
-          </button>
-        </main>
-      )}
-    </div>
+    <CeoDashboard
+      site={site}
+      onBack={onBack}
+      initialProjectId={initialProjectId}
+      initialView={initialView}
+      onMetadataUpdated={onMetadataUpdated}
+    />
   )
 }
 
@@ -6554,7 +5452,6 @@ function App() {
   const [offlineNotice, setOfflineNotice] = useState('')
   const [liveFeedItems, setLiveFeedItems] = useState(() => loadLiveFeedCache())
   const [menuOpen, setMenuOpen] = useState(false)
-  const [mallQuery, setMallQuery] = useState('')
   const [homeQuery, setHomeQuery] = useState('')
   const [comments, setComments] = useState(() => {
     if (typeof window === 'undefined') return { ...DEMO_COMMENTS }
@@ -6586,8 +5483,16 @@ function App() {
   const [ecocash, setEcocash] = useState({ number: '', password: '', name: '' })
   const [paymentNote, setPaymentNote] = useState('')
   const [websiteName, setWebsiteName] = useState('')
+  const [websiteCeo, setWebsiteCeo] = useState('')
+  const [websiteLocation, setWebsiteLocation] = useState('Harare, Zimbabwe')
+  const [websiteProjectName, setWebsiteProjectName] = useState('')
+  const [websiteAbout, setWebsiteAbout] = useState('')
   const [pendingSignup, setPendingSignup] = useState(null)
-  const [appRoute, setAppRoute] = useState(() => parseHashPath(readHashPath(), () => null).route)
+  const [appRoute, setAppRoute] = useState(() => {
+    const sub = detectActiveSubdomain()
+    if (sub) return { kind: 'site', slug: sub, projectId: '', view: 'home' }
+    return parseHashPath(readHashPath(), () => null).route
+  })
 
   const menuRef = useRef(null)
   const flowToken = useRef(0)
@@ -6601,7 +5506,6 @@ function App() {
   const shopFlowRef = useRef(false)
   const skipShopChoiceRef = useRef(false)
   const cardBuyRef = useRef(false)
-  const shopItemInputRef = useRef(null)
   const drawingInputRef = useRef(null)
   const skipPushRef = useRef(false)
   const ignorePopRef = useRef(false)
@@ -6610,7 +5514,6 @@ function App() {
   const navIndexRef = useRef(0)
   const [navTick, setNavTick] = useState(0)
   const findCompanyRef = useRef(() => null)
-  const [shopItemDraft, setShopItemDraft] = useState({ name: '', price: '', photo: '', description: '' })
 
   useEffect(() => {
     setAccounts((previous) => withOwnerLogin(previous))
@@ -6729,7 +5632,10 @@ function App() {
     window.addEventListener('popstate', sync)
     window.addEventListener('hashchange', sync)
     const initial = readHashPath()
-    if (!window.location.hash || window.location.hash === '#') {
+    const initialSubdomain = detectActiveSubdomain()
+    if (initialSubdomain) {
+      setAppRoute({ kind: 'site', slug: initialSubdomain, projectId: '', view: 'home' })
+    } else if (!window.location.hash || window.location.hash === '#') {
       history.replaceState({ fortress: true, path: '/home' }, '', '#/home')
       lastPathRef.current = '/home'
       navStackRef.current = ['/home']
@@ -6794,10 +5700,9 @@ function App() {
   useEffect(() => {
     if (!signedInAccount || !currentProfile) return
     const slug = currentProfile.slug || uniqueSlug(currentProfile.name, accounts)
-    const isRetailShop = currentProfile.systemType === 'retail' || currentProfile.isShop
-    const nextLink = isRetailShop ? shopHref(slug) : siteHref(slug)
+    const nextLink = siteHref(slug)
     if (currentProfile.slug === slug && currentProfile.link === nextLink) return
-    if (isRetailShop || !currentProfile.slug || !currentProfile.link) {
+    if (!currentProfile.slug || !currentProfile.link) {
       updateCurrentWebsite({ slug, link: nextLink })
     }
   }, [signedInAccount, currentProfile, accounts])
@@ -6810,8 +5715,6 @@ function App() {
       'add-media',
       'best-selling-plans',
       'compose',
-      'shop-item',
-      'shop-item-add',
       'feature-ecocash',
       'feature-loading',
     ]
@@ -6926,7 +5829,6 @@ function App() {
     if (!id) return null
     return (
       liveCatalog.find((item) => item.id === id) ||
-      mallCatalog.find((item) => item.id === id) ||
       builtCards.find((item) => item.id === id || item.catalogId === id) ||
       featureCards.find((item) => item.id === id) ||
       null
@@ -6997,45 +5899,13 @@ function App() {
     pushPath(!view || view === 'home' ? '/settings' : `/settings/${view}`, { replace })
   }
 
-  const shopProfile =
-    signedInAccount?.websites.find((site) => site.isShop && site.systemType === 'retail') || null
   const privateSystems = (signedInAccount?.websites || []).filter((site) =>
-    ['construction', 'manufacturing', 'retail', 'fabrication'].includes(site.systemType),
+    ['construction', 'manufacturing', 'fabrication'].includes(site.systemType),
   )
-  const dashSite = privateSystems[dashCursor % Math.max(privateSystems.length, 1)] || null
-  const canSwitchDash =
-    privateSystems.some((site) => site.systemType === 'retail') &&
-    privateSystems.some((site) => site.systemType === 'construction' || site.systemType === 'manufacturing')
-
-  const mallProducts = useMemo(() => {
-    const needle = mallQuery.trim().toLowerCase()
-    const userShops = builtCards.filter((company) => company.isShop)
-    const source = [...mallCatalog, ...userShops]
-    const products = source.flatMap((shop) =>
-      (shop.items || []).map((item) => ({
-        ...item,
-        type: inferMallProductType(item),
-        shopId: shop.id,
-        shopName: shop.name,
-        shop,
-      })),
-    )
-    if (!needle) return products
-    return products.filter((product) =>
-      `${product.name} ${product.shopName} ${product.description || ''} ${product.type} ${product.price}`
-        .toLowerCase()
-        .includes(needle),
-    )
-  }, [builtCards, mallQuery])
-
-  const mallProductGroups = useMemo(
-    () =>
-      MALL_TYPE_GROUPS.map((group) => ({
-        ...group,
-        products: mallProducts.filter((product) => product.type === group.id),
-      })).filter((group) => group.products.length > 0),
-    [mallProducts],
-  )
+  const dashSite =
+    privateSystems.find((site) => site.id === currentProfile?.id) ||
+    privateSystems[dashCursor % Math.max(privateSystems.length, 1)] ||
+    null
 
   const companyMatchesQuery = (company, query) => {
     const needle = query.trim().toLowerCase()
@@ -7265,34 +6135,52 @@ function App() {
   const createGeneratedWebsite = (event) => {
     event.preventDefault()
     const name = websiteName.trim()
-    const type = SYSTEM_TYPES.find((item) => item.id === systemType) || SYSTEM_TYPES.find((item) => item.id === 'retail')
+    const type = SYSTEM_TYPES.find((item) => item.id === systemType) || SYSTEM_TYPES[1]
     if (!name || !type) return
     if (!signedInAccount && !pendingSignup) return
 
-    const isRetailShop = type.id === 'retail'
     const isFabrication = type.id === 'fabrication'
     const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[0]
     const slides = type.id === 'construction' || type.id === 'manufacturing' ? type.slides : []
     const [first, ...rest] = slides
     const slug = uniqueSlug(name, accounts)
+    const ceoName = websiteCeo.trim() || currentProfile?.ceo || ''
+    const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
+    const initialProjTitle = websiteProjectName.trim()
+    const aboutText = websiteAbout.trim()
+
+    if (!isFabrication) {
+      const initialMeta = buildDefaultTemplateMetadata({
+        slug,
+        name,
+        ceo: ceoName,
+        location: locName,
+        about: aboutText,
+        systemType: type.id,
+        emptyData: true,
+      })
+      saveSiteCeoMetadata(slug, initialMeta)
+    }
+
     const site = makeWebsite({
       name,
       type: type.label,
       systemType: type.id,
       slug,
-      link: isRetailShop ? '' : siteHref(slug),
+      link: siteHref(slug),
       profilePhoto: first?.photo || '',
       testimonial: first?.testimonial || type.how,
       gallery: rest.map((slide) => slide.photo).filter(Boolean),
       photoCaptions: rest.map((slide) => slide.testimonial),
       slides,
-      isShop: isRetailShop,
+      isShop: false,
       items: [],
       brandName: name,
       cssName: slugify(name).replace(/-/g, ''),
       fabPlan: isFabrication ? plan.id : '',
       paidUntil: isFabrication ? Date.now() + plan.days * 86400000 : 0,
       drawings: [],
+      ceo: ceoName,
     })
 
     if (pendingSignup) {
@@ -7314,12 +6202,15 @@ function App() {
     }
 
     setWebsiteName('')
+    setWebsiteCeo('')
+    setWebsiteProjectName('')
+    setWebsiteAbout('')
     setPaymentNote('')
     shopFlowRef.current = false
     skipShopChoiceRef.current = false
     cardBuyRef.current = false
     setSettingsView('home')
-    setProfileTab(isRetailShop ? 'store' : isFabrication ? 'dash' : 'dash')
+    setProfileTab('dash')
     setTab('profile')
     setMenuOpen(false)
     setOverlay({ type: 'live-link', site })
@@ -7750,16 +6641,6 @@ function App() {
     pushPath(path)
   }
 
-  const openMallShop = (shop) => {
-    setOverlay({ type: 'shop', company: shop })
-    pushPath(`/mall/open/${encodeId(shop.id)}`)
-  }
-
-  const openMallProduct = (product) => {
-    setOverlay({ type: 'product', company: product.shop, item: product })
-    pushPath(`/mall/item/${encodeId(product.shopId)}/${encodeId(product.id)}`)
-  }
-
   const viewCompanyProfile = (company) => {
     setOverlay({ type: 'profile', company, postIndex: null })
     pushPath(`/${tab}/card/${encodeId(company.id)}/profile`)
@@ -7776,28 +6657,11 @@ function App() {
     pushPath(`/${tab}/card/${encodeId(overlayCompany.id)}/profile`)
   }
 
-  const startShopAccount = () => {
-    shopFlowRef.current = true
-    skipShopChoiceRef.current = false
-    cardBuyRef.current = false
-    setSystemType('retail')
-    setEcocash({ number: '', password: '', name: '' })
-    setPaymentNote('')
-    setWebsiteName('')
-    setProfileTab('store')
-    setAuthError('')
-    if (!signedInAccount) {
-      goLogin()
-      return
-    }
-    openSettingsPage('shop-account')
-  }
-
   const startBuySystem = (company) => {
     const typeId = systemIdFromCompany(company)
     const type = SYSTEM_TYPES.find((item) => item.id === typeId) || SYSTEM_TYPES[0]
     cardBuyRef.current = true
-    shopFlowRef.current = type.id === 'retail'
+    shopFlowRef.current = false
     skipShopChoiceRef.current = false
     setSystemType(type.id)
     setEcocash({ number: '', password: '', name: '' })
@@ -7805,7 +6669,6 @@ function App() {
     setWebsiteName('')
     setAuthError('')
     setAuthForm({ email: '', password: '' })
-    if (type.id === 'retail') setProfileTab('store')
     if (!signedInAccount) {
       goLogin()
       return
@@ -7831,7 +6694,7 @@ function App() {
     setSystemType(typeId)
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
-    shopFlowRef.current = typeId === 'retail'
+    shopFlowRef.current = false
     setOverlay(null)
     setMenuOpen(false)
     if (typeId === 'fabrication') {
@@ -7870,18 +6733,17 @@ function App() {
     goLogin()
   }
 
-  const openGeneratedSite = (site) => {
+  const openGeneratedSite = (site, projectId = '', view = 'home') => {
     if (!site) return
-    const live = companyLiveSite(site)
-    if (live?.home && typeof window !== 'undefined') {
-      window.open(live.home, '_blank', 'noopener,noreferrer')
-      return
-    }
-    const slug = site.slug || String(site.id || '').replace(/^mall-/, '')
+    const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
     if (!slug) return
-    const isRetailShop = site.systemType === 'retail' || site.isShop
     setOverlay(null)
-    navigateApp(isRetailShop ? `/shop/${slug}` : `/site/${slug}`)
+    const suffix = projectId
+      ? `/${encodeURIComponent(projectId)}${view ? `/${encodeURIComponent(view)}` : ''}`
+      : view && view !== 'home'
+        ? `/all/${encodeURIComponent(view)}`
+        : ''
+    navigateApp(`/site/${slug}${suffix}`)
   }
 
   const updateWebsite = (siteId, updates) => {
@@ -7897,23 +6759,14 @@ function App() {
     )
   }
 
-  const openPrivateSystem = (site) => {
+  const openPrivateSystem = (site, projectId = '', view = 'home') => {
     if (!site) return
-    const live = companyLiveSite(site)
-    if (live?.home && typeof window !== 'undefined') {
-      window.open(live.home, '_blank', 'noopener,noreferrer')
-      return
-    }
     setOverlay(null)
-    if (site.systemType === 'retail' || site.isShop) {
-      setActiveProfileId(site.id)
-      setProfileTab('store')
-      setTab('profile')
-      setAppRoute({ kind: '', slug: '' })
-      pushPath('/profile')
+    if (site.systemType === 'fabrication') {
+      openCalc(site)
       return
     }
-    openGeneratedSite(site)
+    openGeneratedSite(site, projectId, view)
   }
 
   const openBuyWebsite = () => {
@@ -7940,7 +6793,7 @@ function App() {
     setOverlay(null)
     setMenuOpen(false)
     setDrawingDraft(emptyDrawingDraft())
-    if (site?.slug) {
+    if (site?.slug && site.systemType === 'fabrication') {
       navigateApp(`/site/${site.slug}`)
       return
     }
@@ -7966,32 +6819,6 @@ function App() {
       at: Date.now(),
     }
     updateWebsite(site.id, { drawings: [drawing, ...(site.drawings || [])] })
-  }
-
-  const updateShopWebsite = (updates) => {
-    if (!signedInAccount || !shopProfile) return
-    setAccounts((previous) =>
-      previous.map((account) => {
-        if (account.id !== signedInAccount.id) return account
-        return {
-          ...account,
-          websites: account.websites.map((site) => (site.id === shopProfile.id ? { ...site, ...updates } : site)),
-        }
-      }),
-    )
-  }
-
-  const handleShopItemPhoto = async (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    const photo = await readFileAsDataUrl(file)
-    const fromFile = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')
-    setShopItemDraft((previous) => ({
-      ...previous,
-      photo,
-      name: previous.name.trim() ? previous.name : fromFile,
-    }))
   }
 
   const addComment = (targetId, text) => {
@@ -8088,104 +6915,30 @@ function App() {
     }
   }
 
-  const openAddShopItem = () => {
-    if (!requireOnline(NETWORK_ACTIONS.shop)) return
-    if (!shopProfile) {
-      startShopAccount()
-      return
-    }
-    setShopItemDraft({ name: '', price: '', photo: '', description: '' })
-    setProfileTab('store')
-    setOverlay({ type: 'shop-item-add' })
-    pushPath('/profile/shop/add')
-  }
-
-  const openShopItem = (item) => {
-    setShopItemDraft({
-      name: item.name || '',
-      price: item.price === 0 || item.price ? String(item.price) : '',
-      photo: item.photo || '',
-      description: item.description || '',
-    })
-    setProfileTab('store')
-    setOverlay({ type: 'shop-item', itemId: item.id })
-    pushPath(`/profile/shop/item/${encodeId(item.id)}`)
-  }
-
-  const writeShopItemDraft = (updates) => {
-    setShopItemDraft((previous) => ({ ...previous, ...updates }))
-  }
-
-  const addShopItem = () => {
-    if (!requireOnline(NETWORK_ACTIONS.shop)) return
-    if (!shopProfile) return
-    const name = shopItemDraft.name.trim()
-    if (!name && !shopItemDraft.photo) return
-    const price = Number(shopItemDraft.price)
-    if (!Number.isFinite(price) || price < 0) return
-    const item = {
-      id: makeId('item'),
-      name: name || 'Item',
-      photo: shopItemDraft.photo,
-      price,
-      description: shopItemDraft.description.trim(),
-    }
-    updateShopWebsite({
-      items: [...(shopProfile.items || []), item],
-    })
-    setShopItemDraft({ name: '', price: '', photo: '', description: '' })
-    setOverlay(null)
-    setProfileTab('store')
-    pushPath('/profile')
-  }
-
-  useEffect(() => {
-    if (overlay?.type !== 'shop-item' || !overlay.itemId || !shopProfile) return
-    const item = (shopProfile.items || []).find((entry) => entry.id === overlay.itemId)
-    if (!item) return
-    const looksEmpty =
-      !shopItemDraft.name && !shopItemDraft.photo && !shopItemDraft.description && shopItemDraft.price === ''
-    if (looksEmpty) {
-      setShopItemDraft({
-        name: item.name || '',
-        price: item.price === 0 || item.price ? String(item.price) : '',
-        photo: item.photo || '',
-        description: item.description || '',
-      })
-      return
-    }
-    const price = Number(shopItemDraft.price)
-    const nextPrice = Number.isFinite(price) && price >= 0 ? price : item.price
-    if (
-      item.name === shopItemDraft.name &&
-      item.photo === shopItemDraft.photo &&
-      (item.description || '') === (shopItemDraft.description || '') &&
-      item.price === nextPrice
-    ) {
-      return
-    }
-    updateShopWebsite({
-      items: (shopProfile.items || []).map((entry) =>
-        entry.id === overlay.itemId
-          ? {
-              ...entry,
-              name: shopItemDraft.name,
-              photo: shopItemDraft.photo,
-              description: shopItemDraft.description,
-              price: nextPrice,
-            }
-          : entry,
-      ),
-    })
-  }, [overlay?.type, overlay?.itemId, shopItemDraft, shopProfile])
-
   const overlayCompany = overlay?.company
   const chosenSystem = SYSTEM_TYPES.find((item) => item.id === systemType) || null
   const publishedSite =
     appRoute.kind === 'site'
-      ? accounts.flatMap((account) => account.websites).find((site) => site.slug === appRoute.slug) || null
+      ? accounts
+          .flatMap((account) => account.websites)
+          .find(
+            (site) =>
+              cleanSlug(site.slug || site.catalogId || site.name) === cleanSlug(appRoute.slug),
+          ) ||
+        (() => {
+          const meta = getSiteCeoMetadata(appRoute.slug)
+          if (!meta) return null
+          return makeWebsite({
+            id: `site-${meta.slug}`,
+            name: meta.companyName || meta.slug,
+            type: meta.systemType === 'manufacturing' ? 'Manufacturing' : 'Construction',
+            systemType: meta.systemType || 'construction',
+            slug: meta.slug,
+            link: subdomainUrlFor(meta.slug),
+            ceo: meta.ceo || '',
+          })
+        })()
       : null
-  const publishedShop = appRoute.kind === 'shop' ? shopBySlug(appRoute.slug, accounts) : null
 
   const calcSite =
     publishedSite?.systemType === 'fabrication'
@@ -8232,41 +6985,33 @@ function App() {
     )
   }
 
-  if (appRoute.kind === 'shop') {
-    const shopOwner = accounts.find((account) =>
-      account.websites.some((site) => site.slug === appRoute.slug && (site.systemType === 'retail' || site.isShop)),
-    )
-    return (
-      <ShopStorefront
-        shop={publishedShop}
-        owner={shopOwner || null}
-        onBack={() => {
-          leavePublished()
-        }}
-        {...historyNavProps}
-      />
-    )
-  }
-
   if (appRoute.kind === 'site') {
-    if (publishedSite?.systemType === 'construction' || publishedSite?.systemType === 'manufacturing') {
-      return (
-        <CeoDashboard
-          site={publishedSite}
-          onBack={() => {
-            leavePublished()
-          }}
-          {...historyNavProps}
-        />
-      )
-    }
+    const requestedProjectId =
+      appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
+    const requestedView = appRoute.view || 'home'
     return (
-      <GeneratedWebsite
+      <CeoDashboard
         site={publishedSite}
+        initialProjectId={requestedProjectId}
+        initialView={requestedView}
         onBack={() => {
+          if (detectActiveSubdomain()) {
+            const url = new URL(window.location.href)
+            url.searchParams.delete('subdomain')
+            url.searchParams.delete('site')
+            url.hash = '#/home'
+            window.history.pushState({}, '', url.toString())
+          }
           leavePublished()
         }}
-        {...historyNavProps}
+        onMetadataUpdated={(updatedMeta) => {
+          if (publishedSite?.id && signedInAccount) {
+            updateWebsite(publishedSite.id, {
+              name: updatedMeta.companyName || publishedSite.name,
+              ceo: updatedMeta.ceo ?? publishedSite.ceo,
+            })
+          }
+        }}
       />
     )
   }
@@ -8557,16 +7302,7 @@ function App() {
                   aria-label="Gallery"
                 >
                   <IconGrid />
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={profileTab === 'store'}
-                  className={profileTab === 'store' ? 'ig-tab active' : 'ig-tab'}
-                  onClick={() => setProfileTab('store')}
-                  aria-label="Store"
-                >
-                  <IconStoreTab />
+                  <span className="ig-tab-label">Gallery</span>
                 </button>
                 <button
                   type="button"
@@ -8577,6 +7313,11 @@ function App() {
                   aria-label="CEO dashboards"
                 >
                   <IconCompanyTab />
+                  <span className="ig-tab-label">
+                    {(dashSite || currentProfile)?.systemType === 'manufacturing'
+                      ? 'CEO Analysis'
+                      : 'Engineering'}
+                  </span>
                 </button>
               </div>
 
@@ -8604,124 +7345,21 @@ function App() {
                 </div>
               )}
 
-              {profileTab === 'store' && (
-                <div className="profile-tab-panel shop-profile-tab">
-                  {shopProfile ? (
-                    <div className="shop-profile">
-                      <input
-                        className="shop-name-field"
-                        type="text"
-                        value={shopProfile.name || ''}
-                        placeholder=""
-                        aria-label="Shop name"
-                        onChange={(event) => updateShopWebsite({ name: event.target.value })}
-                      />
-                      <button
-                        type="button"
-                        className="view-mall-mini"
-                        onClick={() =>
-                          openMallShop({
-                            ...shopProfile,
-                            cover: shopProfile.items?.[0]?.photo || shopProfile.profilePhoto || '',
-                            category: shopProfile.type || 'Retail',
-                          })
-                        }
-                      >
-                        View in online mall
-                      </button>
-                      <div className="gallery-grid shop-grid">
-                        {(shopProfile.items || []).map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className="gallery-tile shop-tile"
-                            onClick={() => openShopItem(item)}
-                          >
-                            {item.photo ? (
-                              <img src={item.photo} alt="" />
-                            ) : (
-                              <span className="shop-tile-fallback">{(item.name || 'I').slice(0, 1)}</span>
-                            )}
-                            <span className="shop-tile-price">{formatPrice(item.price)}</span>
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          className="gallery-tile shop-add-tile"
-                          onClick={openAddShopItem}
-                          aria-label="Add item"
-                        >
-                          <span>+</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="lock-card shop-lock">
-                      <IconLock />
-                      <h2>User does not have a shop account. Click to create account.</h2>
-                      <button type="button" className="primary-button" onClick={startShopAccount}>
-                        Create shop account
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {profileTab === 'dash' && (
                 <div className="profile-tab-panel">
-                  {dashSite ? (
-                    <>
-                      <div className="dash-switch">
-                        <button
-                          type="button"
-                          className="card-arrow left"
-                          aria-label="Previous company dashboard"
-                          disabled={!canSwitchDash && privateSystems.length < 2}
-                          onClick={() =>
-                            setDashCursor((current) => (current - 1 + privateSystems.length) % privateSystems.length)
-                          }
-                        >
-                          ‹
-                        </button>
-                        <div>
-                          <strong>{dashSite.name}</strong>
-                          <p>{dashSite.systemType}</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="card-arrow right"
-                          aria-label="Next company dashboard"
-                          disabled={!canSwitchDash && privateSystems.length < 2}
-                          onClick={() => setDashCursor((current) => (current + 1) % privateSystems.length)}
-                        >
-                          ›
-                        </button>
-                      </div>
-                      {dashSite.systemType === 'fabrication' ? (
-                        <div className="ceo-embedded">
-                          <p className="shop-copy">
-                            The fabrication calculator is its own webpage. Choose a gate, enter size, and quote it there.
-                          </p>
-                          <button type="button" className="primary-button" onClick={() => openCalc(dashSite)}>
-                            Open calculator
-                          </button>
-                        </div>
-                      ) : dashSite.systemType === 'retail' ? (
-                        <div className="ceo-embedded">
-                          <p className="shop-copy">
-                            Shop control stays inside Fortress. Items you price here show on the online mall.
-                          </p>
-                          <button type="button" className="primary-button" onClick={() => setProfileTab('store')}>
-                            Open shop control
-                          </button>
-                        </div>
-                      ) : (
-                        <CeoDashboard site={dashSite} embedded />
-                      )}
-                    </>
-                  ) : (
-                    <p className="empty-note">Buy a website to open the CEO dashboard.</p>
-                  )}
+                  <CeoProjectsOverview
+                    sites={privateSystems.length ? privateSystems : currentProfile ? [currentProfile] : []}
+                    activeSite={dashSite || currentProfile}
+                    onSelectSite={(selected) => {
+                      setActiveProfileId(selected.id)
+                      const idx = privateSystems.findIndex((s) => s.id === selected.id)
+                      if (idx >= 0) setDashCursor(idx)
+                    }}
+                    onOpenGeneratedApp={(targetSite, projId, targetView) =>
+                      openPrivateSystem(targetSite, projId, targetView)
+                    }
+                    onOpenCalc={(targetSite) => openCalc(targetSite)}
+                  />
                   <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
                 </div>
               )}
@@ -8825,29 +7463,13 @@ function App() {
                   ) : (
                     <p className="empty-note">No website on this account yet.</p>
                   )}
-                  {(() => {
-                    const owned = new Set(
-                      signedInAccount.websites.map((site) => site.systemType).filter(Boolean),
-                    )
-                    if (owned.has('retail') && owned.has('construction') && owned.has('manufacturing')) {
-                      return null
-                    }
-                    return (
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={() => {
-                          if (!owned.has('retail') && (owned.has('construction') || owned.has('manufacturing'))) {
-                            shopFlowRef.current = true
-                            setSystemType('retail')
-                          }
-                          openBuyWebsite()
-                        }}
-                      >
-                        Buy CEO Website
-                      </button>
-                    )
-                  })()}
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => openBuyWebsite()}
+                  >
+                    Buy CEO Website
+                  </button>
                   <button type="button" className="primary-button" onClick={() => goTab('profile')}>
                     Open profile
                   </button>
@@ -8965,7 +7587,7 @@ function App() {
             <section className="panel-box settings-page">
               <h3>Buy CEO Website</h3>
               <p className="shop-copy">
-                Choose construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
+                Choose construction (Rodcroft template), manufacturing (Prixburg template), or the fabrication calculator.
                 Swipe the pictures to see how that website solves problems at that kind of company.
               </p>
               <div className="settings-actions">
@@ -9162,114 +7784,51 @@ function App() {
               <p className="payment-approved">Payment approved</p>
               <form className="create-account-form" onSubmit={createGeneratedWebsite}>
                 <h3>Tailor making details</h3>
+                <p className="shop-copy">
+                  {systemType === 'manufacturing'
+                    ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
+                    : systemType === 'construction'
+                      ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
+                      : 'Configure your calculator details.'}
+                </p>
                 <label>
-                  {systemType === 'fabrication'
-                    ? 'Name on the calculator'
-                    : systemType === 'retail' || shopFlowRef.current
-                      ? 'Name of shop'
-                      : 'Name of website'}
+                  {systemType === 'fabrication' ? 'Name on the calculator' : 'Name of website'}
                   <input
                     type="text"
-                    placeholder={
-                      systemType === 'retail' || shopFlowRef.current
-                        ? 'Name of shop'
-                        : 'Name of the website'
-                    }
+                    placeholder="Name of the website"
                     value={websiteName}
                     onChange={(event) => setWebsiteName(event.target.value)}
                     required
                   />
                 </label>
+                {systemType !== 'fabrication' && (
+                  <>
+                    <label>
+                      Tenant Subdomain (under Fortress)
+                      <input
+                        type="text"
+                        value={subdomainLabelFor(websiteName || 'company')}
+                        readOnly
+                      />
+                    </label>
+                    <label>
+                      CEO Name (optional)
+                      <input
+                        type="text"
+                        placeholder="CEO name"
+                        value={websiteCeo}
+                        onChange={(event) => setWebsiteCeo(event.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
                 <button type="submit" className="primary-button">
-                  {systemType === 'fabrication'
-                    ? 'Open calculator'
-                    : systemType === 'retail' || shopFlowRef.current
-                      ? 'Create shop'
-                      : 'Create website'}
+                  {systemType === 'fabrication' ? 'Open calculator' : 'Create website'}
                 </button>
               </form>
             </section>
           )}
-
-          {tab === 'mall' && (
-            <section className="panel-box shop-panel">
-              <h3>Online mall</h3>
-              <form className="store-search" role="search" onSubmit={(event) => event.preventDefault()}>
-                <input
-                  type="search"
-                  value={mallQuery}
-                  placeholder="Search PPE, machinery, detergents, groceries…"
-                  onChange={(event) => setMallQuery(event.target.value)}
-                />
-              </form>
-              <div className="mall-type-sections">
-                {mallProductGroups.map((group) => (
-                  <section key={group.id} className="mall-type-section" aria-labelledby={`mall-type-${group.id}`}>
-                    <h4 id={`mall-type-${group.id}`} className="mall-type-heading">
-                      {group.label}
-                    </h4>
-                    <div className="mall-product-grid">
-                      {group.products.map((product) => (
-                        <button
-                          key={`${product.shopId}-${product.id}`}
-                          type="button"
-                          className="mall-product-card"
-                          onClick={() => openMallProduct(product)}
-                        >
-                          {product.photo ? (
-                            <img src={product.photo} alt={product.name} />
-                          ) : (
-                            <span className="mall-item-fallback">{product.name.slice(0, 1)}</span>
-                          )}
-                          <div className="mall-product-copy">
-                            <strong>{product.name}</strong>
-                            <span>{formatPrice(product.price)}</span>
-                            <small>{product.shopName}</small>
-                            {product.description ? <p>{product.description}</p> : null}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-              {!mallProducts.length && (
-                <p className="empty-note">
-                  {mallQuery.trim()
-                    ? 'No products match that search.'
-                    : 'Products appear here from shops on Fortress.'}
-                </p>
-              )}
-              <button type="button" className="primary-button" onClick={startShopAccount}>
-                New shop profile
-              </button>
-            </section>
-          )}
         </main>
-
-        {overlay?.type === 'shop' && overlayCompany && (
-          <MallShopSheet
-            shop={overlayCompany}
-            onClose={closeOverlay}
-            comments={comments}
-            onAddComment={addComment}
-            onReplyComment={replyToComment}
-            viewer={signedInAccount}
-            onNeedAccount={needAccountForComment}
-          />
-        )}
-
-        {overlay?.type === 'product' && overlay.item && (
-          <MallProductSheet
-            product={overlay.item}
-            onClose={closeOverlay}
-            comments={comments}
-            onAddComment={addComment}
-            onReplyComment={replyToComment}
-            viewer={signedInAccount}
-            onNeedAccount={needAccountForComment}
-          />
-        )}
 
         {overlay?.type === 'gallery' && overlayCompany && (
           <OpenedCard
@@ -9392,7 +7951,7 @@ function App() {
             <div className="lock-card buy-system-card">
               <h2>Buy CEO Website</h2>
               <p className="shop-copy">
-                Construction, manufacturing, a shop inside Fortress, or the fabrication calculator.
+                Construction (Rodcroft template), manufacturing (Prixburg template), or the fabrication calculator.
               </p>
               <div className="settings-actions">
                 {SYSTEM_TYPES.map((type) => (
@@ -9640,17 +8199,6 @@ function App() {
           </section>
         )}
 
-        {(overlay?.type === 'shop-item-add' || overlay?.type === 'shop-item') && (
-          <ShopItemSheet
-            draft={shopItemDraft}
-            isNew={overlay.type === 'shop-item-add'}
-            onClose={closeOverlay}
-            onChange={writeShopItemDraft}
-            onSave={addShopItem}
-            onPickPhoto={() => shopItemInputRef.current?.click()}
-          />
-        )}
-
         {tab === 'profile' && signedInAccount && (
           <>
             <input
@@ -9660,24 +8208,11 @@ function App() {
               className="file-input-hidden"
               onChange={handleComposeFile}
             />
-            <input
-              ref={shopItemInputRef}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={handleShopItemPhoto}
-            />
             <button
               type="button"
               className="profile-fab"
-              aria-label={profileTab === 'store' ? 'Add item' : 'Add media'}
-              onClick={() => {
-                if (profileTab === 'store') {
-                  openAddShopItem()
-                  return
-                }
-                openAddMedia()
-              }}
+              aria-label="Add media"
+              onClick={() => openAddMedia()}
             >
               +
             </button>

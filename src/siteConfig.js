@@ -3,9 +3,25 @@
  * Custom domain can point here; keep hosts listed so API uses same-origin.
  */
 
-export const FORTRESS_ZW_ORIGIN = String(
-  import.meta.env?.VITE_FORTRESS_ORIGIN || 'https://fortress-zw.vercel.app',
-)
+const envOrigin = () => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FORTRESS_ORIGIN) {
+      return import.meta.env.VITE_FORTRESS_ORIGIN
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_FORTRESS_ORIGIN) {
+      return process.env.NEXT_PUBLIC_FORTRESS_ORIGIN
+    }
+  } catch {
+    /* ignore */
+  }
+  return 'https://fortress-zw.vercel.app'
+}
+
+export const FORTRESS_ZW_ORIGIN = String(envOrigin())
   .trim()
   .replace(/\/$/, '')
 
