@@ -369,6 +369,34 @@
   font-weight: 600;
 }
 
+.site-link-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(28, 25, 21, 0.18);
+}
+
+.site-link-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9b2c2c;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.site-link-menu button:hover,
+.site-link-menu button:focus-visible {
+  background: #f8ecec;
+}
+
 .ig-profile-head {
   align-items: flex-start;
 }
@@ -692,6 +720,17 @@
   display: grid;
   gap: 12px;
   padding: 16px 0 72px;
+}
+
+.profile-calc-panel {
+  padding-top: 12px;
+}
+
+.fab-app-embedded {
+  min-height: 70dvh;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(28, 25, 21, 0.08);
 }
 
 .profile-fab {

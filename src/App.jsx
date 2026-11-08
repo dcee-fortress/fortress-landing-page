@@ -32,7 +32,10 @@ import {
   buildDefaultTemplateMetadata,
   cleanSlug,
   detectActiveSubdomain,
+  deleteSiteCeoMetadata,
   getSiteCeoMetadata,
+  LEMON_REMOVED_KEY,
+  purgeStoredLemonSite,
   saveSiteCeoMetadata,
   subdomainLabelFor,
   subdomainUrlFor,
@@ -665,10 +668,7 @@ const formatPrice = (price) =>
     maximumFractionDigits: 2,
   })}`
 
-const MENU_ACTIONS = [
-  { id: 'buy', label: 'Buy CEO Website' },
-  { id: 'calc', label: 'Fabrication Calculator' },
-]
+const MENU_ACTIONS = [{ id: 'buy', label: 'Buy CEO Website' }]
 
 const NAV = [
   { id: 'home', label: 'Home' },
@@ -735,17 +735,6 @@ function IconLogout() {
   )
 }
 
-function IconCalc() {
-  return (
-    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 3v4h10V6H7zm0 6h3v2H7v-2zm5 0h5v2h-5v-2zm-5 3h3v3H7v-3zm5 0h5v3h-5v-3z"
-      />
-    </svg>
-  )
-}
-
 function IconBuy() {
   return (
     <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -763,7 +752,6 @@ const NAV_ICONS = {
   settings: IconSettings,
   login: IconLogin,
   logout: IconLogout,
-  calc: IconCalc,
   buy: IconBuy,
 }
 
@@ -983,8 +971,8 @@ const SYSTEM_TYPES = [
   {
     id: 'fabrication',
     label: 'Fabrication calculator',
-    style: 'Free to open',
-    how: 'Open the calculator webpage. Pick a gate design, enter width and height, then choose simple, medium, or complex laser cut. Use it for $100 a month.',
+    style: '$100 / month',
+    how: 'A private fabrication calculator on your Fortress tenant. Swipe the pictures, pay $100 a month with EcoCash, then the calculator opens beside your profile gallery.',
     preview: GATE_DESIGNS.slice(0, 4).map((gate) => gate.photo),
     slides: GATE_DESIGNS.slice(0, 5).map((gate, index) => ({
       photo: gate.photo,
@@ -1229,8 +1217,25 @@ const stripSparksTech = (list) =>
       ),
     }))
 
+const isLemonSite = (site) => {
+  const slug = cleanSlug(site?.slug || site?.catalogId || site?.name || '')
+  const name = String(site?.name || '').trim().toLowerCase()
+  return slug === 'lemon' || name === 'lemon' || /\blemon\b/.test(name)
+}
+
+const stripLemonWebsite = (list) => {
+  const accounts = Array.isArray(list) ? list : []
+  if (typeof window !== 'undefined' && storage.getItem(LEMON_REMOVED_KEY) === '1') return accounts
+  const next = accounts.map((account) => ({
+    ...account,
+    websites: (account.websites || []).filter((site) => !isLemonSite(site)),
+  }))
+  purgeStoredLemonSite()
+  return next
+}
+
 const withCompanyAccounts = (list) => {
-  const accounts = withOwnerLogin(stripSparksTech(list))
+  const accounts = withOwnerLogin(stripSparksTech(stripLemonWebsite(list)))
   COMPANY_LOGINS.forEach((login) => {
     const catalogEntry = catalog.find((entry) => entry.id === login.catalogId)
     if (!catalogEntry) return
@@ -1498,8 +1503,7 @@ function StarRanking({ rating }) {
 }
 
 const displayLivePath = (site) => {
-  if (!site?.slug) return ''
-  if (site.systemType === 'fabrication') return site.slug ? `#/site/${site.slug}` : '#/calc'
+  if (!site?.slug && !site?.name) return ''
   return subdomainLabelFor(site)
 }
 
@@ -2924,6 +2928,7 @@ function FabricationCalculator({
   onSavePricing,
   routePanel = 'home',
   onNavigate,
+  embedded = false,
   canHistoryBack = false,
   canHistoryForward = false,
   onHistoryBack,
@@ -3068,14 +3073,16 @@ function FabricationCalculator({
     setView(next.view)
     setStep(next.step)
     setMenuOpen(false)
+    if (embedded) return
     onNavigate?.(panel === 'home' ? '/calc' : `/calc/${panel}`, { replace })
   }
 
   useEffect(() => {
+    if (embedded) return
     const next = calcStateFromPanel(routePanel || 'home')
     setView(next.view)
     setStep(next.step)
-  }, [routePanel])
+  }, [routePanel, embedded])
 
   const goView = (next) => {
     if (next === 'home') navigatePanel('home')
@@ -3813,7 +3820,7 @@ function FabricationCalculator({
   const wizard = view === 'home'
 
   return (
-    <div className="fab-app">
+    <div className={embedded ? 'fab-app fab-app-embedded' : 'fab-app'}>
       <header className="fab-app-bar">
         <button type="button" className="fab-menu-btn" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
           ☰
@@ -3916,8 +3923,8 @@ function FabricationCalculator({
               CREATE PROJECT
             </button>
             <p className="fab-note">
-              Upload a CAD plan, scan, or hand-drawn sketch, or price a gate with no drawing. Freemium allows 6 free jobs
-              total.
+              Upload a CAD plan, scan, or hand-drawn sketch, or price a gate with no drawing.
+              {subActive ? '' : ' A $100 monthly subscription is required after the free jobs.'}
             </p>
             <div className="fab-master-card">
               <strong>Master template</strong>
@@ -3956,8 +3963,8 @@ function FabricationCalculator({
               {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
             </div>
             <p className="fab-note">
-              Name the job, then upload a drawing — or price a gate with no drawing. Both use the same 6 free freemium
-              credits.
+              Name the job, then upload a drawing — or price a gate with no drawing.
+              {subActive ? '' : ' Both use the same 6 free credits before the $100 monthly plan.'}
             </p>
             {!subActive ? (
               <p className="fab-freemium-meter" role="status">
@@ -5452,6 +5459,8 @@ function App() {
   const [offlineNotice, setOfflineNotice] = useState('')
   const [liveFeedItems, setLiveFeedItems] = useState(() => loadLiveFeedCache())
   const [menuOpen, setMenuOpen] = useState(false)
+  const [siteLinkMenu, setSiteLinkMenu] = useState(null)
+  const [deleteSiteFlow, setDeleteSiteFlow] = useState(null)
   const [homeQuery, setHomeQuery] = useState('')
   const [comments, setComments] = useState(() => {
     if (typeof window === 'undefined') return { ...DEMO_COMMENTS }
@@ -5504,6 +5513,7 @@ function App() {
   const composeModeRef = useRef('')
   const fromHomeCardRef = useRef(false)
   const shopFlowRef = useRef(false)
+  const resumeFabPreviewRef = useRef(false)
   const skipShopChoiceRef = useRef(false)
   const cardBuyRef = useRef(false)
   const drawingInputRef = useRef(null)
@@ -5671,6 +5681,16 @@ function App() {
     document.addEventListener('click', handleDocumentClick)
     return () => document.removeEventListener('click', handleDocumentClick)
   }, [])
+
+  useEffect(() => {
+    if (!siteLinkMenu) return undefined
+    const close = (event) => {
+      if (event.target.closest?.('.site-link-menu')) return
+      setSiteLinkMenu(null)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [siteLinkMenu])
 
   const signedInAccount = accounts.find((account) => account.id === signedInId) || null
 
@@ -6028,6 +6048,13 @@ function App() {
     setAuthError('')
     setMenuOpen(false)
     setOverlay(null)
+    if (resumeFabPreviewRef.current) {
+      resumeFabPreviewRef.current = false
+      setSystemType('fabrication')
+      setTab('settings')
+      goSettingsView('preview')
+      return
+    }
     if (cardBuyRef.current || shopFlowRef.current) {
       setTab('settings')
       goSettingsView('shop-account')
@@ -6141,7 +6168,7 @@ function App() {
 
     const isFabrication = type.id === 'fabrication'
     const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[0]
-    const slides = type.id === 'construction' || type.id === 'manufacturing' ? type.slides : []
+    const slides = type.slides || []
     const [first, ...rest] = slides
     const slug = uniqueSlug(name, accounts)
     const ceoName = websiteCeo.trim() || currentProfile?.ceo || ''
@@ -6543,10 +6570,6 @@ function App() {
       goLogin()
       return
     }
-    if (nextTab === 'calc') {
-      openCalc()
-      return
-    }
     if (nextTab === 'buy') {
       openBuyWebsite()
       return
@@ -6697,10 +6720,6 @@ function App() {
     shopFlowRef.current = false
     setOverlay(null)
     setMenuOpen(false)
-    if (typeId === 'fabrication') {
-      openCalc()
-      return
-    }
     setTab('settings')
     goSettingsView('preview')
   }
@@ -6746,6 +6765,56 @@ function App() {
     navigateApp(`/site/${slug}${suffix}`)
   }
 
+  const openSiteLinkMenu = (event, site) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const menuWidth = 180
+    const menuHeight = 48
+    const x = Math.min(event.clientX, window.innerWidth - menuWidth - 8)
+    const y = Math.min(event.clientY, window.innerHeight - menuHeight - 8)
+    setSiteLinkMenu({ siteId: site.id, x: Math.max(8, x), y: Math.max(8, y) })
+  }
+
+  const removeOwnedWebsite = (site) => {
+    if (!signedInAccount || !site?.id) return
+    deleteSiteCeoMetadata(site)
+    setAccounts((previous) =>
+      previous.map((account) => {
+        if (account.id !== signedInAccount.id) return account
+        return {
+          ...account,
+          websites: (account.websites || []).filter((item) => item.id !== site.id),
+        }
+      }),
+    )
+    if (activeProfileId === site.id) {
+      const next = (signedInAccount.websites || []).find((item) => item.id !== site.id)
+      setActiveProfileId(next?.id || '')
+    }
+    setDeleteSiteFlow(null)
+    setSiteLinkMenu(null)
+    setOverlay(null)
+  }
+
+  const submitDeleteCredentials = (event) => {
+    event.preventDefault()
+    const site = (signedInAccount?.websites || []).find((item) => item.id === deleteSiteFlow?.siteId)
+    if (!signedInAccount || !site) {
+      setDeleteSiteFlow(null)
+      return
+    }
+    const email = String(deleteSiteFlow.email || '').trim().toLowerCase()
+    const password = String(deleteSiteFlow.password || '')
+    if (email !== String(signedInAccount.email || '').toLowerCase() || password !== signedInAccount.password) {
+      setDeleteSiteFlow((current) => ({
+        ...current,
+        error: 'Those credentials do not match this account.',
+      }))
+      return
+    }
+    removeOwnedWebsite(site)
+  }
+
   const updateWebsite = (siteId, updates) => {
     if (!signedInAccount || !siteId) return
     setAccounts((previous) =>
@@ -6763,7 +6832,7 @@ function App() {
     if (!site) return
     setOverlay(null)
     if (site.systemType === 'fabrication') {
-      openCalc(site)
+      openOwnedCalculator(site)
       return
     }
     openGeneratedSite(site, projectId, view)
@@ -6789,15 +6858,29 @@ function App() {
     setDrawingDraft((previous) => ({ ...previous, photo }))
   }
 
-  const openCalc = (site) => {
+  const openOwnedCalculator = (site) => {
+    const owned =
+      site?.systemType === 'fabrication'
+        ? site
+        : signedInAccount?.websites.find((item) => item.systemType === 'fabrication')
     setOverlay(null)
     setMenuOpen(false)
-    setDrawingDraft(emptyDrawingDraft())
-    if (site?.slug && site.systemType === 'fabrication') {
-      navigateApp(`/site/${site.slug}`)
+    if (!owned?.id) {
+      setSystemType('fabrication')
+      if (!signedInAccount) {
+        resumeFabPreviewRef.current = true
+        goLogin()
+        return
+      }
+      setTab('settings')
+      goSettingsView('preview')
       return
     }
-    navigateApp('/calc')
+    setActiveProfileId(owned.id)
+    setProfileTab('dash')
+    setTab('profile')
+    setAppRoute({ kind: '', slug: '' })
+    pushPath('/profile')
   }
 
   const saveDrawing = (site) => {
@@ -6940,15 +7023,6 @@ function App() {
         })()
       : null
 
-  const calcSite =
-    publishedSite?.systemType === 'fabrication'
-      ? publishedSite
-      : signedInAccount?.websites.find((item) => item.systemType === 'fabrication') || {
-          id: '',
-          name: 'Fabrication calculator',
-          drawings: [],
-        }
-
   const openFabPay = (planId) => {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
     setSystemType('fabrication')
@@ -6958,31 +7032,79 @@ function App() {
     goSettingsView('preview')
   }
 
-  if (appRoute.kind === 'calc' || publishedSite?.systemType === 'fabrication') {
-    return (
-      <FabricationCalculator
-        site={calcSite}
-        draft={drawingDraft}
-        onChange={setDrawingDraft}
-        onSave={calcSite.id ? () => saveDrawing(calcSite) : undefined}
-        onRenew={openFabPay}
-        onBack={leavePublished}
-        pricing={fabPricing}
-        routePanel={appRoute.panel || 'home'}
-        onNavigate={navigateApp}
-        {...historyNavProps}
-        onSavePricing={(next) => {
-          const merged = { ...emptyFabPricing(), ...next }
-          delete merged.visionApiKey
-          setFabPricing(merged)
-          try {
-            storage.setItem(PRICING_KEY, JSON.stringify(merged))
-          } catch {
-            /* ignore */
-          }
-        }}
-      />
-    )
+  const saveFabPricing = (next) => {
+    const merged = { ...emptyFabPricing(), ...next }
+    delete merged.visionApiKey
+    setFabPricing(merged)
+    try {
+      storage.setItem(PRICING_KEY, JSON.stringify(merged))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const fabricationCalculator = (site, onBack) => (
+    <FabricationCalculator
+      embedded
+      site={site}
+      draft={drawingDraft}
+      onChange={setDrawingDraft}
+      onSave={site?.id ? () => saveDrawing(site) : undefined}
+      onRenew={openFabPay}
+      onBack={onBack}
+      pricing={fabPricing}
+      onSavePricing={saveFabPricing}
+      {...historyNavProps}
+    />
+  )
+
+  useEffect(() => {
+    if (detectActiveSubdomain()) return
+    const isFabSite = appRoute.kind === 'site' && publishedSite?.systemType === 'fabrication'
+    const isCalc = appRoute.kind === 'calc'
+    if (!isCalc && !isFabSite) return
+
+    const owned = (signedInAccount?.websites || []).find((site) => {
+      if (site.systemType !== 'fabrication') return false
+      if (isFabSite && appRoute.slug) return cleanSlug(site.slug || site.name) === cleanSlug(appRoute.slug)
+      return true
+    })
+
+    if (owned?.id) {
+      setActiveProfileId(owned.id)
+      setProfileTab('dash')
+      setTab('profile')
+      setAppRoute({ kind: '', slug: '' })
+      pushPath('/profile', { replace: true })
+      return
+    }
+
+    setSystemType('fabrication')
+    setAppRoute({ kind: '', slug: '' })
+    setMenuOpen(false)
+    setOverlay(null)
+    if (!signedInAccount) {
+      resumeFabPreviewRef.current = true
+      setTab('login')
+      setPendingSignup(null)
+      setAuthError('')
+      pushPath('/login', { replace: true })
+      return
+    }
+    setTab('settings')
+    setSettingsView('preview')
+    pushPath('/settings/preview', { replace: true })
+  }, [appRoute.kind, appRoute.slug, publishedSite?.systemType, signedInAccount])
+
+  if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
+    return fabricationCalculator(publishedSite, leavePublished)
+  }
+
+  if (
+    !detectActiveSubdomain() &&
+    (appRoute.kind === 'calc' || (appRoute.kind === 'site' && publishedSite?.systemType === 'fabrication'))
+  ) {
+    return null
   }
 
   if (appRoute.kind === 'site') {
@@ -7049,11 +7171,11 @@ function App() {
                     <MenuButton
                       key={item.id}
                       item={item}
-                      active={item.id === 'calc' ? appRoute.kind === 'calc' : tab === item.id}
+                      active={tab === item.id}
                       onSelect={goTab}
-                      className={`${
-                        (item.id === 'calc' ? appRoute.kind === 'calc' : tab === item.id) ? 'menu-link active' : 'menu-link'
-                      }${item.id === 'logout' ? ' logout-link' : ''}`}
+                      className={`${tab === item.id ? 'menu-link active' : 'menu-link'}${
+                        item.id === 'logout' ? ' logout-link' : ''
+                      }`}
                     />
                   ))}
                 </div>
@@ -7104,7 +7226,19 @@ function App() {
                           key={ad.id + index}
                           type="button"
                           className="home-ad"
-                          onClick={() => (ad.id === 'ad-fab' ? openCalc() : openBuyWebsite())}
+                          onClick={() => {
+                            if (ad.id !== 'ad-fab') {
+                              openBuyWebsite()
+                              return
+                            }
+                            setSystemType('fabrication')
+                            if (!signedInAccount) {
+                              resumeFabPreviewRef.current = true
+                              goLogin()
+                              return
+                            }
+                            continueFromSystem('fabrication')
+                          }}
                         >
                           <span>{ad.kicker}</span>
                           <strong>{ad.title}</strong>
@@ -7242,6 +7376,7 @@ function App() {
                     type="button"
                     className="profile-live-link"
                     onClick={() => openPrivateSystem(site)}
+                    onContextMenu={(event) => openSiteLinkMenu(event, site)}
                   >
                     {index + 1}) {liveDomain(site)}
                   </button>
@@ -7310,13 +7445,21 @@ function App() {
                   aria-selected={profileTab === 'dash'}
                   className={profileTab === 'dash' ? 'ig-tab active' : 'ig-tab'}
                   onClick={() => setProfileTab('dash')}
-                  aria-label="CEO dashboards"
+                  aria-label={
+                    (dashSite || currentProfile)?.systemType === 'manufacturing'
+                      ? 'CEO Analysis'
+                      : (dashSite || currentProfile)?.systemType === 'fabrication'
+                        ? 'Calculator'
+                        : 'Engineering'
+                  }
                 >
                   <IconCompanyTab />
                   <span className="ig-tab-label">
                     {(dashSite || currentProfile)?.systemType === 'manufacturing'
                       ? 'CEO Analysis'
-                      : 'Engineering'}
+                      : (dashSite || currentProfile)?.systemType === 'fabrication'
+                        ? 'Calculator'
+                        : 'Engineering'}
                   </span>
                 </button>
               </div>
@@ -7345,7 +7488,11 @@ function App() {
                 </div>
               )}
 
-              {profileTab === 'dash' && (
+              {profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
+                <div className="profile-tab-panel profile-calc-panel">
+                  {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
+                </div>
+              ) : profileTab === 'dash' ? (
                 <div className="profile-tab-panel">
                   <CeoProjectsOverview
                     sites={privateSystems.length ? privateSystems : currentProfile ? [currentProfile] : []}
@@ -7358,11 +7505,11 @@ function App() {
                     onOpenGeneratedApp={(targetSite, projId, targetView) =>
                       openPrivateSystem(targetSite, projId, targetView)
                     }
-                    onOpenCalc={(targetSite) => openCalc(targetSite)}
+                    onOpenCalc={(targetSite) => openOwnedCalculator(targetSite)}
                   />
                   <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
                 </div>
-              )}
+              ) : null}
             </section>
           )}
 
@@ -7673,21 +7820,9 @@ function App() {
               <h3>{chosenSystem.label}</h3>
               <p className="eyebrow">{chosenSystem.style}</p>
               <SystemExplainCards system={chosenSystem} />
-              {chosenSystem.id === 'fabrication' && (
-                <div className="settings-actions">
-                  {FAB_PLANS.map((plan) => (
-                    <button
-                      key={plan.id}
-                      type="button"
-                      className={fabPlan === plan.id ? 'system-choice active' : 'system-choice'}
-                      onClick={() => setFabPlan(plan.id)}
-                    >
-                      {plan.label}
-                      <small>{formatPrice(plan.price)}</small>
-                    </button>
-                  ))}
-                </div>
-              )}
+              {chosenSystem.id === 'fabrication' ? (
+                <p className="shop-copy">$100 a month, paid with EcoCash. Fortress then creates your calculator tenant.</p>
+              ) : null}
               <button type="button" className="primary-button" onClick={continuePreview}>
                 Continue to EcoCash
               </button>
@@ -7789,10 +7924,10 @@ function App() {
                     ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
                     : systemType === 'construction'
                       ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
-                      : 'Configure your calculator details.'}
+                      : 'Creates your fabrication calculator as a tenant subdomain of Fortress. $100 a month, paid with EcoCash.'}
                 </p>
                 <label>
-                  {systemType === 'fabrication' ? 'Name on the calculator' : 'Name of website'}
+                  Name of website
                   <input
                     type="text"
                     placeholder="Name of the website"
@@ -7801,29 +7936,21 @@ function App() {
                     required
                   />
                 </label>
-                {systemType !== 'fabrication' && (
-                  <>
-                    <label>
-                      Tenant Subdomain (under Fortress)
-                      <input
-                        type="text"
-                        value={subdomainLabelFor(websiteName || 'company')}
-                        readOnly
-                      />
-                    </label>
-                    <label>
-                      CEO Name (optional)
-                      <input
-                        type="text"
-                        placeholder="CEO name"
-                        value={websiteCeo}
-                        onChange={(event) => setWebsiteCeo(event.target.value)}
-                      />
-                    </label>
-                  </>
-                )}
+                <label>
+                  Tenant Subdomain (under Fortress)
+                  <input type="text" value={subdomainLabelFor(websiteName || 'company')} readOnly />
+                </label>
+                <label>
+                  CEO Name (optional)
+                  <input
+                    type="text"
+                    placeholder="CEO name"
+                    value={websiteCeo}
+                    onChange={(event) => setWebsiteCeo(event.target.value)}
+                  />
+                </label>
                 <button type="submit" className="primary-button">
-                  {systemType === 'fabrication' ? 'Open calculator' : 'Create website'}
+                  Create website
                 </button>
               </form>
             </section>
@@ -7969,6 +8096,94 @@ function App() {
             </div>
           </section>
         )}
+
+        {siteLinkMenu ? (
+          <div
+            className="site-link-menu"
+            style={{ top: siteLinkMenu.y, left: siteLinkMenu.x }}
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setDeleteSiteFlow({
+                  siteId: siteLinkMenu.siteId,
+                  step: 'confirm',
+                  email: '',
+                  password: '',
+                  error: '',
+                })
+                setSiteLinkMenu(null)
+              }}
+            >
+              Delete website
+            </button>
+          </div>
+        ) : null}
+
+        {deleteSiteFlow ? (
+          <section className="detail-sheet gate-sheet" aria-label="Delete website">
+            <button type="button" className="detail-close" onClick={() => setDeleteSiteFlow(null)}>
+              Close
+            </button>
+            <div className="lock-card live-link-card">
+              {deleteSiteFlow.step === 'confirm' ? (
+                <>
+                  <h2>Delete website</h2>
+                  <p className="shop-copy">
+                    Are you sure you want to delete{' '}
+                    {liveDomain(
+                      (signedInAccount?.websites || []).find((site) => site.id === deleteSiteFlow.siteId) || {},
+                    )}
+                    ? This cannot be undone.
+                  </p>
+                  <div className="settings-actions">
+                    <button type="button" onClick={() => setDeleteSiteFlow(null)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={() =>
+                        setDeleteSiteFlow((current) => ({ ...current, step: 'credentials', error: '' }))
+                      }
+                    >
+                      Yes, delete
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <form className="create-account-form" onSubmit={submitDeleteCredentials}>
+                  <h2>Confirm with your account</h2>
+                  <p className="shop-copy">Enter the email and password for this account to delete the website.</p>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={deleteSiteFlow.email}
+                    onChange={(event) =>
+                      setDeleteSiteFlow((current) => ({ ...current, email: event.target.value, error: '' }))
+                    }
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={deleteSiteFlow.password}
+                    onChange={(event) =>
+                      setDeleteSiteFlow((current) => ({ ...current, password: event.target.value, error: '' }))
+                    }
+                    required
+                  />
+                  {deleteSiteFlow.error ? <p className="form-error">{deleteSiteFlow.error}</p> : null}
+                  <button type="submit" className="danger-button">
+                    Delete website
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
+        ) : null}
 
         {overlay?.type === 'live-link' && (overlay.site || currentProfile) && (
           <section className="detail-sheet gate-sheet" aria-label="Generated website link">
