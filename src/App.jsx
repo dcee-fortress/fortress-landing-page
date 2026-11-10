@@ -848,7 +848,29 @@ const saveFreeDrawUsage = (count) => {
   }
 }
 
-const fabSubscriptionActive = (site) => Number(site?.paidUntil) > Date.now()
+const TRIAL_DAYS = 14
+const TRIAL_MS = TRIAL_DAYS * 86400000
+const CEO_SYSTEM_IDS = ['construction', 'manufacturing', 'fabrication']
+
+const siteBilling = (site) => {
+  if (!site || site.catalogId || !CEO_SYSTEM_IDS.includes(site.systemType)) return 'open'
+  const now = Date.now()
+  if (Number(site.paidUntil) > now) return 'paid'
+  if (Number(site.trialEndsAt) > now) return 'trial'
+  if (Number(site.trialEndsAt) > 0) return 'paused'
+  return 'open'
+}
+
+const trialDaysLeft = (site) => {
+  const ms = Number(site?.trialEndsAt) - Date.now()
+  if (!(ms > 0)) return 0
+  return Math.max(1, Math.ceil(ms / 86400000))
+}
+
+const fabSubscriptionActive = (site) => {
+  const billing = siteBilling(site)
+  return billing === 'trial' || billing === 'paid' || Number(site?.paidUntil) > Date.now()
+}
 
 const freeDrawsRemaining = (used = 0) => Math.max(0, FAB_FREE_DRAW_LIMIT - Number(used || 0))
 
@@ -1072,6 +1094,14 @@ const slugify = (value) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '') || 'website'
 
+const draftSlug = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\.fortress\.vercel\.app$/i, '')
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+
 const brandTheme = (name = '') => {
   const brand = String(name).trim() || 'Company'
   let hash = 0
@@ -1115,6 +1145,7 @@ const makeWebsite = ({
   cssName = '',
   fabPlan = '',
   paidUntil = 0,
+  trialEndsAt = 0,
   drawings = [],
   catalogId = '',
   ceo = '',
@@ -1138,6 +1169,7 @@ const makeWebsite = ({
   cssName: cssName || slugify(brandName || name).replace(/-/g, ''),
   fabPlan,
   paidUntil,
+  trialEndsAt,
   drawings,
   catalogId,
   ceo,
@@ -1510,6 +1542,27 @@ const displayLivePath = (site) => {
 const liveDomain = (site) => {
   if (!site) return ''
   return subdomainLabelFor(site)
+}
+
+function PausedTenant({ site, onSubscribe, onBack, compact = false }) {
+  return (
+    <section className={compact ? 'paused-tenant is-compact' : 'paused-tenant'}>
+      {onBack ? (
+        <button type="button" className="text-back" onClick={onBack}>
+          Back
+        </button>
+      ) : null}
+      <p className="ecocash-kicker">Paused</p>
+      <h1>Your app is paused. Subscribe to reactivate.</h1>
+      <p>
+        {site?.name ? `${site.name} · ` : ''}
+        {subdomainLabelFor(site || 'company')} is saved. Photos, services, and records stay on this website until you subscribe.
+      </p>
+      <button type="button" className="primary-button" onClick={() => onSubscribe?.(site)}>
+        Subscribe with EcoCash
+      </button>
+    </section>
+  )
 }
 
 const ceoFigures = (name = '') => {
@@ -5086,7 +5139,9 @@ function FabricationCalculator({
               </p>
             ) : (
               <p className="fab-freemium-meter fab-freemium-meter-active" role="status">
-                Active until {new Date(Number(site?.paidUntil)).toLocaleDateString()}
+                {siteBilling(site) === 'trial'
+                  ? `Free trial · ${trialDaysLeft(site)} days left`
+                  : `Active until ${new Date(Number(site?.paidUntil)).toLocaleDateString()}`}
               </p>
             )}
             {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
@@ -5492,6 +5547,9 @@ function App() {
   const [ecocash, setEcocash] = useState({ number: '', password: '', name: '' })
   const [paymentNote, setPaymentNote] = useState('')
   const [websiteName, setWebsiteName] = useState('')
+  const [websiteDomain, setWebsiteDomain] = useState('')
+  const [tailorMode, setTailorMode] = useState('paid')
+  const [reactivateSiteId, setReactivateSiteId] = useState('')
   const [websiteCeo, setWebsiteCeo] = useState('')
   const [websiteLocation, setWebsiteLocation] = useState('Harare, Zimbabwe')
   const [websiteProjectName, setWebsiteProjectName] = useState('')
@@ -5524,6 +5582,8 @@ function App() {
   const navIndexRef = useRef(0)
   const [navTick, setNavTick] = useState(0)
   const findCompanyRef = useRef(() => null)
+  const domainEditedRef = useRef(false)
+  const reactivateSiteRef = useRef('')
 
   useEffect(() => {
     setAccounts((previous) => withOwnerLogin(previous))
@@ -6146,6 +6206,8 @@ function App() {
 
     const token = flowToken.current + 1
     flowToken.current = token
+    const accountId = signedInAccount?.id || ''
+    const reactivateId = reactivateSiteRef.current
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
     setBusyLabel('Approving payment…')
@@ -6154,7 +6216,43 @@ function App() {
     window.setTimeout(() => {
       if (flowToken.current !== token) return
       setBusyLabel('')
+      if (reactivateId && accountId) {
+        const plan = FAB_PLANS[0]
+        reactivateSiteRef.current = ''
+        setReactivateSiteId('')
+        setAccounts((previous) =>
+          previous.map((account) => {
+            if (account.id !== accountId) return account
+            return {
+              ...account,
+              websites: account.websites.map((site) =>
+                site.id === reactivateId
+                  ? {
+                      ...site,
+                      paidUntil: Date.now() + plan.days * 86400000,
+                      fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
+                    }
+                  : site,
+              ),
+            }
+          }),
+        )
+        setPaymentNote('')
+        setTailorMode('paid')
+        setActiveProfileId(reactivateId)
+        setProfileTab('dash')
+        setTab('profile')
+        setSettingsView('home')
+        setMenuOpen(false)
+        setOverlay(null)
+        setAppRoute({ kind: '', slug: '' })
+        pushPath('/profile')
+        return
+      }
       setPaymentNote('Payment approved')
+      setTailorMode('paid')
+      domainEditedRef.current = false
+      setWebsiteDomain((current) => current || (websiteName.trim() ? slugify(websiteName) : ''))
       goSettingsView('tailor')
     }, 900)
   }
@@ -6167,10 +6265,11 @@ function App() {
     if (!signedInAccount && !pendingSignup) return
 
     const isFabrication = type.id === 'fabrication'
+    const trial = tailorMode === 'trial'
     const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[0]
     const slides = type.slides || []
     const [first, ...rest] = slides
-    const slug = uniqueSlug(name, accounts)
+    const slug = uniqueSlug(websiteDomain || name, accounts)
     const ceoName = websiteCeo.trim() || currentProfile?.ceo || ''
     const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
     const initialProjTitle = websiteProjectName.trim()
@@ -6205,7 +6304,8 @@ function App() {
       brandName: name,
       cssName: slugify(name).replace(/-/g, ''),
       fabPlan: isFabrication ? plan.id : '',
-      paidUntil: isFabrication ? Date.now() + plan.days * 86400000 : 0,
+      paidUntil: trial ? 0 : isFabrication ? Date.now() + plan.days * 86400000 : 0,
+      trialEndsAt: trial ? Date.now() + TRIAL_MS : 0,
       drawings: [],
       ceo: ceoName,
     })
@@ -6229,6 +6329,9 @@ function App() {
     }
 
     setWebsiteName('')
+    setWebsiteDomain('')
+    domainEditedRef.current = false
+    setTailorMode('paid')
     setWebsiteCeo('')
     setWebsiteProjectName('')
     setWebsiteAbout('')
@@ -6680,16 +6783,25 @@ function App() {
     pushPath(`/${tab}/card/${encodeId(overlayCompany.id)}/profile`)
   }
 
+  const clearReactivate = () => {
+    reactivateSiteRef.current = ''
+    setReactivateSiteId('')
+  }
+
   const startBuySystem = (company) => {
     const typeId = systemIdFromCompany(company)
     const type = SYSTEM_TYPES.find((item) => item.id === typeId) || SYSTEM_TYPES[0]
     cardBuyRef.current = true
+    clearReactivate()
     shopFlowRef.current = false
     skipShopChoiceRef.current = false
     setSystemType(type.id)
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
     setWebsiteName('')
+    setWebsiteDomain('')
+    domainEditedRef.current = false
+    setTailorMode('paid')
     setAuthError('')
     setAuthForm({ email: '', password: '' })
     if (!signedInAccount) {
@@ -6714,9 +6826,14 @@ function App() {
   }
 
   const continueFromSystem = (typeId) => {
+    clearReactivate()
     setSystemType(typeId)
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
+    setWebsiteName('')
+    setWebsiteDomain('')
+    domainEditedRef.current = false
+    setTailorMode('paid')
     shopFlowRef.current = false
     setOverlay(null)
     setMenuOpen(false)
@@ -6725,6 +6842,7 @@ function App() {
   }
 
   const continuePreview = () => {
+    clearReactivate()
     if (pendingSignup) {
       goSettingsView('ecocash')
       return
@@ -6734,6 +6852,16 @@ function App() {
       return
     }
     goSettingsView('ecocash')
+  }
+
+  const startFreeTrial = () => {
+    if (!CEO_SYSTEM_IDS.includes(systemType)) return
+    clearReactivate()
+    setTailorMode('trial')
+    setPaymentNote('')
+    domainEditedRef.current = false
+    setWebsiteDomain(websiteName.trim() ? slugify(websiteName) : '')
+    goSettingsView('tailor')
   }
 
   const cancelPendingSignup = () => {
@@ -6754,6 +6882,15 @@ function App() {
 
   const openGeneratedSite = (site, projectId = '', view = 'home') => {
     if (!site) return
+    if (siteBilling(site) === 'paused') {
+      setOverlay(null)
+      setActiveProfileId(site.id)
+      setProfileTab('dash')
+      setTab('profile')
+      setAppRoute({ kind: '', slug: '' })
+      pushPath('/profile')
+      return
+    }
     const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
     if (!slug) return
     setOverlay(null)
@@ -6831,6 +6968,14 @@ function App() {
   const openPrivateSystem = (site, projectId = '', view = 'home') => {
     if (!site) return
     setOverlay(null)
+    if (siteBilling(site) === 'paused') {
+      setActiveProfileId(site.id)
+      setProfileTab('dash')
+      setTab('profile')
+      setAppRoute({ kind: '', slug: '' })
+      pushPath('/profile')
+      return
+    }
     if (site.systemType === 'fabrication') {
       openOwnedCalculator(site)
       return
@@ -7025,11 +7170,28 @@ function App() {
 
   const openFabPay = (planId) => {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
+    clearReactivate()
     setSystemType('fabrication')
     setFabPlan(planId || 'month')
     setAppRoute({ kind: '', slug: '' })
     setTab('settings')
     goSettingsView('preview')
+  }
+
+  const beginReactivate = (site) => {
+    if (!site?.id) return
+    if (!requireOnline(NETWORK_ACTIONS.pay)) return
+    reactivateSiteRef.current = site.id
+    setReactivateSiteId(site.id)
+    setSystemType(site.systemType || '')
+    setFabPlan('month')
+    setEcocash({ number: '', password: '', name: '' })
+    setPaymentNote('')
+    setOverlay(null)
+    setMenuOpen(false)
+    setAppRoute({ kind: '', slug: '' })
+    setTab('settings')
+    goSettingsView('ecocash')
   }
 
   const saveFabPricing = (next) => {
@@ -7095,6 +7257,16 @@ function App() {
     setSettingsView('preview')
     pushPath('/settings/preview', { replace: true })
   }, [appRoute.kind, appRoute.slug, publishedSite?.systemType, signedInAccount])
+
+  if (publishedSite && siteBilling(publishedSite) === 'paused') {
+    return (
+      <PausedTenant
+        site={publishedSite}
+        onBack={detectActiveSubdomain() ? undefined : leavePublished}
+        onSubscribe={beginReactivate}
+      />
+    )
+  }
 
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
     return fabricationCalculator(publishedSite, leavePublished)
@@ -7379,6 +7551,8 @@ function App() {
                     onContextMenu={(event) => openSiteLinkMenu(event, site)}
                   >
                     {index + 1}) {liveDomain(site)}
+                    {siteBilling(site) === 'trial' ? ` · Trial ${trialDaysLeft(site)}d` : ''}
+                    {siteBilling(site) === 'paused' ? ' · Paused' : ''}
                   </button>
                 ))
               ) : (
@@ -7425,6 +7599,17 @@ function App() {
                     />
                   </label>
                 </form>
+              ) : null}
+
+              {siteBilling(dashSite) === 'trial' ? (
+                <div className="trial-meter">
+                  <p>
+                    Free trial · {trialDaysLeft(dashSite)} days left · {liveDomain(dashSite)}
+                  </p>
+                  <button type="button" onClick={() => beginReactivate(dashSite)}>
+                    Subscribe with EcoCash
+                  </button>
+                </div>
               ) : null}
 
               <div className={`ig-tabs${privateSystems.length ? ' has-dash' : ''}`} role="tablist" aria-label="Profile sections">
@@ -7488,7 +7673,11 @@ function App() {
                 </div>
               )}
 
-              {profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
+              {profileTab === 'dash' && siteBilling(dashSite) === 'paused' ? (
+                <div className="profile-tab-panel">
+                  <PausedTenant compact site={dashSite} onSubscribe={beginReactivate} />
+                </div>
+              ) : profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
                 <div className="profile-tab-panel profile-calc-panel">
                   {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
                 </div>
@@ -7837,6 +8026,7 @@ function App() {
                 onClick={() => {
                   setEcocash({ number: '', password: '', name: '' })
                   setPaymentNote('')
+                  clearReactivate()
                   if (pendingSignup) {
                     goSettingsView('buy')
                     setOverlay({ type: 'buy-system' })
@@ -7865,8 +8055,19 @@ function App() {
                   <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
                 ) : null}
                 <p className="ecocash-kicker">EcoCash</p>
-                <h3>{chosenSystem ? chosenSystem.label : 'Fortress system'}</h3>
-                {systemType === 'fabrication' ? (
+                <h3>
+                  {reactivateSiteId
+                    ? 'Subscribe to reactivate'
+                    : chosenSystem
+                      ? chosenSystem.label
+                      : 'Fortress system'}
+                </h3>
+                {reactivateSiteId ? (
+                  <p className="shop-copy">
+                    {formatPrice(FAB_PLANS[0].price)} · {FAB_PLANS[0].label}. This unlocks the same website. Photos,
+                    services, and records stay where they are.
+                  </p>
+                ) : systemType === 'fabrication' ? (
                   <p className="shop-copy">
                     {formatPrice((FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[0]).price)} ·{' '}
                     {(FAB_PLANS.find((plan) => plan.id === fabPlan) || FAB_PLANS[0]).label}
@@ -7910,21 +8111,28 @@ function App() {
                 <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
                   Approve payment
                 </button>
+                {!reactivateSiteId && CEO_SYSTEM_IDS.includes(systemType) ? (
+                  <button type="button" className="trial-button" onClick={startFreeTrial}>
+                    14 day free trial
+                  </button>
+                ) : null}
               </form>
             </section>
           )}
 
           {tab === 'settings' && settingsView === 'tailor' && (
             <section className="panel-box settings-page">
-              <p className="payment-approved">Payment approved</p>
+              <p className="payment-approved">{tailorMode === 'trial' ? '14 day free trial' : 'Payment approved'}</p>
               <form className="create-account-form" onSubmit={createGeneratedWebsite}>
                 <h3>Tailor making details</h3>
                 <p className="shop-copy">
-                  {systemType === 'manufacturing'
-                    ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
-                    : systemType === 'construction'
-                      ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
-                      : 'Creates your fabrication calculator as a tenant subdomain of Fortress. $100 a month, paid with EcoCash.'}
+                  {tailorMode === 'trial'
+                    ? 'Write a domain. Fortress creates a free temporary subdomain from it. You can edit the domain before you start. The website works fully for 14 days and stays next to your profile. When the trial ends it is paused, not deleted. Paying later unlocks this same website.'
+                    : systemType === 'manufacturing'
+                      ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
+                      : systemType === 'construction'
+                        ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
+                        : 'Creates your fabrication calculator as a tenant subdomain of Fortress. $100 a month, paid with EcoCash.'}
                 </p>
                 <label>
                   Name of website
@@ -7932,14 +8140,30 @@ function App() {
                     type="text"
                     placeholder="Name of the website"
                     value={websiteName}
-                    onChange={(event) => setWebsiteName(event.target.value)}
+                    onChange={(event) => {
+                      const next = event.target.value
+                      setWebsiteName(next)
+                      if (!domainEditedRef.current) setWebsiteDomain(draftSlug(next))
+                    }}
                     required
                   />
                 </label>
                 <label>
-                  Tenant Subdomain (under Fortress)
-                  <input type="text" value={subdomainLabelFor(websiteName || 'company')} readOnly />
+                  Domain
+                  <input
+                    type="text"
+                    placeholder="your-domain"
+                    value={websiteDomain}
+                    onChange={(event) => {
+                      domainEditedRef.current = true
+                      setWebsiteDomain(draftSlug(event.target.value))
+                    }}
+                    required
+                  />
                 </label>
+                <p className="shop-copy">
+                  Free temporary subdomain: {subdomainLabelFor(websiteDomain || websiteName || 'company')}
+                </p>
                 <label>
                   CEO Name (optional)
                   <input
@@ -7950,7 +8174,7 @@ function App() {
                   />
                 </label>
                 <button type="submit" className="primary-button">
-                  Create website
+                  {tailorMode === 'trial' ? 'Start 14 day trial' : 'Create website'}
                 </button>
               </form>
             </section>
