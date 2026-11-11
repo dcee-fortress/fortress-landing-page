@@ -3,9 +3,10 @@ import {
   computeSiteProjectsOverview,
   getSiteCeoMetadata,
   saveSiteCeoMetadata,
-  subdomainLabelFor,
 } from './fortressMetadata'
 import { ensureProjectFiles, PERIOD_CHOICES } from './rodcroftCalendar'
+
+const RODCROFT_BRAND = 'Rodcroft'
 
 const money = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', {
@@ -150,15 +151,12 @@ export default function RodcroftTemplate({
     }
   }, [site?.id, site?.slug, initialProjectId, initialView])
 
-  const brandName = meta.brandName || meta.companyName || site?.name || 'Rodcroft'
-  const subdomain = subdomainLabelFor(meta)
-
   useEffect(() => {
-    document.title = `${brandName} · Fortress Tenant`
+    document.title = RODCROFT_BRAND
     return () => {
       document.title = 'Fortress'
     }
-  }, [brandName])
+  }, [])
 
   const persistMeta = (nextMeta) => {
     const saved = saveSiteCeoMetadata(site || nextMeta.slug, nextMeta)
@@ -566,9 +564,8 @@ export default function RodcroftTemplate({
               }}
             >
               <span className="rc-brand-f">F</span>
-              <span className="rc-brand-name">{brandName}</span>
+              <span className="rc-brand-name">{RODCROFT_BRAND}</span>
             </button>
-            <span className="tpl-subdomain-pill">{subdomain}</span>
           </div>
 
           <div className="rc-header-right">
@@ -584,7 +581,7 @@ export default function RodcroftTemplate({
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              <span>New project</span>
+              <span className="rc-header-label">New project</span>
             </button>
 
             <button
@@ -606,7 +603,7 @@ export default function RodcroftTemplate({
                 <line x1="9" y1="8" x2="15" y2="8" />
                 <line x1="17" y1="16" x2="23" y2="16" />
               </svg>
-              <span>Settings</span>
+              <span className="rc-header-label">Settings</span>
             </button>
 
             {onBack && (
@@ -627,36 +624,9 @@ export default function RodcroftTemplate({
         {/* Exact Rodcroft Home (`GroveLanding.jsx`) */}
         {view === 'home' && (
           <div className="rc-landing-stage">
-            <h1 className="rc-brand-wordmark" aria-label={brandName}>
-              {brandName}
+            <h1 className="rc-brand-wordmark" aria-label={RODCROFT_BRAND}>
+              {RODCROFT_BRAND}
             </h1>
-            {activeProjects.length > 0 ? (
-              <div className="rc-landing-projects">
-                <p className="rc-landing-hint">Select a project from the top-left menu or open directly:</p>
-                <div className="rc-landing-pills">
-                  {activeProjects.map((proj) => (
-                    <button
-                      key={proj.id}
-                      type="button"
-                      className="rc-project-pill-btn"
-                      onClick={() => {
-                        setActiveProjectId(proj.id)
-                        setView('project-home')
-                      }}
-                    >
-                      <strong>{proj.name}</strong>
-                      <span>Open project →</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="rc-landing-projects">
-                <p className="rc-landing-hint">
-                  No projects created yet on {subdomain}. Click <strong>+ New project</strong> in the top bar to start.
-                </p>
-              </div>
-            )}
           </div>
         )}
 
@@ -743,36 +713,8 @@ export default function RodcroftTemplate({
                   <ChoiceIcon name="hard-hat" />
                 </span>
                 <div>
-                  <h2>Cumulative valuations (Total work valued)</h2>
+                  <h2>Total work valued</h2>
                   <p>Project to date activities, cost, production and rate</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                className="rc-choice-card"
-                onClick={() => openArea('material-periods')}
-              >
-                <span className="rc-icon-tile">
-                  <ChoiceIcon name="package" />
-                </span>
-                <div>
-                  <h2>Material analysis</h2>
-                  <p>Daily, weekly, monthly, and project-to-date files from the day the project started</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                className="rc-choice-card"
-                onClick={() => openArea('fuel-periods')}
-              >
-                <span className="rc-icon-tile">
-                  <ChoiceIcon name="fuel" />
-                </span>
-                <div>
-                  <h2>Fuel analysis</h2>
-                  <p>Project to date fuel consumed, bulk fuel inserted in tank, and fuel left</p>
                 </div>
               </button>
 
@@ -785,8 +727,36 @@ export default function RodcroftTemplate({
                   <ChoiceIcon name="users" />
                 </span>
                 <div>
-                  <h2>Total number of workers (Admin &amp; Site Registers)</h2>
+                  <h2>Total number of workers</h2>
                   <p>Workers on site, admin members and registers</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="rc-choice-card"
+                onClick={() => openArea('material-periods')}
+              >
+                <span className="rc-icon-tile">
+                  <ChoiceIcon name="package" />
+                </span>
+                <div>
+                  <h2>Materials overview</h2>
+                  <p>Material analysis and project to date material on site</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="rc-choice-card"
+                onClick={() => openArea('fuel-periods')}
+              >
+                <span className="rc-icon-tile">
+                  <ChoiceIcon name="fuel" />
+                </span>
+                <div>
+                  <h2>Fuel consumed to date</h2>
+                  <p>Project to date fuel consumed quantities and costs from every daily entry</p>
                 </div>
               </button>
             </div>
@@ -806,52 +776,85 @@ export default function RodcroftTemplate({
               </button>
               <p className="rc-eyebrow">Quantity Survey</p>
               <h1>{currentProject.name}</h1>
-              <p className="rc-sub">Valuations, QS schedules, plant on site, and rate analysis.</p>
+              <p className="rc-sub">Open valuations, QS schedules, plant on site, and rate analysis for this project.</p>
             </header>
 
             <div className="rc-choice-grid">
-              <button
-                type="button"
-                className="rc-choice-card"
-                onClick={() => openArea('valuations')}
-              >
-                <span className="rc-icon-tile">
-                  <ChoiceIcon name="chart-bar" />
-                </span>
+              <button type="button" className="rc-choice-card" onClick={() => openArea('valuations')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="chart-bar" /></span>
                 <div>
-                  <h2>Cumulative Valuations</h2>
-                  <p>Open earned value dashboards for project-to-date, monthly, weekly, and daily reports</p>
+                  <h2>Valuations</h2>
+                  <p>Open earned value dashboards for monthly, weekly, and daily reports</p>
                 </div>
               </button>
-
-              <button
-                type="button"
-                className="rc-choice-card"
-                onClick={() => openArea('material-periods')}
-              >
-                <span className="rc-icon-tile">
-                  <ChoiceIcon name="package" />
-                </span>
+              <button type="button" className="rc-choice-card" onClick={() => setView('qs-schedules')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="package" /></span>
                 <div>
-                  <h2>Material schedule &amp; Material analysis</h2>
-                  <p>Bulk material request, material received, material on site, and material analysis</p>
+                  <h2>QS Schedules</h2>
+                  <p>Material schedule and fuel schedule</p>
                 </div>
               </button>
-
-              <button
-                type="button"
-                className="rc-choice-card"
-                onClick={() => openArea('fuel-periods')}
-              >
-                <span className="rc-icon-tile">
-                  <ChoiceIcon name="fuel" />
-                </span>
+              <button type="button" className="rc-choice-card" onClick={() => setView('plant-on-site')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="fuel" /></span>
                 <div>
-                  <h2>Fuel schedule &amp; Fuel analysis</h2>
-                  <p>Fuel consumed project to date, bulk fuel in tank, and fuel analysis</p>
+                  <h2>Plant on Site</h2>
+                  <p>Register plant operators, record plant hours, and track fuel costs</p>
+                </div>
+              </button>
+              <button type="button" className="rc-choice-card" onClick={() => setView('rate-analysis')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="chart-bar" /></span>
+                <div>
+                  <h2>Rate Analysis</h2>
+                  <p>Daily, weekly, and monthly plant rates compared against Excel BOQ items</p>
                 </div>
               </button>
             </div>
+          </div>
+        )}
+
+        {currentProject && view === 'qs-schedules' && (
+          <div className="rc-content-shell">
+            <header className="rc-section-header">
+              <button type="button" className="rc-back-link" onClick={() => setView('qs-engineering')}>
+                ← Back to Quantity Survey
+              </button>
+              <p className="rc-eyebrow">QS Schedules</p>
+              <h1>{currentProject.name}</h1>
+              <p className="rc-sub">Open the material schedule or the fuel schedule.</p>
+            </header>
+            <div className="rc-choice-grid">
+              <button type="button" className="rc-choice-card" onClick={() => openArea('material-periods')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="package" /></span>
+                <div>
+                  <h2>Material schedule</h2>
+                  <p>Bulk material request, material received, material on site, and material analysis</p>
+                </div>
+              </button>
+              <button type="button" className="rc-choice-card" onClick={() => openArea('fuel-periods')}>
+                <span className="rc-icon-tile"><ChoiceIcon name="fuel" /></span>
+                <div>
+                  <h2>Fuel schedule</h2>
+                  <p>Fuel consumed project to date and daily files</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentProject && (view === 'plant-on-site' || view === 'rate-analysis') && (
+          <div className="rc-content-shell">
+            <header className="rc-section-header">
+              <button type="button" className="rc-back-link" onClick={() => setView('qs-engineering')}>
+                ← Back to Quantity Survey
+              </button>
+              <p className="rc-eyebrow">{view === 'plant-on-site' ? 'Plant on Site' : 'Rate Analysis'}</p>
+              <h1>{currentProject.name}</h1>
+              <p className="rc-sub">
+                {view === 'plant-on-site'
+                  ? 'Register plant operators, record plant hours, and track fuel costs. Files stay empty until you enter them.'
+                  : 'Daily, weekly, and monthly plant rates. This page stays empty until rates are entered.'}
+              </p>
+            </header>
           </div>
         )}
 
@@ -1498,12 +1501,10 @@ export default function RodcroftTemplate({
                 className="rc-back-link"
                 onClick={() => setView('home')}
               >
-                ← Back to {brandName}
+                ← Back to {RODCROFT_BRAND}
               </button>
               <h1>Settings</h1>
-              <p className="rc-sub">
-                Manage projects and shared live data for tenant <strong>{subdomain}</strong>.
-              </p>
+              <p className="rc-sub">Manage projects on this website.</p>
             </header>
 
             {statusNote ? <p className="tpl-notice-ok">{statusNote}</p> : null}

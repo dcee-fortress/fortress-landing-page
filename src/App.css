@@ -6028,7 +6028,24 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #18181b;
-  font-size: 1.05rem;
+  font-size: 1rem;
+}
+
+@media (min-width: 640px) {
+  .rc-brand-name {
+    font-size: 1.25rem;
+    letter-spacing: 0.1em;
+  }
+}
+
+.rc-header-label {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .rc-header-label {
+    display: inline;
+  }
 }
 
 .rc-header-right {
@@ -6137,6 +6154,17 @@
   text-indent: 0.1em;
   font-size: clamp(2.25rem, 7vw, 3.5rem);
   color: #18181b;
+  animation: rc-wordmark-fade 2s ease-in-out infinite;
+}
+
+@keyframes rc-wordmark-fade {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .rc-landing-projects {
@@ -6234,8 +6262,15 @@
 
 .rc-choice-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .rc-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
 }
 
 .rc-choice-card {
