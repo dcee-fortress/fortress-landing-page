@@ -596,17 +596,11 @@ export const applyGateLineOverrides = (lines = [], session = {}) => {
 
 export const gatePriceRows = (lines = [], unitPrices = {}, pricing = {}) =>
   lines.map((row) => {
-    const fallback = money(pricing[row.priceKey])
+    const hasList =
+      row.priceKey && Object.prototype.hasOwnProperty.call(pricing || {}, row.priceKey)
     const hasOverride = Object.prototype.hasOwnProperty.call(unitPrices || {}, row.id)
-    const raw = hasOverride ? unitPrices[row.id] : undefined
-    // Empty string means user cleared the box — keep it empty (don't snap back to list price).
-    const unitPriceInput = hasOverride
-      ? raw == null
-        ? ''
-        : String(raw)
-      : fallback
-        ? String(fallback)
-        : ''
+    const raw = hasList ? pricing[row.priceKey] : hasOverride ? unitPrices[row.id] : ''
+    const unitPriceInput = raw == null || raw === undefined ? '' : String(raw)
     const unitPrice = unitPriceInput === '' ? 0 : money(unitPriceInput)
     const totalPrice = round(money(row.quantity) * unitPrice, 2)
     return {

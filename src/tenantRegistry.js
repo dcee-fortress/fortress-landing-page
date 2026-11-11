@@ -11,7 +11,7 @@ const headers = (extra = {}) => ({
   ...extra,
 })
 
-export const publishTenantKind = (slug, systemType) => {
+export const publishTenantKind = (slug, systemType, name = '') => {
   const key = tenantKey(slug)
   if (!key || key === 'fortress-tenant:' || !systemType) return Promise.resolve()
   return fetch(`${SUPABASE_URL}/rest/v1/prixburg_data?on_conflict=key`, {
@@ -22,25 +22,31 @@ export const publishTenantKind = (slug, systemType) => {
     }),
     body: JSON.stringify({
       key,
-      value: { systemType },
+      value: { systemType, name: String(name || '').trim() },
       updated_at: new Date().toISOString(),
     }),
   }).catch(() => {})
 }
 
-export const fetchTenantKind = async (slug) => {
+export const fetchTenantRecord = async (slug) => {
   const key = tenantKey(slug)
-  if (!key || key === 'fortress-tenant:') return ''
+  if (!key || key === 'fortress-tenant:') return { systemType: '', name: '' }
   try {
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/prixburg_data?key=eq.${encodeURIComponent(key)}&select=value`,
       { headers: headers() },
     )
-    if (!response.ok) return ''
+    if (!response.ok) return { systemType: '', name: '' }
     const rows = await response.json()
-    const kind = rows?.[0]?.value?.systemType
-    return kind === 'manufacturing' || kind === 'construction' || kind === 'fabrication' ? kind : ''
+    const value = rows?.[0]?.value || {}
+    const kind = value.systemType
+    return {
+      systemType: kind === 'manufacturing' || kind === 'construction' || kind === 'fabrication' ? kind : '',
+      name: String(value.name || '').trim(),
+    }
   } catch {
-    return ''
+    return { systemType: '', name: '' }
   }
 }
+
+export const fetchTenantKind = async (slug) => (await fetchTenantRecord(slug)).systemType

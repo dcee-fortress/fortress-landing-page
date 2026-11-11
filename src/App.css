@@ -4502,6 +4502,146 @@
   border-radius: 12px;
 }
 
+.quote-form {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.quote-letterhead h2 {
+  margin: 0 0 10px;
+  font-size: 1.55rem;
+  letter-spacing: 0.02em;
+}
+
+.quote-letterhead label,
+.quote-to {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #726a62;
+}
+
+.quote-letterhead input,
+.quote-to input {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  color: #1c1915;
+  border: 0;
+  border-bottom: 1px solid rgba(28, 25, 21, 0.2);
+  background: transparent;
+  padding: 6px 0;
+  width: 100%;
+}
+
+.quote-contact-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.quote-to {
+  margin-top: 16px;
+  border: 1px solid #1c1915;
+  padding: 10px 12px;
+}
+
+.quote-job {
+  margin: 10px 0 0;
+  font-weight: 700;
+}
+
+.quote-table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.quote-table,
+.fab-price-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quote-table th,
+.fab-price-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 2px solid #1c1915;
+  padding: 8px 6px;
+}
+
+.quote-table td,
+.fab-price-table td {
+  border-bottom: 1px solid #e4ddd4;
+  padding: 8px 6px;
+  vertical-align: middle;
+}
+
+.quote-table td:nth-child(n + 2),
+.quote-table th:nth-child(n + 2),
+.fab-price-table td:last-child,
+.fab-price-table th:last-child {
+  text-align: right;
+}
+
+.quote-subtotal td {
+  font-weight: 700;
+  border-bottom: 2px solid #1c1915;
+}
+
+.quote-addons {
+  margin-top: 12px;
+}
+
+.fab-price-table-wrap {
+  overflow-x: auto;
+  margin: 8px 0 16px;
+}
+
+.fab-price-table input {
+  width: 7.5rem;
+  text-align: right;
+  border: 1px solid rgba(28, 25, 21, 0.16);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.subdomain-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.subdomain-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f6f2ee;
+}
+
+.subdomain-row strong,
+.subdomain-row span {
+  display: block;
+}
+
+.subdomain-row span {
+  color: #6b645c;
+  font-size: 0.85rem;
+}
+
+.subdomain-row .danger-button {
+  flex: 0 0 auto;
+}
+
 .drawing-boq h2 {
   margin: 0 0 8px;
 }

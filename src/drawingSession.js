@@ -355,16 +355,10 @@ export const priceRowsFromSession = ({
   if (usesWeightPath(jobType)) {
     return weightRows.map((row) => {
       const key = row.priceKey || 'rebarPerKg'
-      const fallback = money(pricing[key] ?? pricing.rebarPerKg)
+      const hasList = Object.prototype.hasOwnProperty.call(pricing || {}, key)
       const hasOverride = Object.prototype.hasOwnProperty.call(unitPrices || {}, row.id)
-      const raw = hasOverride ? unitPrices[row.id] : undefined
-      const unitPriceInput = hasOverride
-        ? raw == null
-          ? ''
-          : String(raw)
-        : fallback
-          ? String(fallback)
-          : ''
+      const raw = hasList ? pricing[key] : hasOverride ? unitPrices[row.id] : pricing.rebarPerKg
+      const unitPriceInput = raw == null || raw === undefined ? '' : String(raw)
       const unitPrice = unitPriceInput === '' ? 0 : money(unitPriceInput)
       const weight = money(row.totalKg)
       const totalPrice = round(weight * unitPrice, 2)
@@ -386,16 +380,10 @@ export const priceRowsFromSession = ({
 
   return totals.map((row) => {
     const key = row.priceKey || ''
-    const fallback = key ? money(pricing[key]) : 0
+    const hasList = key && Object.prototype.hasOwnProperty.call(pricing || {}, key)
     const hasOverride = Object.prototype.hasOwnProperty.call(unitPrices || {}, row.id)
-    const raw = hasOverride ? unitPrices[row.id] : undefined
-    const unitPriceInput = hasOverride
-      ? raw == null
-        ? ''
-        : String(raw)
-      : fallback
-        ? String(fallback)
-        : ''
+    const raw = hasList ? pricing[key] : hasOverride ? unitPrices[row.id] : ''
+    const unitPriceInput = raw == null || raw === undefined ? '' : String(raw)
     const unitPrice = unitPriceInput === '' ? 0 : money(unitPriceInput)
     const lengthM = money(row.lengthM)
     const totalPrice = round(lengthM * unitPrice, 2)

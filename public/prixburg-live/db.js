@@ -50,10 +50,10 @@ const PRIXBURG_DB_DEFAULTS = {
     prixburgStockMovements: [],
     prixburgCreditPayments: [],
     prixburgLoginDetails: {
-        mainUsername: 'CLEANZ',
-        mainPassword: 'CLEANZ123',
-        settingsUsername: 'PRIXBURG CHEMICALS',
-        settingsPassword: 'Prixburg'
+        mainUsername: 'Fortress',
+        mainPassword: 'fortress123',
+        settingsUsername: 'Fortress',
+        settingsPassword: 'fortress123'
     },
     prixburgRecycleBin: [],
     prixburgAppSettings: {
@@ -444,3 +444,130 @@ window.dbReady = new Promise(function (resolve, reject) {
     if (document.body) afterPaint();
     else document.addEventListener('DOMContentLoaded', afterPaint);
 });
+
+(function () {
+    var tenant = window.PRIXBURG_TENANT || 'prixburg';
+    var applied = '';
+    var painting = false;
+
+    function titleCase(slug) {
+        return String(slug || '').split('-').filter(Boolean).map(function (part) {
+            return part.charAt(0).toUpperCase() + part.slice(1);
+        }).join(' ');
+    }
+
+    function swapText(text, from, to) {
+        return String(text == null ? '' : text).split(from).join(to);
+    }
+
+    function paint(name) {
+        name = String(name || '').trim();
+        if (!name || painting) return;
+        window.__fortressBrand = name;
+        if (name === 'Prixburg') return;
+        painting = true;
+        var roots = document.body ? [document.body] : [];
+        roots.forEach(function (root) {
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                acceptNode: function (node) {
+                    var parent = node.parentElement;
+                    if (!parent) return NodeFilter.FILTER_REJECT;
+                    var tag = parent.tagName;
+                    if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                    var value = node.nodeValue || '';
+                    if (value.indexOf('Prixburg') !== -1) return NodeFilter.FILTER_ACCEPT;
+                    if (applied && applied !== name && value.indexOf(applied) !== -1) return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_REJECT;
+                }
+            });
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(function (node) {
+                var value = node.nodeValue;
+                if (value.indexOf('Prixburg') !== -1) value = swapText(value, 'Prixburg', name);
+                if (applied && applied !== name) value = swapText(value, applied, name);
+                node.nodeValue = value;
+            });
+        });
+        if (document.title.indexOf('Prixburg') !== -1) document.title = swapText(document.title, 'Prixburg', name);
+        else if (applied && applied !== name && document.title.indexOf(applied) !== -1) {
+            document.title = swapText(document.title, applied, name);
+        }
+        document.querySelectorAll('[title], [placeholder], [aria-label]').forEach(function (el) {
+            ['title', 'placeholder', 'aria-label'].forEach(function (attr) {
+                var value = el.getAttribute(attr);
+                if (!value) return;
+                if (value.indexOf('Prixburg') !== -1) value = swapText(value, 'Prixburg', name);
+                if (applied && applied !== name && value.indexOf(applied) !== -1) value = swapText(value, applied, name);
+                el.setAttribute(attr, value);
+            });
+        });
+        var logo = document.querySelector('.home-logo');
+        if (logo) logo.classList.toggle('is-long-name', name.length > 12);
+        applied = name;
+        try { localStorage.setItem('fortress-brand:' + tenant, name); } catch (err) { /* ignore */ }
+        painting = false;
+        document.dispatchEvent(new CustomEvent('fortress-brand'));
+    }
+
+    var titleDesc = Object.getOwnPropertyDescriptor(Document.prototype, 'title');
+    if (titleDesc && titleDesc.set && titleDesc.get) {
+        Object.defineProperty(document, 'title', {
+            configurable: true,
+            get: function () { return titleDesc.get.call(document); },
+            set: function (value) {
+                var brand = window.__fortressBrand;
+                var next = value;
+                if (brand && brand !== 'Prixburg') next = swapText(value, 'Prixburg', brand);
+                titleDesc.set.call(document, next);
+            }
+        });
+    }
+
+    function remembered() {
+        try { return localStorage.getItem('fortress-brand:' + tenant) || ''; } catch (err) { return ''; }
+    }
+
+    var queryName = '';
+    try { queryName = new URLSearchParams(location.search).get('name') || ''; } catch (err) { /* ignore */ }
+
+    function boot() {
+        var name = queryName || remembered();
+        if (!name && tenant !== 'prixburg') name = titleCase(tenant);
+        if (name) paint(name);
+        if (typeof NEXT_PUBLIC_SUPABASE_URL !== 'string' || typeof NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY !== 'string') return;
+        var key = 'fortress-tenant:' + tenant;
+        fetch(NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/prixburg_data?key=eq.' + encodeURIComponent(key) + '&select=value', {
+            headers: {
+                apikey: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+                Accept: 'application/json'
+            }
+        }).then(function (response) {
+            return response.ok ? response.json() : [];
+        }).then(function (rows) {
+            var remote = rows && rows[0] && rows[0].value && rows[0].value.name;
+            if (remote) paint(remote);
+        }).catch(function () { /* The slug name stays until the saved website name loads. */ });
+    }
+
+    function watch() {
+        if (!document.body) return;
+        var observer = new MutationObserver(function () {
+            if (painting || !document.body) return;
+            var visible = document.body.textContent || '';
+            if (visible.indexOf('Prixburg') === -1 && document.title.indexOf('Prixburg') === -1) return;
+            if (window.__fortressBrand && window.__fortressBrand !== 'Prixburg') paint(window.__fortressBrand);
+        });
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+
+    if (document.body) {
+        boot();
+        watch();
+    } else {
+        document.addEventListener('DOMContentLoaded', function () {
+            boot();
+            watch();
+        });
+    }
+})();

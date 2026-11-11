@@ -1663,8 +1663,88 @@ const emptyFabPricing = () => ({
   marginPercent: '30',
   transportPercent: DEFAULT_BOQ_PERCENTS.transportPercent,
   whatsapp: '',
+  companyName: '',
+  address: '',
+  phone: '',
+  email: '',
   visionProvider: 'tesseract',
 })
+
+const FAB_PRICE_CATALOG = [
+  { key: 'tube50PerM', name: '50×50 tube', unit: 'per m' },
+  { key: 'tube25PerM', name: '25×25 tube', unit: 'per m' },
+  { key: 'tube16PerM', name: '16×16 tube', unit: 'per m' },
+  { key: 'tube76PerM', name: '76×76 post', unit: 'per m' },
+  { key: 'angle30PerM', name: '30×30 angle', unit: 'per m' },
+  { key: 'angle40PerM', name: '40×40 angle', unit: 'per m' },
+  { key: 'angle50PerM', name: '50×50×5 angle', unit: 'per m' },
+  { key: 'flatBarPerM', name: 'Flat bar', unit: 'per m' },
+  { key: 'uChannelPerM', name: 'U-channel', unit: 'per m' },
+  { key: 'sheetPerM2', name: 'Sheet', unit: 'per m²' },
+  { key: 'ibrPerM2', name: 'IBR sheet', unit: 'per m²' },
+  { key: 'h120PerM', name: 'H 120×120', unit: 'per m' },
+  { key: 'pfc150PerM', name: 'PFC 150×75', unit: 'per m' },
+  { key: 'lc150PerM', name: 'LC 150', unit: 'per m' },
+  { key: 'lc125PerM', name: 'LC 125', unit: 'per m' },
+  { key: 'lc100PerM', name: 'LC 100', unit: 'per m' },
+  { key: 'platePerKg', name: 'Plate', unit: 'per kg' },
+  { key: 'boltM16', name: 'Bolt M16 HD', unit: 'each' },
+  { key: 'boltM16_88', name: 'Bolt M16 8.8', unit: 'each' },
+  { key: 'boltM12', name: 'Bolt M12', unit: 'each' },
+  { key: 'foundationPad', name: 'Foundation pad', unit: 'each' },
+  { key: 'rebarPerKg', name: 'Rebar', unit: 'per kg' },
+  { key: 'rebarFixPerKg', name: 'Rebar fixing labour', unit: 'per kg' },
+  { key: 'concreteC25PerM3', name: 'C25 concrete', unit: 'per m³' },
+  { key: 'formworkPerM2', name: 'Formwork', unit: 'per m²' },
+]
+
+const FAB_PRICE_SKIP = new Set([
+  'labourPercent',
+  'consumablesPercent',
+  'marginPercent',
+  'transportPercent',
+  'whatsapp',
+  'companyName',
+  'address',
+  'phone',
+  'email',
+  'visionProvider',
+  'rcWasteFactor',
+  'rcMarginPercent',
+  'floorHeightM',
+  'materialLabels',
+])
+
+const fabPriceUnit = (unit) => {
+  if (unit === 'm') return 'per m'
+  if (unit === 'kg') return 'per kg'
+  if (unit === 'm2' || unit === 'sqm') return 'per m²'
+  if (unit === 'qty') return 'each'
+  return unit ? String(unit) : 'each'
+}
+
+const collectFabPriceRows = (pricing = {}, schedules = []) => {
+  const rows = FAB_PRICE_CATALOG.map((row) => ({ ...row }))
+  const seen = new Set(rows.map((row) => row.key))
+  schedules.forEach((row) => {
+    const key = row?.priceKey
+    if (!key || seen.has(key) || FAB_PRICE_SKIP.has(key)) return
+    seen.add(key)
+    rows.push({
+      key,
+      name: row.section || row.role || row.material || key,
+      unit: fabPriceUnit(row.unit),
+    })
+  })
+  Object.keys(pricing || {}).forEach((key) => {
+    if (seen.has(key) || FAB_PRICE_SKIP.has(key) || key.startsWith('_')) return
+    if (pricing[key] == null || pricing[key] === '') return
+    seen.add(key)
+    const labels = pricing.materialLabels || {}
+    rows.push({ key, name: labels[key] || key, unit: 'unit price' })
+  })
+  return rows
+}
 const emptyDrawingDraft = () => ({
   photo: '',
   name: '',
@@ -2682,7 +2762,9 @@ function CeoDashboard({
         <iframe
           className="prixburg-live-frame"
           title={site?.name || 'Manufacturing'}
-          src={`/prixburg-live/index.html?tenant=${encodeURIComponent(tenant)}`}
+          src={`/prixburg-live/index.html?tenant=${encodeURIComponent(tenant)}${
+            site?.name ? `&name=${encodeURIComponent(site.name)}` : ''
+          }`}
         />
       </section>
     )
@@ -3595,22 +3677,10 @@ function FabricationCalculator({
       },
       schedule: merged.schedule,
     })
-    const natureMemory =
-      isScheduleJob(jobType)
-        ? findNaturePriceMemory(natureKey, {
-            drawingType: resolvedType,
-            schedule: merged.schedule,
-          })
-        : null
     const pricingPatch = { ...rates }
     Object.entries(merged.pricingUpdates || {}).forEach(([key, value]) => {
       if (pricingPatch[key] === undefined || pricingPatch[key] === '') pricingPatch[key] = value
     })
-    if (natureMemory?.match === 'exact' && natureMemory?.pricing) {
-      Object.entries(natureMemory.pricing).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') pricingPatch[key] = value
-      })
-    }
     applySavedPricing(pricingPatch)
 
     let nextGate = { ...emptyDrawingDraft(), ...(baseProject.gate || {}) }
@@ -3684,14 +3754,11 @@ function FabricationCalculator({
           : building.length_m || building.width_m
             ? ` Dimensions: ${building.length_m || '—'}m × ${building.width_m || '—'}m${building.height_m ? ` × ${building.height_m}m` : ''}.`
             : ''
-    const memoryNote =
-      isScheduleJob(jobType)
-        ? natureMemory?.match === 'exact'
-          ? ` Exact unit-price memory for this nature (${natureMemory.label || 'saved rates'}).`
-          : jobType === 'rc_columns'
-            ? ' Confirm steel/concrete/formwork take-off, then unit prices (QS build-up).'
-            : ' Confirm the take-off next, then enter unit prices.'
-        : ' Confirm gate details, then the take-off script, then unit prices.'
+    const memoryNote = isScheduleJob(jobType)
+      ? jobType === 'rc_columns'
+        ? ' Confirm steel/concrete/formwork take-off. Unit prices come from the pricing table.'
+        : ' Confirm the take-off next. Unit prices come from the pricing table.'
+      : ' Confirm gate details, then the take-off. Unit prices come from the pricing table.'
     const sourceNote =
       source === 'estimated_from_knowledge'
         ? ' Estimated from fabrication knowledge for this plan type (not another saved job).'
@@ -3751,7 +3818,6 @@ function FabricationCalculator({
           }),
         { drawingType: restored.drawingType, schedule: restored.schedule },
       )
-      if (natureMemory?.match === 'exact' && natureMemory?.pricing) applySavedPricing(natureMemory.pricing)
       setProject((prev) => ({ ...prev, ...restored, natureKey: natureMemory?.natureKey || restored.natureKey }))
       setObjections(restored.confirmNotes || '')
       setDrawingNote(
@@ -3997,7 +4063,7 @@ function FabricationCalculator({
               }}
             >
               <FabMenuIcon name="pricing" />
-              Price list
+              Pricing table
             </button>
             <button
               type="button"
@@ -4140,6 +4206,7 @@ function FabricationCalculator({
       {wizard && pathMode === 'drawing' && step >= 2 ? (
         <DrawingChatSession
           project={project}
+          companyName={site?.name || ''}
           pricing={rates}
           online={online}
           jobTypeLabel={jobTypeLabel}
@@ -4605,6 +4672,7 @@ function FabricationCalculator({
       {wizard && pathMode === 'plan_manual' && step >= 3 && project.planKind === 'gate' ? (
         <GateChatSession
           project={project}
+          companyName={site?.name || ''}
           pricing={rates}
           onUpdateGate={(patch) => updateGate(patch)}
           onUpdateProject={(patch) => updateProject(patch)}
@@ -4624,6 +4692,7 @@ function FabricationCalculator({
           key={`${project.planKind}-${project.id || project.name}`}
           kind={project.planKind}
           project={project}
+          companyName={site?.name || ''}
           draft={project.planKind === 'palisade' ? project.palisade : project.burglar}
           pricing={rates}
           onUpdateDraft={(next) => {
@@ -5232,105 +5301,50 @@ function FabricationCalculator({
       {view === 'pricing' ? (
         <main className="fab-home">
           <section className="fab-section">
-            <h1>Price list</h1>
-            <h2>Material rates</h2>
-            <div className="fab-size-row">
-              <label>
-                50x50 / m
-                <input
-                  type="number"
-                  value={priceForm.tube50PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, tube50PerM: event.target.value })}
-                />
-              </label>
-              <label>
-                25x25 / m
-                <input
-                  type="number"
-                  value={priceForm.tube25PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, tube25PerM: event.target.value })}
-                />
-              </label>
+            <h1>Pricing table</h1>
+            <p className="fab-note">
+              Every material from the drawings, with its unit price. Edit a price and every calculation uses that price.
+            </p>
+            <div className="fab-price-table-wrap">
+              <table className="fab-price-table">
+                <thead>
+                  <tr>
+                    <th>Material</th>
+                    <th>Unit</th>
+                    <th>Unit price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {collectFabPriceRows(priceForm, [
+                    ...(project.schedule || []),
+                    ...projects.flatMap((item) => item.schedule || []),
+                    ...loadDrawingTemplates().flatMap((item) => item.schedule || []),
+                  ]).map((row) => (
+                    <tr key={row.key}>
+                      <td>{row.name}</td>
+                      <td>{row.unit}</td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          aria-label={`${row.name} unit price`}
+                          value={priceForm[row.key] ?? ''}
+                          onChange={(event) => updateUnitPrice(row.key, event.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             <div className="fab-size-row">
-              <label>
-                16x16 / m
-                <input
-                  type="number"
-                  value={priceForm.tube16PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, tube16PerM: event.target.value })}
-                />
-              </label>
-              <label>
-                76x76 post / m
-                <input
-                  type="number"
-                  value={priceForm.tube76PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, tube76PerM: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="fab-size-row">
-              <label>
-                40×40 angle / m
-                <input
-                  type="number"
-                  value={priceForm.angle40PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, angle40PerM: event.target.value })}
-                />
-              </label>
-              <label>
-                Flat bar / m
-                <input
-                  type="number"
-                  value={priceForm.flatBarPerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, flatBarPerM: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="fab-size-row">
-              <label>
-                H 120x120 / m
-                <input
-                  type="number"
-                  value={priceForm.h120PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, h120PerM: event.target.value })}
-                />
-              </label>
-              <label>
-                30×30 angle / m
-                <input
-                  type="number"
-                  value={priceForm.angle30PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, angle30PerM: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="fab-size-row">
-              <label>
-                LC 150 / m
-                <input
-                  type="number"
-                  value={priceForm.lc150PerM}
-                  onChange={(event) => setPriceForm({ ...priceForm, lc150PerM: event.target.value })}
-                />
-              </label>
               <label>
                 Labour %
                 <input
                   type="number"
                   value={priceForm.labourPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, labourPercent: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="fab-size-row">
-              <label>
-                Profit %
-                <input
-                  type="number"
-                  value={priceForm.marginPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, marginPercent: event.target.value })}
+                  onChange={(event) => updateUnitPrice('labourPercent', event.target.value)}
                 />
               </label>
               <label>
@@ -5338,7 +5352,25 @@ function FabricationCalculator({
                 <input
                   type="number"
                   value={priceForm.consumablesPercent}
-                  onChange={(event) => setPriceForm({ ...priceForm, consumablesPercent: event.target.value })}
+                  onChange={(event) => updateUnitPrice('consumablesPercent', event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="fab-size-row">
+              <label>
+                Transport %
+                <input
+                  type="number"
+                  value={priceForm.transportPercent}
+                  onChange={(event) => updateUnitPrice('transportPercent', event.target.value)}
+                />
+              </label>
+              <label>
+                Profit %
+                <input
+                  type="number"
+                  value={priceForm.marginPercent}
+                  onChange={(event) => updateUnitPrice('marginPercent', event.target.value)}
                 />
               </label>
             </div>
@@ -5350,7 +5382,7 @@ function FabricationCalculator({
                 goView('home')
               }}
             >
-              Save price list
+              Done
             </button>
           </section>
         </main>
@@ -5669,7 +5701,7 @@ function App() {
         const kind = site.systemType
         if (!slug || !kind || publishedTenantsRef.current.has(slug)) return
         publishedTenantsRef.current.add(slug)
-        publishTenantKind(slug, kind)
+        publishTenantKind(slug, kind, site.name || site.brandName || '')
       })
     })
   }, [accounts])
@@ -5680,7 +5712,13 @@ function App() {
     if (!hostSlug || hostSlug === 'rodcroft') return undefined
     let cancelled = false
     const openManufacturing = () => {
-      const next = `/prixburg-live/index.html?tenant=${encodeURIComponent(hostSlug)}`
+      const ownedName =
+        accounts
+          .flatMap((account) => account.websites || [])
+          .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)?.name || ''
+      const next = `/prixburg-live/index.html?tenant=${encodeURIComponent(hostSlug)}${
+        ownedName ? `&name=${encodeURIComponent(ownedName)}` : ''
+      }`
       if (!window.location.pathname.startsWith('/prixburg-live')) {
         window.location.replace(next)
       }
@@ -6395,7 +6433,7 @@ function App() {
       })
       saveSiteCeoMetadata(slug, initialMeta)
     }
-    publishTenantKind(slug, type.id)
+    publishTenantKind(slug, type.id, name)
 
     const site = makeWebsite({
       name,
@@ -7871,6 +7909,55 @@ function App() {
               <button type="button" className="primary-button" onClick={() => goSettingsView('manage')}>
                 Manage accounts
               </button>
+              <button type="button" className="primary-button" onClick={() => goSettingsView('subdomains')}>
+                Manage subdomains
+              </button>
+            </section>
+          )}
+
+          {tab === 'settings' && settingsView === 'subdomains' && (
+            <section className="panel-box settings-page">
+              <button type="button" className="text-back" onClick={() => goSettingsView('home')}>
+                Back
+              </button>
+              <h3>Manage subdomains</h3>
+              <p className="shop-copy">Delete a subdomain app after you confirm with this account’s email and password.</p>
+              <div className="subdomain-list">
+                {(signedInAccount?.websites || [])
+                  .filter((site) => CEO_SYSTEM_IDS.includes(site.systemType))
+                  .map((site) => {
+                    const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
+                    const locked = slug === 'rodcroft' || slug === 'prixburg'
+                    return (
+                      <article key={site.id} className="subdomain-row">
+                        <div>
+                          <strong>{site.name || slug}</strong>
+                          <span>{subdomainLabelFor(site)}</span>
+                        </div>
+                        {locked ? null : (
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() =>
+                              setDeleteSiteFlow({
+                                siteId: site.id,
+                                step: 'confirm',
+                                email: '',
+                                password: '',
+                                error: '',
+                              })
+                            }
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </article>
+                    )
+                  })}
+              </div>
+              {(signedInAccount?.websites || []).some((site) => CEO_SYSTEM_IDS.includes(site.systemType)) ? null : (
+                <p className="empty-note">No subdomain apps on this account yet.</p>
+              )}
             </section>
           )}
 

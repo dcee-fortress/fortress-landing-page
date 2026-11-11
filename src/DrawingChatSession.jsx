@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DrawingChatBar from './DrawingChatBar'
 import DrawingExplainPane from './DrawingExplainPane'
 import EditableMaterialTable from './EditableMaterialTable'
-import BoqSummary from './BoqSummary'
+import BoqSummary, { buildProfessionalQuoteHtml } from './BoqSummary'
 import {
   buildDrawingExplanation,
   createEmptyDrawingSession,
@@ -39,6 +39,7 @@ const isPdfDrawing = (project = {}) => {
 
 export default function DrawingChatSession({
   project,
+  companyName = '',
   pricing,
   online,
   onUpdateProject,
@@ -449,39 +450,18 @@ export default function DrawingChatSession({
   const printBoqPdf = () => {
     const derived = deriveSessionViews(session, project, pricing)
     const { boq, priceRows } = derived
-    const linesHtml = priceRows
-      .map(
-        (row) =>
-          `<tr><td>${row.description || row.material}</td><td>${row.quantityLabel}</td><td>${Number(
-            row.unitPrice,
-          ).toFixed(2)}</td><td>${Number(row.totalPrice).toFixed(2)}</td></tr>`,
-      )
-      .join('')
-    const title = `BOQ — ${project.name || 'Quote'}`
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${title}</title>
-      <style>
-        body{font-family:Georgia,serif;padding:32px;color:#1c1915}
-        h1{font-size:1.6rem;margin:0 0 8px}
-        h2{font-size:1.05rem;margin:20px 0 8px}
-        table{width:100%;border-collapse:collapse;margin:8px 0 16px}
-        th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left}
-        .sub{font-weight:700}
-        .tot{font-size:1.2rem;margin-top:20px}
-        @media print{body{padding:12px}}
-      </style></head><body>
-      <h1>${project.name || 'Fabrication BOQ'}</h1>
-      <p>${project.client ? `Client: ${project.client}` : ''}</p>
-      <h2>Material cost summary</h2>
-      <table><thead><tr><th>Material</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
-      <tbody>${linesHtml}
-      <tr class="sub"><td colspan="3">Material cost</td><td>$${boq.materials.toFixed(2)}</td></tr>
-      </tbody></table>
-      <h2>Add-ons</h2>
-      <p>Labour ${boq.labourPercent}%: $${boq.labour.toFixed(2)}</p>
-      <p>Consumables ${boq.consumablesPercent}%: $${boq.consumables.toFixed(2)}</p>
-      <p>Transport ${boq.transportPercent}%: $${boq.transport.toFixed(2)}</p>
-      <p class="tot"><strong>Total estimated price: $${boq.total.toFixed(2)}</strong></p>
-      </body></html>`
+    const title = `${pricing?.companyName || companyName || project.name || 'Quotation'}`
+    const html = buildProfessionalQuoteHtml({
+      companyName: pricing?.companyName || companyName || project.name || 'Quotation',
+      address: pricing?.address || '',
+      phone: pricing?.phone || '',
+      whatsapp: pricing?.whatsapp || '',
+      email: pricing?.email || '',
+      client: project.client || '',
+      projectName: project.name || '',
+      priceRows,
+      boq,
+    })
 
     // Hidden iframe print — avoids popup blockers that break window.open('', '_blank').
     const iframe = document.createElement('iframe')
@@ -737,9 +717,11 @@ export default function DrawingChatSession({
             mode={usesWeightPath(project.jobType) ? 'prices-weight' : 'prices-length'}
             title="Unit prices"
             rows={views.priceRows}
-            onChangeUnitPrice={(id, value) =>
-              patchSession({ unitPrices: { ...session.unitPrices, [id]: value } })
-            }
+            onChangeUnitPrice={(id, value) => {
+              const row = views.priceRows.find((item) => item.id === id)
+              if (row?.priceKey) onPersistPricing?.({ [row.priceKey]: value })
+              else patchSession({ unitPrices: { ...session.unitPrices, [id]: value } })
+            }}
           />
         ) : null}
         {showBoq ? (
@@ -747,6 +729,17 @@ export default function DrawingChatSession({
             boq={views.boq}
             priceRows={views.priceRows}
             projectName={project.name}
+            companyName={companyName}
+            client={project.client || ''}
+            letterhead={{
+              companyName: pricing?.companyName || '',
+              address: pricing?.address || '',
+              phone: pricing?.phone || '',
+              whatsapp: pricing?.whatsapp || '',
+              email: pricing?.email || '',
+            }}
+            onChangeLetterhead={(patch) => onPersistPricing?.(patch)}
+            onChangeClient={(value) => onUpdateProject?.({ client: value })}
             onChangePercent={(key, value) => {
               patchSession({ [key]: value })
               onPersistPricing?.({

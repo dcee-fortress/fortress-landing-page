@@ -231,13 +231,21 @@ body {
 
 .home-logo {
     margin: 0;
+    max-width: 100%;
+    padding: 0 16px;
     color: #000000;
     font-family: Georgia, "Times New Roman", serif;
     font-size: 5.2rem;
     font-weight: 700;
     font-style: italic;
     letter-spacing: 0.04em;
+    text-align: center;
+    overflow-wrap: anywhere;
     animation: logoFlicker 1.8s ease-in-out 1;
+}
+
+.home-logo.is-long-name {
+    font-size: 2.8rem;
 }
 
 .home-logo .tm {

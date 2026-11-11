@@ -203,8 +203,9 @@ function renderFortressBrand() {
     const brand = document.createElement('a');
     brand.className = 'fortress-brand';
     brand.href = 'index.html';
-    brand.title = 'Prixburg under Fortress';
-    brand.innerHTML = '<span class="fortress-f">F</span><span class="fortress-name">Prixburg</span>';
+    var label = window.__fortressBrand || 'Prixburg';
+    brand.title = label + ' under Fortress';
+    brand.innerHTML = '<span class="fortress-f">F</span><span class="fortress-name">' + label + '</span>';
     wrap.insertBefore(brand, wrap.querySelector('.dropdown-content'));
 }
 
@@ -219,6 +220,14 @@ function initNav() {
         }
     });
 }
+
+window.addEventListener('fortress-brand', function () {
+    var label = window.__fortressBrand || 'Prixburg';
+    var nameEl = document.querySelector('.fortress-name');
+    if (nameEl) nameEl.textContent = label;
+    var brand = document.querySelector('.fortress-brand');
+    if (brand) brand.title = label + ' under Fortress';
+});
 
 checkAuthentication();
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import DrawingChatBar from './DrawingChatBar'
 import DrawingExplainPane from './DrawingExplainPane'
 import EditableMaterialTable from './EditableMaterialTable'
-import BoqSummary from './BoqSummary'
+import BoqSummary, { buildProfessionalQuoteHtml } from './BoqSummary'
 import {
   applyPlanSuggestion,
   applyRememberedPlanFormulas,
@@ -34,6 +34,7 @@ const makeMsg = (role, text) => ({
 export default function PlanChatSession({
   kind = 'palisade',
   project,
+  companyName = '',
   draft = {},
   pricing,
   onUpdateDraft,
@@ -242,31 +243,17 @@ export default function PlanChatSession({
   const printBoqPdf = () => {
     const derived = derivePlanViews(session, kind, draft, pricing)
     const { boq, priceRows } = derived
-    const linesHtml = priceRows
-      .map(
-        (row) =>
-          `<tr><td>${row.material}</td><td>${row.quantityLabel}</td><td>${Number(row.unitPrice).toFixed(
-            2,
-          )}</td><td>${Number(row.totalPrice).toFixed(2)}</td></tr>`,
-      )
-      .join('')
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${title} BOQ — ${
-      project.name || 'Quote'
-    }</title>
-      <style>
-        body{font-family:Georgia,serif;padding:24px;color:#1c1915}
-        table{width:100%;border-collapse:collapse;margin:16px 0}
-        th,td{border:1px solid #ccc;padding:8px;text-align:left}
-        h1{font-size:1.4rem}
-      </style></head><body>
-      <h1>${project.name || title}</h1>
-      <p>${title} · client ${project.client || '—'}</p>
-      <table><thead><tr><th>Material</th><th>Qty</th><th>Unit $</th><th>Total $</th></tr></thead>
-      <tbody>${linesHtml}</tbody></table>
-      <p>Materials $${boq.materials.toFixed(2)} · Labour $${boq.labour.toFixed(2)} ·
-      Consumables $${boq.consumables.toFixed(2)} · Transport $${boq.transport.toFixed(2)}</p>
-      <p><strong>Total $${boq.total.toFixed(2)}</strong></p>
-      </body></html>`
+    const html = buildProfessionalQuoteHtml({
+      companyName: pricing?.companyName || companyName || project.name || 'Quotation',
+      address: pricing?.address || '',
+      phone: pricing?.phone || '',
+      whatsapp: pricing?.whatsapp || '',
+      email: pricing?.email || '',
+      client: project.client || '',
+      projectName: project.name || title,
+      priceRows,
+      boq,
+    })
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
@@ -410,9 +397,11 @@ export default function PlanChatSession({
             mode="prices-gate"
             title="Unit prices"
             rows={views.priceRows}
-            onChangeUnitPrice={(id, value) =>
-              patchSession({ unitPrices: { ...session.unitPrices, [id]: value } })
-            }
+            onChangeUnitPrice={(id, value) => {
+              const row = views.priceRows.find((item) => item.id === id)
+              if (row?.priceKey) onPersistPricing?.({ [row.priceKey]: value })
+              else patchSession({ unitPrices: { ...session.unitPrices, [id]: value } })
+            }}
           />
         ) : null}
         {showBoq ? (
@@ -420,6 +409,17 @@ export default function PlanChatSession({
             boq={views.boq}
             priceRows={views.priceRows}
             projectName={project.name}
+            companyName={companyName}
+            client={project.client || ''}
+            letterhead={{
+              companyName: pricing?.companyName || '',
+              address: pricing?.address || '',
+              phone: pricing?.phone || '',
+              whatsapp: pricing?.whatsapp || '',
+              email: pricing?.email || '',
+            }}
+            onChangeLetterhead={(patch) => onPersistPricing?.(patch)}
+            onChangeClient={(value) => onUpdateProject?.({ client: value })}
             onChangePercent={(key, value) => {
               patchSession({ [key]: value })
               onPersistPricing?.({

@@ -3,8 +3,8 @@
 
 const PERMITTED_USERS = [
     {
-        username: 'CLEANZ',
-        password: 'CLEANZ123',
+        username: 'Fortress',
+        password: 'fortress123',
         role: 'Administrator',
         permissions: ['read', 'write', 'delete', 'manage_users']
     }
@@ -12,21 +12,24 @@ const PERMITTED_USERS = [
 
 const LOGIN_DETAILS_KEY = 'prixburgLoginDetails';
 const DEFAULT_LOGIN_DETAILS = {
-    mainUsername: 'CLEANZ',
-    mainPassword: 'CLEANZ123',
-    settingsUsername: 'PRIXBURG CHEMICALS',
-    settingsPassword: 'Prixburg',
+    mainUsername: 'Fortress',
+    mainPassword: 'fortress123',
+    settingsUsername: 'Fortress',
+    settingsPassword: 'fortress123',
     ceoName: 'Tawanda Chitukutuku'
 };
 
 function normalizeLoginDetails(value) {
     const saved = value && typeof value === 'object' ? value : {};
+    const legacyMain = saved.mainUsername === 'CLEANZ' && saved.mainPassword === 'CLEANZ123';
+    const legacySettings = saved.settingsUsername === 'PRIXBURG CHEMICALS' && saved.settingsPassword === 'Prixburg';
+    const generated = window.PRIXBURG_TENANT && window.PRIXBURG_TENANT !== 'prixburg';
     return {
-        mainUsername: String(saved.mainUsername != null ? saved.mainUsername : DEFAULT_LOGIN_DETAILS.mainUsername),
-        mainPassword: String(saved.mainPassword != null ? saved.mainPassword : DEFAULT_LOGIN_DETAILS.mainPassword),
-        settingsUsername: String(saved.settingsUsername != null ? saved.settingsUsername : DEFAULT_LOGIN_DETAILS.settingsUsername),
-        settingsPassword: String(saved.settingsPassword != null ? saved.settingsPassword : DEFAULT_LOGIN_DETAILS.settingsPassword),
-        ceoName: String(saved.ceoName != null ? saved.ceoName : DEFAULT_LOGIN_DETAILS.ceoName)
+        mainUsername: String(!legacyMain && saved.mainUsername != null ? saved.mainUsername : DEFAULT_LOGIN_DETAILS.mainUsername),
+        mainPassword: String(!legacyMain && saved.mainPassword != null ? saved.mainPassword : DEFAULT_LOGIN_DETAILS.mainPassword),
+        settingsUsername: String(!legacySettings && saved.settingsUsername != null ? saved.settingsUsername : DEFAULT_LOGIN_DETAILS.settingsUsername),
+        settingsPassword: String(!legacySettings && saved.settingsPassword != null ? saved.settingsPassword : DEFAULT_LOGIN_DETAILS.settingsPassword),
+        ceoName: String(saved.ceoName != null ? saved.ceoName : (generated ? '' : DEFAULT_LOGIN_DETAILS.ceoName))
     };
 }
 

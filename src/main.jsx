@@ -3,29 +3,30 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { registerFortressUpdates } from './registerUpdates.js'
-import { fetchTenantKind } from './tenantRegistry'
+import { fetchTenantRecord } from './tenantRegistry'
 
 const hostSlug = () => {
   if (typeof window === 'undefined') return ''
   return window.__fortressHostSlug || ''
 }
 
-const openManufacturingSite = (slug) => {
-  const next = `/prixburg-live/index.html?tenant=${encodeURIComponent(slug)}`
+const openManufacturingSite = (slug, name) => {
+  const brand = name ? `&name=${encodeURIComponent(name)}` : ''
+  const next = `/prixburg-live/index.html?tenant=${encodeURIComponent(slug)}${brand}`
   window.location.replace(next)
 }
 
 const start = async () => {
   const slug = hostSlug()
   if (slug) {
-    let kind = ''
+    let record = { systemType: '', name: '' }
     try {
-      kind = await fetchTenantKind(slug)
+      record = await fetchTenantRecord(slug)
     } catch {
-      kind = ''
+      record = { systemType: '', name: '' }
     }
-    if (!kind || kind === 'manufacturing') {
-      openManufacturingSite(slug)
+    if (!record.systemType || record.systemType === 'manufacturing') {
+      openManufacturingSite(slug, record.name)
       return
     }
     document.documentElement.classList.remove('tenant-pending')
