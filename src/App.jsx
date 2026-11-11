@@ -7,6 +7,7 @@ import {
   loadLiveFeedCache,
   publishLiveUpload,
 } from './liveFeed'
+import { noteAccountDevice } from './deviceSessions'
 import {
   drawingNatureKey,
   extractSteelSchedule,
@@ -34,8 +35,9 @@ import {
   detectActiveSubdomain,
   deleteSiteCeoMetadata,
   getSiteCeoMetadata,
-  LEMON_REMOVED_KEY,
+  isDeletedSlug,
   purgeStoredLemonSite,
+  rememberDeletedSlug,
   saveSiteCeoMetadata,
   subdomainLabelFor,
   subdomainUrlFor,
@@ -994,16 +996,16 @@ const SYSTEM_TYPES = [
     id: 'fabrication',
     label: 'Fabrication calculator',
     style: '$100 / month',
-    how: 'A private fabrication calculator on your Fortress tenant. Swipe the pictures, pay $100 a month with EcoCash, then the calculator opens beside your profile gallery.',
+    how: 'The calculator accepts all fabrication engineering drawings. It reads the drawing and gives the analysis: weight of steel and length of material used. You can edit that data on the templates, insert prices for the materials, and the quotation is given. $100 a month with EcoCash, or a 14 day free trial.',
     preview: GATE_DESIGNS.slice(0, 4).map((gate) => gate.photo),
     slides: GATE_DESIGNS.slice(0, 5).map((gate, index) => ({
       photo: gate.photo,
       testimonial: [
-        'A fabricator quotes from memory and loses jobs. This calculator starts with a gate design so the customer sees the same picture you will build.',
-        'Width and height in metres turn into area. The quote is not a guess — it is the size of the gate times the design rate.',
-        'Simple, medium, or laser-cut complexity changes the rate. A spear-top driveway is not priced like a laser leaf.',
-        'Saved quotations sit on your fabrication webpage so the workshop can open the same numbers on the phone.',
-        'Pay $100 a month. The exclusive calculator link stays on the owner profile; other people do not see it.',
+        'The app accepts all fabrication engineering drawings.',
+        'It reads the drawing and gives its analysis.',
+        'You can see the weight of steel and the length of material used.',
+        'You can edit this data on the templates given.',
+        'You insert prices for the materials in the system, and the quotation is given.',
       ][index],
     })),
   },
@@ -1252,21 +1254,26 @@ const stripSparksTech = (list) =>
 const isLemonSite = (site) => {
   const slug = cleanSlug(site?.slug || site?.catalogId || site?.name || '')
   const name = String(site?.name || '').trim().toLowerCase()
-  return slug === 'lemon' || name === 'lemon' || /\blemon\b/.test(name)
+  const host = String(site?.link || site?.subdomain || '').toLowerCase()
+  return (
+    slug === 'lemon' ||
+    name === 'lemon' ||
+    /\blemon\b/.test(name) ||
+    host.includes('lemon.fortress.vercel.app') ||
+    isDeletedSlug(site)
+  )
 }
 
 const stripLemonWebsite = (list) => {
   const accounts = Array.isArray(list) ? list : []
-  if (typeof window !== 'undefined' && storage.getItem(LEMON_REMOVED_KEY) === '1') return accounts
-  const next = accounts.map((account) => ({
+  return accounts.map((account) => ({
     ...account,
     websites: (account.websites || []).filter((site) => !isLemonSite(site)),
   }))
-  purgeStoredLemonSite()
-  return next
 }
 
 const withCompanyAccounts = (list) => {
+  purgeStoredLemonSite()
   const accounts = withOwnerLogin(stripSparksTech(stripLemonWebsite(list)))
   COMPANY_LOGINS.forEach((login) => {
     const catalogEntry = catalog.find((entry) => entry.id === login.catalogId)
@@ -2612,6 +2619,27 @@ function CeoDashboard({
   onMetadataUpdated,
 }) {
   const meta = getSiteCeoMetadata(site)
+  const slug = cleanSlug(site?.slug || site?.catalogId || site?.name || '')
+  const isPrixburgLive = slug === 'prixburg' || site?.catalogId === 'prixburg'
+  if (isPrixburgLive) {
+    return (
+      <section className="prixburg-live-shell">
+        {onBack ? (
+          <div className="prixburg-live-bar">
+            <button type="button" className="text-back" onClick={onBack}>
+              Back
+            </button>
+            <span>prixburg.fortress.vercel.app</span>
+          </div>
+        ) : null}
+        <iframe
+          className="prixburg-live-frame"
+          title="Prixburg"
+          src="/prixburg-live/index.html"
+        />
+      </section>
+    )
+  }
   const isManufacturing = site?.systemType === 'manufacturing' || meta?.template === 'prixburg'
   const content = isManufacturing ? (
     <PrixburgTemplate
@@ -5514,6 +5542,7 @@ function App() {
   const [offlineNotice, setOfflineNotice] = useState('')
   const [liveFeedItems, setLiveFeedItems] = useState(() => loadLiveFeedCache())
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deviceNotice, setDeviceNotice] = useState('')
   const [siteLinkMenu, setSiteLinkMenu] = useState(null)
   const [deleteSiteFlow, setDeleteSiteFlow] = useState(null)
   const [homeQuery, setHomeQuery] = useState('')
@@ -5586,7 +5615,7 @@ function App() {
   const reactivateSiteRef = useRef('')
 
   useEffect(() => {
-    setAccounts((previous) => withOwnerLogin(previous))
+    setAccounts((previous) => withCompanyAccounts(previous))
   }, [])
 
   useEffect(() => {
@@ -5596,7 +5625,7 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      storage.setItem(STORE_KEY, JSON.stringify(accounts))
+      storage.setItem(STORE_KEY, JSON.stringify(stripLemonWebsite(accounts)))
     } catch {
       /* Photos stay on this session if the phone storage is full. */
     }
@@ -5753,6 +5782,38 @@ function App() {
   }, [siteLinkMenu])
 
   const signedInAccount = accounts.find((account) => account.id === signedInId) || null
+  const deviceNoticeDismissed = useRef(false)
+
+  useEffect(() => {
+    deviceNoticeDismissed.current = false
+    setDeviceNotice('')
+    if (!signedInAccount) return undefined
+    let cancelled = false
+    const look = () => {
+      noteAccountDevice(signedInAccount).then((result) => {
+        if (cancelled || !result) return
+        setAccounts((previous) =>
+          previous.map((account) => {
+            if (account.id !== signedInAccount.id) return account
+            const ids = (rows) =>
+              (rows || [])
+                .map((row) => row.id)
+                .sort()
+                .join('|')
+            if (ids(account.devices) === ids(result.devices)) return account
+            return { ...account, devices: result.devices }
+          }),
+        )
+        if (result.notify && !deviceNoticeDismissed.current) setDeviceNotice(result.message)
+      })
+    }
+    look()
+    const timer = window.setInterval(look, 60000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [signedInAccount?.id])
 
   useEffect(() => {
     if (signedInId && !signedInAccount) {
@@ -6914,6 +6975,7 @@ function App() {
 
   const removeOwnedWebsite = (site) => {
     if (!signedInAccount || !site?.id) return
+    rememberDeletedSlug(site)
     deleteSiteCeoMetadata(site)
     setAccounts((previous) =>
       previous.map((account) => {
@@ -7154,8 +7216,9 @@ function App() {
               cleanSlug(site.slug || site.catalogId || site.name) === cleanSlug(appRoute.slug),
           ) ||
         (() => {
+          if (isDeletedSlug(appRoute.slug)) return null
           const meta = getSiteCeoMetadata(appRoute.slug)
-          if (!meta) return null
+          if (!meta || isDeletedSlug(meta.slug)) return null
           return makeWebsite({
             id: `site-${meta.slug}`,
             name: meta.companyName || meta.slug,
@@ -7279,6 +7342,17 @@ function App() {
     return null
   }
 
+  if (appRoute.kind === 'site' && !publishedSite) {
+    return (
+      <section className="paused-tenant">
+        <button type="button" className="text-back" onClick={leavePublished}>
+          Back
+        </button>
+        <h1>This website was deleted.</h1>
+      </section>
+    )
+  }
+
   if (appRoute.kind === 'site') {
     const requestedProjectId =
       appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
@@ -7368,6 +7442,22 @@ function App() {
                 Dismiss
               </button>
             ) : null}
+          </div>
+        ) : null}
+
+        {deviceNotice ? (
+          <div className="app-offline-banner" role="status">
+            <p>{deviceNotice}</p>
+            <button
+              type="button"
+              className="text-back"
+              onClick={() => {
+                deviceNoticeDismissed.current = true
+                setDeviceNotice('')
+              }}
+            >
+              Dismiss
+            </button>
           </div>
         ) : null}
 
@@ -8010,11 +8100,19 @@ function App() {
               <p className="eyebrow">{chosenSystem.style}</p>
               <SystemExplainCards system={chosenSystem} />
               {chosenSystem.id === 'fabrication' ? (
-                <p className="shop-copy">$100 a month, paid with EcoCash. Fortress then creates your calculator tenant.</p>
+                <p className="shop-copy">
+                  Accepts fabrication engineering drawings, reads the drawing, and shows steel weight and material length.
+                  Edit the templates, insert material prices, and the quotation is given. $100 a month with EcoCash.
+                </p>
               ) : null}
               <button type="button" className="primary-button" onClick={continuePreview}>
                 Continue to EcoCash
               </button>
+              {CEO_SYSTEM_IDS.includes(chosenSystem.id) ? (
+                <button type="button" className="trial-button trial-button-light" onClick={startFreeTrial}>
+                  14 day free trial
+                </button>
+              ) : null}
             </section>
           )}
 

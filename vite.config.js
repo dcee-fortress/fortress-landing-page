@@ -53,9 +53,9 @@ export default defineConfig({
         skipWaiting: false,
         clientsClaim: false,
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /^\/prixburg-live/],
         globPatterns: ['**/*.{js,css,html,svg,ico,png,jpg,jpeg,webp,woff2}'],
-        globIgnores: ['**/media/**/*.mp4'],
+        globIgnores: ['**/media/**/*.mp4', '**/prixburg-live/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {

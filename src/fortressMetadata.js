@@ -539,8 +539,9 @@ export const loadAllCeoMetadata = () => {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return defaults
     const merged = { ...defaults }
+    const blocked = readDeletedSlugs()
     Object.entries(parsed).forEach(([key, value]) => {
-      if (cleanSlug(key) === 'lemon') return
+      if (blocked.has(cleanSlug(key))) return
       if (value && typeof value === 'object') {
         const projects = Array.isArray(value.projects)
           ? value.projects.filter((project) => String(project?.name || '').trim().toLowerCase() !== 'lemon')
@@ -560,19 +561,68 @@ export const loadAllCeoMetadata = () => {
 }
 
 export const LEMON_REMOVED_KEY = 'fortress-removed-lemon-site-v1'
+export const DELETED_SLUGS_KEY = 'fortress-deleted-site-slugs-v1'
 
 const isLemonName = (value) => String(value || '').trim().toLowerCase() === 'lemon'
 
-/** Drop the Lemon website and any Lemon project saved on a tenant, once per browser. */
+export const readDeletedSlugs = () => {
+  const blocked = new Set(['lemon'])
+  if (typeof window === 'undefined') return blocked
+  try {
+    const parsed = JSON.parse(storage.getItem(DELETED_SLUGS_KEY) || '[]')
+    if (Array.isArray(parsed)) {
+      parsed.forEach((slug) => {
+        const clean = cleanSlug(slug)
+        if (clean) blocked.add(clean)
+      })
+    }
+  } catch {
+    /* ignore bad tombstone */
+  }
+  return blocked
+}
+
+export const isDeletedSlug = (slugOrSite) => {
+  const raw =
+    typeof slugOrSite === 'string'
+      ? slugOrSite
+      : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
+  const slug = cleanSlug(String(raw).replace(/^site-/, '').replace(/\.fortress\.vercel\.app$/i, ''))
+  if (!slug) return false
+  return readDeletedSlugs().has(slug)
+}
+
+/** Remember a website the owner deleted so a later save cannot put it back. */
+export const rememberDeletedSlug = (slugOrSite) => {
+  const raw =
+    typeof slugOrSite === 'string'
+      ? slugOrSite
+      : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
+  const slug = cleanSlug(String(raw).replace(/^site-/, '').replace(/\.fortress\.vercel\.app$/i, ''))
+  if (!slug || slug === 'rodcroft' || slug === 'prixburg') return
+  const next = readDeletedSlugs()
+  next.add(slug)
+  next.add('lemon')
+  try {
+    storage.setItem(DELETED_SLUGS_KEY, JSON.stringify([...next]))
+  } catch {
+    /* the in-memory filter still drops lemon on this load */
+  }
+}
+
+/** Drop the Lemon website and any Lemon project saved on a tenant. */
 export const purgeStoredLemonSite = () => {
   if (typeof window === 'undefined') return
-  if (storage.getItem(LEMON_REMOVED_KEY) === '1') return
+  rememberDeletedSlug('lemon')
   try {
     const raw = storage.getItem(CEO_METADATA_STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed === 'object') {
         delete parsed.lemon
+        Object.keys(parsed).forEach((key) => {
+          if (isDeletedSlug(key)) delete parsed[key]
+        })
         Object.values(parsed).forEach((meta) => {
           if (!Array.isArray(meta?.projects)) return
           meta.projects = meta.projects.filter((project) => !isLemonName(project?.name))
@@ -598,6 +648,7 @@ export const deleteSiteCeoMetadata = (slugOrSite) => {
       : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
   const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
   if (!slug || slug === 'rodcroft' || slug === 'prixburg') return
+  rememberDeletedSlug(slug)
   const all = loadAllCeoMetadata()
   if (!all[slug]) return
   delete all[slug]
@@ -621,6 +672,7 @@ export const getSiteCeoMetadata = (siteOrSlug) => {
       ? siteOrSlug
       : siteOrSlug?.slug || siteOrSlug?.catalogId || siteOrSlug?.name || 'rodcroft'
   const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
+  if (isDeletedSlug(slug)) return null
   if (all[slug]) return all[slug]
 
   const isSeeded = slug === 'rodcroft' || slug === 'prixburg'
@@ -644,6 +696,7 @@ export const saveSiteCeoMetadata = (slugOrSite, metadata) => {
       ? slugOrSite
       : slugOrSite?.slug || slugOrSite?.catalogId || metadata?.slug || metadata?.companyName || 'company'
   const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
+  if (isDeletedSlug(slug)) return null
   const all = loadAllCeoMetadata()
   const next = {
     ...(all[slug] || {}),
@@ -782,6 +835,7 @@ export const computePrixburgCeoAnalysis = (metaOrSite) => {
 
 export const computeSiteProjectsOverview = (siteOrSlug) => {
   const meta = getSiteCeoMetadata(siteOrSlug)
+  if (!meta) return []
   const isManufacturing = meta.systemType === 'manufacturing' || meta.template === 'prixburg'
 
   if (!isManufacturing) {

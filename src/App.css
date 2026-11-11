@@ -2659,6 +2659,50 @@
   cursor: pointer;
 }
 
+.settings-page > .trial-button-light {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #1c1915;
+  background: #fff;
+  color: #1c1915;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.prixburg-live-shell {
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.prixburg-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #14110e;
+  color: #f4efe8;
+  font-weight: 700;
+}
+
+.prixburg-live-bar .text-back {
+  color: #f4efe8;
+  border-color: rgba(244, 239, 232, 0.35);
+}
+
+.prixburg-live-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
 .trial-meter {
   display: flex;
   align-items: center;

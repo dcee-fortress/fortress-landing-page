@@ -3,7 +3,6 @@ import {
   computePrixburgCeoAnalysis,
   computeSiteProjectsOverview,
   getSiteCeoMetadata,
-  saveSiteCeoMetadata,
   subdomainLabelFor,
 } from './fortressMetadata'
 
@@ -42,8 +41,6 @@ export default function CeoProjectsOverview({
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [valSearch, setValSearch] = useState('')
   const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
-  const [showNewProjForm, setShowNewProjForm] = useState(false)
-  const [newProjName, setNewProjName] = useState('')
 
   useEffect(() => {
     const refresh = () => setTick((t) => t + 1)
@@ -61,7 +58,6 @@ export default function CeoProjectsOverview({
     setPrixburgSubView('menu')
     setRodcroftSubView('menu')
     setSelectedProjectId('')
-    setShowNewProjForm(false)
   }, [targetSite?.id, targetSite?.slug])
 
   if (!targetSite) {
@@ -135,45 +131,6 @@ export default function CeoProjectsOverview({
               Open {subdomain} Website
             </button>
           </div>
-        </div>
-
-        {/* Quick Tenant Module Shortcuts */}
-        <div className="tpl-head-pills">
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => onOpenGeneratedApp?.(targetSite, '', 'raw-materials-storeroom')}
-          >
-            Storeroom
-          </button>
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => onOpenGeneratedApp?.(targetSite, '', 'settings')}
-          >
-            Product Setup &amp; Formulas
-          </button>
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => onOpenGeneratedApp?.(targetSite, '', 'production-reports')}
-          >
-            Production
-          </button>
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => onOpenGeneratedApp?.(targetSite, '', 'finished-products')}
-          >
-            Finished Products
-          </button>
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => onOpenGeneratedApp?.(targetSite, '', 'sales-finance')}
-          >
-            Sales &amp; Finance
-          </button>
         </div>
 
         {/* Exact Prixburg CEO Analysis Panel */}
@@ -382,35 +339,6 @@ export default function CeoProjectsOverview({
     })
   })()
 
-  const handleCreateQuickProject = (event) => {
-    event.preventDefault()
-    const name = newProjName.trim()
-    if (!name || !siteMeta) return
-    const created = {
-      id: `p-${Date.now()}`,
-      name,
-      code: `RC-0${(siteMeta.projects?.length || 0) + 1}`,
-      location: siteMeta.location || 'Zimbabwe',
-      client: '',
-      manager: siteMeta.ceo || 'Engineer',
-      status: 'active',
-      startDate: new Date().toISOString().slice(0, 10),
-      endDate: null,
-      summary: `Construction and site works for ${name}.`,
-      valuations: [],
-      materialAnalysis: [],
-      workers: [],
-      fuel: { bulkInsertedLiters: 0, bulkInsertedCost: 0, entries: [] },
-      sheqReports: [],
-    }
-    const nextProjects = [created, ...(siteMeta.projects || [])]
-    saveSiteCeoMetadata(targetSite, { ...siteMeta, projects: nextProjects })
-    setNewProjName('')
-    setShowNewProjForm(false)
-    setSelectedProjectId(created.id)
-    setTick((t) => t + 1)
-  }
-
   return (
     <div className="ceo-overview-panel">
       {sites.length > 1 && (
@@ -446,63 +374,8 @@ export default function CeoProjectsOverview({
           >
             Open {subdomain} Website
           </button>
-          <button
-            type="button"
-            className="tpl-secondary-btn"
-            onClick={() => setShowNewProjForm((v) => !v)}
-          >
-            {showNewProjForm ? 'Cancel' : '+ New Project'}
-          </button>
         </div>
       </div>
-
-      {/* Direct Tenant Dashboard Shortcuts (Home, Engineering, Admin/QS, Worker) */}
-      <div className="tpl-head-pills">
-        <button
-          type="button"
-          className="tpl-secondary-btn"
-          onClick={() => onOpenGeneratedApp?.(targetSite, activeProj?.id || '', 'project-home')}
-        >
-          Project Home
-        </button>
-        <button
-          type="button"
-          className="tpl-secondary-btn"
-          onClick={() => onOpenGeneratedApp?.(targetSite, activeProj?.id || '', 'ceo-dashboards')}
-        >
-          Engineering Hub
-        </button>
-        <button
-          type="button"
-          className="tpl-secondary-btn"
-          onClick={() => onOpenGeneratedApp?.(targetSite, activeProj?.id || '', 'qs-engineering')}
-        >
-          Admin / Quantity Survey
-        </button>
-        <button
-          type="button"
-          className="tpl-secondary-btn"
-          onClick={() => onOpenGeneratedApp?.(targetSite, activeProj?.id || '', 'workers')}
-        >
-          Worker &amp; Staff Registers
-        </button>
-      </div>
-
-      {showNewProjForm && (
-        <form className="ceo-quick-project-form" onSubmit={handleCreateQuickProject}>
-          <h5>Create New Project on {subdomain}</h5>
-          <input
-            type="text"
-            placeholder="Project name (e.g. Borrowdale Road Upgrade)"
-            value={newProjName}
-            onChange={(e) => setNewProjName(e.target.value)}
-            required
-          />
-          <button type="submit" className="primary-button">
-            Create Project
-          </button>
-        </form>
-      )}
 
       {projects.length > 1 && (
         <div className="ceo-site-pills">
@@ -526,7 +399,7 @@ export default function CeoProjectsOverview({
       {!activeProj ? (
         <div className="pb-panel">
           <p className="rc-sub">
-            No projects created on {subdomain} yet. Click <strong>+ New Project</strong> above or open {subdomain} Website to create your first project.
+            No projects on {subdomain} yet. Open {subdomain} to create the first project.
           </p>
         </div>
       ) : (
