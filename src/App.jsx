@@ -1272,6 +1272,39 @@ const stripLemonWebsite = (list) => {
   }))
 }
 
+const CEO_NAMES_KEY = 'fortress-ceo-names-v1'
+
+const readCeoNames = () => {
+  try {
+    const parsed = JSON.parse(storage.getItem(CEO_NAMES_KEY) || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+const writeCeoName = (siteId, name) => {
+  if (!siteId) return
+  const names = readCeoNames()
+  names[siteId] = name
+  try {
+    storage.setItem(CEO_NAMES_KEY, JSON.stringify(names))
+  } catch {
+    /* The profile field still keeps the name for this session. */
+  }
+}
+
+const applySavedCeoNames = (list) => {
+  const names = readCeoNames()
+  return (Array.isArray(list) ? list : []).map((account) => ({
+    ...account,
+    websites: (account.websites || []).map((site) => {
+      if (!site?.id || !Object.prototype.hasOwnProperty.call(names, site.id)) return site
+      return { ...site, ceo: names[site.id], ceoEdited: true }
+    }),
+  }))
+}
+
 const withCompanyAccounts = (list) => {
   purgeStoredLemonSite()
   const accounts = withOwnerLogin(stripSparksTech(stripLemonWebsite(list)))
@@ -1314,7 +1347,9 @@ const withCompanyAccounts = (list) => {
           name: catalogEntry.name || site.name,
           type: catalogEntry.category || site.type,
           systemType: systemIdFromCompany(catalogEntry) || site.systemType,
-          ceo: catalogEntry.ceo ?? site.ceo ?? '',
+          ceo: site.ceoEdited
+            ? site.ceo || ''
+            : site.ceo || catalogEntry.ceo || '',
           ceoTestimonial: '',
           testimonial: '',
           link: site.link || companyLiveSite({ catalogId: login.catalogId })?.home || seededSite.link || '',
@@ -1329,7 +1364,7 @@ const withCompanyAccounts = (list) => {
     }
     accounts[index] = account
   })
-  return accounts
+  return applySavedCeoNames(accounts)
 }
 
 const readHashPath = () => {
@@ -6136,6 +6171,9 @@ function App() {
 
   const updateCurrentWebsite = (updates) => {
     if (!signedInAccount || !currentProfile) return
+    if (Object.prototype.hasOwnProperty.call(updates, 'ceo')) {
+      writeCeoName(currentProfile.id, updates.ceo)
+    }
 
     setAccounts((previous) =>
       previous.map((account) => {
@@ -6234,42 +6272,6 @@ function App() {
       return
     }
     finishLogin(existing)
-  }
-
-  const handleAddAccount = (event) => {
-    event.preventDefault()
-    const email = authForm.email.trim()
-    const password = authForm.password
-
-    if (!email || !password.trim()) {
-      setAuthError('Enter the email and password.')
-      return
-    }
-
-    const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
-    if (existing) {
-      if (existing.password !== password) {
-        setAuthError('That email or password does not match an account.')
-        return
-      }
-      finishLogin(existing)
-      return
-    }
-
-    const nextAccount = makeAccount(email, password, '', { withWebsite: false })
-    setAccounts((previous) => [...previous, nextAccount])
-    setSignedInId(nextAccount.id)
-    setActiveProfileId(nextAccount.websites[0]?.id || '')
-    setPendingSignup(null)
-    setAuthForm({ email: '', password: '' })
-    setAuthError('')
-    setMenuOpen(false)
-    setOverlay(null)
-    setSettingsView('home')
-    setProfileTab('gallery')
-    setTab('profile')
-    setAppRoute({ kind: '', slug: '' })
-    pushPath('/profile')
   }
 
   const approvePayment = (event) => {
@@ -6812,15 +6814,6 @@ function App() {
       postIndex: startIndex >= 0 ? startIndex : 0,
     })
     pushPath(`/${tab}/card/${encodeId(source.id)}`)
-  }
-
-  const switchAccount = (accountId) => {
-    const account = accounts.find((item) => item.id === accountId)
-    if (!account) return
-    setSignedInId(account.id)
-    setActiveProfileId(account.websites[0]?.id || '')
-    setOverlay(null)
-    setMenuOpen(false)
   }
 
   const ownGalleryCompany = () => {
@@ -7719,9 +7712,12 @@ function App() {
                     CEO name
                     <input
                       type="text"
-                      value={currentProfile.ceo || ''}
+                      value={currentProfile.ceo ?? ''}
                       placeholder="CEO name"
-                      onChange={(event) => updateCurrentWebsite({ ceo: event.target.value })}
+                      autoComplete="off"
+                      onChange={(event) =>
+                        updateCurrentWebsite({ ceo: event.target.value, ceoEdited: true })
+                      }
                     />
                   </label>
                 </form>
@@ -7845,23 +7841,7 @@ function App() {
                   <strong>Not signed in</strong>
                 )}
               </div>
-              {accounts.length > 0 && (
-                <div className="account-switch">
-                  <p className="shop-copy">Switch accounts</p>
-                  {accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      type="button"
-                      className={account.id === signedInId ? 'account-chip active' : 'account-chip'}
-                      onClick={() => switchAccount(account.id)}
-                    >
-                      <span>{account.email}</span>
-                      <small>{account.id === signedInId ? 'Current' : 'Switch'}</small>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p className="shop-copy">Manage the account that runs your Fortress website.</p>
+              <p className="shop-copy">This login is this account only. Another account opens from the Fortress login with its own email and password.</p>
               <button type="button" className="buy-website-btn" onClick={() => goSettingsView('system')}>
                 Buy website
               </button>
@@ -7893,16 +7873,6 @@ function App() {
                 </button>
                 <button type="button" onClick={() => goSettingsView('delete')}>
                   Delete account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthError('')
-                    setAuthForm({ email: '', password: '' })
-                    goSettingsView('add')
-                  }}
-                >
-                  Add account
                 </button>
               </div>
             </section>
@@ -7946,7 +7916,7 @@ function App() {
                   </button>
                 </div>
               ) : (
-                <p className="empty-note">No account is signed in. Create an account or add an account.</p>
+                <p className="empty-note">No account is signed in. Log in with that account's email and password.</p>
               )}
             </section>
           )}
@@ -7996,36 +7966,6 @@ function App() {
             </section>
           )}
 
-          {tab === 'settings' && settingsView === 'add' && (
-            <section className="panel-box settings-page">
-              <button type="button" className="text-back" onClick={() => goSettingsView('manage')}>
-                Back
-              </button>
-              <form className="create-account-form" onSubmit={handleAddAccount}>
-                <h3>Add account</h3>
-                <p className="shop-copy">Enter the email and password for the account to add.</p>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={authForm.email}
-                  onChange={(event) => setAuthForm((value) => ({ ...value, email: event.target.value }))}
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={authForm.password}
-                  onChange={(event) => setAuthForm((value) => ({ ...value, password: event.target.value }))}
-                  required
-                />
-                {authError && <p className="form-error">{authError}</p>}
-                <button type="submit" className="primary-button">
-                  Add account
-                </button>
-              </form>
-            </section>
-          )}
-
           {tab === 'settings' && settingsView === 'delete' && (
             <section className="panel-box settings-page">
               <button type="button" className="text-back" onClick={() => goSettingsView('manage')}>
@@ -8040,7 +7980,7 @@ function App() {
                   </button>
                 </div>
               ) : (
-                <p className="empty-note">Sign in from My account or Add account before deleting an account.</p>
+                <p className="empty-note">Log in with that account's email and password before deleting it.</p>
               )}
             </section>
           )}
@@ -8147,14 +8087,16 @@ function App() {
                   Edit the templates, insert material prices, and the quotation is given. $100 a month with EcoCash.
                 </p>
               ) : null}
-              <button type="button" className="primary-button" onClick={continuePreview}>
-                Continue to EcoCash
-              </button>
-              {CEO_SYSTEM_IDS.includes(chosenSystem.id) ? (
-                <button type="button" className="trial-button trial-button-light" onClick={startFreeTrial}>
-                  14 day free trial
+              <div className="preview-pay-actions">
+                <button type="button" className="primary-button" onClick={continuePreview}>
+                  Continue to EcoCash
                 </button>
-              ) : null}
+                {CEO_SYSTEM_IDS.includes(chosenSystem.id) ? (
+                  <button type="button" className="trial-button trial-button-light" onClick={startFreeTrial}>
+                    14 day free trial
+                  </button>
+                ) : null}
+              </div>
             </section>
           )}
 

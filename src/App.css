@@ -2662,10 +2662,22 @@
   cursor: pointer;
 }
 
-.settings-page > .trial-button-light {
+.preview-pay-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 14px 0 8px;
+  background: #fffefc;
+  box-shadow: 0 -16px 20px rgba(255, 254, 252, 0.96);
+}
+
+.preview-pay-actions .primary-button,
+.settings-page .trial-button-light {
   display: block;
   width: 100%;
-  margin-top: 10px;
   border: 1px solid #1c1915;
   background: #fff;
   color: #1c1915;
@@ -2674,6 +2686,12 @@
   font: inherit;
   font-weight: 800;
   cursor: pointer;
+}
+
+.preview-pay-actions .primary-button {
+  border: none;
+  background: #f7b268;
+  box-shadow: 0 8px 20px rgba(247, 178, 104, 0.24);
 }
 
 .prixburg-live-shell {
