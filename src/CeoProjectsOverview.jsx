@@ -32,15 +32,16 @@ export default function CeoProjectsOverview({
   onSelectSite,
   onOpenGeneratedApp,
   onOpenCalc,
+  dashView = 'menu',
+  onDashView,
+  onDashBack,
 }) {
   const [tick, setTick] = useState(0)
-  // Sub-view for Prixburg CEO Analysis: 'menu' | 'net-profit' | 'gross-profit'
-  const [prixburgSubView, setPrixburgSubView] = useState('menu')
-  // Sub-view for Rodcroft Engineering: 'menu' | 'work-valued' | 'material-analysis' | 'material-on-site' | 'fuel-analysis' | 'workers'
-  const [rodcroftSubView, setRodcroftSubView] = useState('menu')
+  const [localDashView, setLocalDashView] = useState(dashView || 'menu')
+  const prixburgSubView = onDashView ? dashView || 'menu' : localDashView
+  const rodcroftSubView = prixburgSubView
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [valSearch, setValSearch] = useState('')
-  const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
 
   useEffect(() => {
     const refresh = () => setTick((t) => t + 1)
@@ -54,11 +55,22 @@ export default function CeoProjectsOverview({
     return targetSite ? getSiteCeoMetadata(targetSite) : null
   }, [targetSite, tick])
 
+  const openDash = (next) => {
+    if (onDashView) onDashView(next)
+    else setLocalDashView(next)
+  }
+
   useEffect(() => {
-    setPrixburgSubView('menu')
-    setRodcroftSubView('menu')
     setSelectedProjectId('')
   }, [targetSite?.id, targetSite?.slug])
+
+  const backDash = () => {
+    if (onDashBack) {
+      onDashBack()
+      return
+    }
+    openDash('menu')
+  }
 
   if (!targetSite) {
     return (
@@ -141,7 +153,7 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="pb-choice-btn"
-                onClick={() => setPrixburgSubView('gross-profit')}
+                onClick={() => openDash('gross-profit')}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M9 3h6" />
@@ -153,7 +165,7 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="pb-choice-btn"
-                onClick={() => setPrixburgSubView('net-profit')}
+                onClick={() => openDash('net-profit')}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 17l6-6 4 4 8-8" />
@@ -171,7 +183,7 @@ export default function CeoProjectsOverview({
             <button
               type="button"
               className="rc-back-link"
-              onClick={() => setPrixburgSubView('menu')}
+              onClick={backDash}
             >
               ← Back to CEO Analysis
             </button>
@@ -232,7 +244,7 @@ export default function CeoProjectsOverview({
             <button
               type="button"
               className="rc-back-link"
-              onClick={() => setPrixburgSubView('menu')}
+              onClick={backDash}
             >
               ← Back to CEO Analysis
             </button>
@@ -306,11 +318,18 @@ export default function CeoProjectsOverview({
       ? true
       : String(r.description || '').toLowerCase().includes(valSearch.trim().toLowerCase()),
   )
+  const cumulativeActual =
+    Math.round(
+      (activeProj?.valuations || []).reduce((sum, row) => sum + (Number(row.valueEarned) || 0), 0) * 100,
+    ) / 100
+  const cumulativeProduction =
+    Math.round(
+      (activeProj?.valuations || []).reduce((sum, row) => sum + (Number(row.production) || 0), 0) * 100,
+    ) / 100
+  const cumulativeRate = cumulativeProduction > 0 ? cumulativeActual / cumulativeProduction : 0
 
   const fuelAnalysisRows = (() => {
     const entries = activeProj?.fuel?.entries || []
-    const bulkTotalLiters = Number(activeProj?.fuel?.bulkInsertedLiters) || 0
-    const bulkTotalCost = Number(activeProj?.fuel?.bulkInsertedCost) || 0
     const map = new Map()
     entries.forEach((e) => {
       const key = String(e.description || 'Diesel').trim().toLowerCase()
@@ -325,18 +344,7 @@ export default function CeoProjectsOverview({
       cur.consumedCost = Math.round((cur.consumedCost + (Number(e.totalCost) || 0)) * 100) / 100
       map.set(key, cur)
     })
-    return [...map.values()].map((row) => {
-      const isDiesel = row.id === 'diesel'
-      const bulkInsertedQty = isDiesel ? bulkTotalLiters : 0
-      const bulkInsertedCost = isDiesel ? bulkTotalCost : 0
-      return {
-        ...row,
-        bulkInsertedQty,
-        bulkInsertedCost,
-        fuelLeftQty: Math.round((row.consumedQty - bulkInsertedQty) * 100) / 100,
-        fuelLeftCost: Math.round((row.consumedCost - bulkInsertedCost) * 100) / 100,
-      }
-    })
+    return [...map.values()]
   })()
 
   return (
@@ -386,7 +394,6 @@ export default function CeoProjectsOverview({
               className={p.id === activeProj?.id ? 'ceo-site-pill active' : 'ceo-site-pill'}
               onClick={() => {
                 setSelectedProjectId(p.id)
-                setRodcroftSubView('menu')
               }}
             >
               <strong>{p.name}</strong>
@@ -417,7 +424,7 @@ export default function CeoProjectsOverview({
                 <button
                   type="button"
                   className="rc-choice-card"
-                  onClick={() => setRodcroftSubView('work-valued')}
+                  onClick={() => openDash('work-valued')}
                 >
                   <span className="rc-icon-tile">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -430,7 +437,7 @@ export default function CeoProjectsOverview({
                   <div>
                     <h2>Cumulative Valuations (Total work valued)</h2>
                     <p>
-                      Project to date activities, cost ({money(activeProj.metrics.totalWorkValued)}), production and rate
+                      Project to date valuations. Cumulative actual amount {money(cumulativeActual)}.
                     </p>
                   </div>
                 </button>
@@ -438,7 +445,7 @@ export default function CeoProjectsOverview({
                 <button
                   type="button"
                   className="rc-choice-card"
-                  onClick={() => setRodcroftSubView('material-analysis')}
+                  onClick={() => openDash('material-analysis')}
                 >
                   <span className="rc-icon-tile">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -459,7 +466,7 @@ export default function CeoProjectsOverview({
                 <button
                   type="button"
                   className="rc-choice-card"
-                  onClick={() => setRodcroftSubView('fuel-analysis')}
+                  onClick={() => openDash('fuel-analysis')}
                 >
                   <span className="rc-icon-tile">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -472,7 +479,7 @@ export default function CeoProjectsOverview({
                   <div>
                     <h2>Fuel Analysis</h2>
                     <p>
-                      Fuel consumed ({numFmt(activeProj.metrics.fuelConsumedLiters)} L · {money(activeProj.metrics.fuelConsumedCost)}), bulk tank &amp; fuel left
+                      Fuel consumed ({numFmt(activeProj.metrics.fuelConsumedLiters)} L · {money(activeProj.metrics.fuelConsumedCost)})
                     </p>
                   </div>
                 </button>
@@ -480,7 +487,7 @@ export default function CeoProjectsOverview({
                 <button
                   type="button"
                   className="rc-choice-card"
-                  onClick={() => setRodcroftSubView('workers')}
+                  onClick={() => openDash('workers')}
                 >
                   <span className="rc-icon-tile">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -507,14 +514,15 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setRodcroftSubView('menu')}
+                onClick={backDash}
               >
                 ← Back to Engineering
               </button>
               <p className="rc-eyebrow" style={{ marginTop: 8 }}>Project to Date Report</p>
               <h3>{activeProj.name} — Cumulative Valuations</h3>
               <p className="rc-sub" style={{ marginBottom: 12 }}>
-                Total Actual Cost on Site: <strong>{money(activeProj.metrics.totalWorkValued)}</strong>
+                Cumulative actual amount from project-to-date valuations:{' '}
+                <strong>{money(cumulativeActual)}</strong>
               </p>
 
               <input
@@ -552,9 +560,9 @@ export default function CeoProjectsOverview({
                     })}
                     <tr className="rc-ev-total-row">
                       <td>Total</td>
-                      <td className="text-right">{money(activeProj.metrics.totalWorkValued)}</td>
-                      <td className="text-right">{numFmt(activeProj.metrics.totalProduction)}</td>
-                      <td className="text-right">{rateMoney(activeProj.metrics.overallRate)}</td>
+                      <td className="text-right">{money(cumulativeActual)}</td>
+                      <td className="text-right">{numFmt(cumulativeProduction)}</td>
+                      <td className="text-right">{rateMoney(cumulativeRate)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -568,7 +576,7 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setRodcroftSubView('menu')}
+                onClick={backDash}
               >
                 ← Back to Engineering
               </button>
@@ -582,14 +590,14 @@ export default function CeoProjectsOverview({
                 <button
                   type="button"
                   className="tpl-primary-btn"
-                  onClick={() => setRodcroftSubView('material-analysis')}
+                  onClick={() => openDash('material-analysis')}
                 >
                   Material analysis
                 </button>
                 <button
                   type="button"
                   className="tpl-secondary-btn"
-                  onClick={() => setRodcroftSubView('material-on-site')}
+                  onClick={() => openDash('material-on-site')}
                 >
                   Project to date material on site
                 </button>
@@ -627,7 +635,7 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setRodcroftSubView('material-analysis')}
+                onClick={backDash}
               >
                 ← Back to Material analysis
               </button>
@@ -675,22 +683,17 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setRodcroftSubView('menu')}
+                onClick={backDash}
               >
                 ← Back to Engineering
               </button>
               <p className="rc-eyebrow" style={{ marginTop: 8 }}>Fuel analysis</p>
               <h3>{activeProj.name}</h3>
               <p className="rc-sub" style={{ marginBottom: 12 }}>
-                Read-only project to date. Each fuel name is one line. Fuel left in tank is fuel consumed minus bulk fuel inserted in tank.
+                Project to date. Each fuel name is one line, with the fuel consumed cost at the end.
               </p>
 
               <div className="rc-headcount-grid" style={{ marginTop: 10 }}>
-                <div className="rc-headcount-card">
-                  <p className="rc-eyebrow">Bulk Fuel Inserted in Tank</p>
-                  <strong className="rc-headcount-num">{numFmt(activeProj.metrics.bulkFuelLiters)} L</strong>
-                  <p className="rc-sub">{money(activeProj.metrics.bulkFuelCost)}</p>
-                </div>
                 <div className="rc-headcount-card">
                   <p className="rc-eyebrow">Total Fuel Consumed to Date</p>
                   <strong className="rc-headcount-num">{numFmt(activeProj.metrics.fuelConsumedLiters)} L</strong>
@@ -698,64 +701,23 @@ export default function CeoProjectsOverview({
                 </div>
               </div>
 
-              <div className="tpl-head-pills" style={{ marginBottom: 12 }}>
-                <button
-                  type="button"
-                  className={!fuelDetailCostMode ? 'tpl-primary-btn' : 'tpl-secondary-btn'}
-                  onClick={() => setFuelDetailCostMode(false)}
-                >
-                  Fuel left in tank (Liters)
-                </button>
-                <button
-                  type="button"
-                  className={fuelDetailCostMode ? 'tpl-primary-btn' : 'tpl-secondary-btn'}
-                  onClick={() => setFuelDetailCostMode(true)}
-                >
-                  Details (Fuel Costs $)
-                </button>
-              </div>
-
               <div className="tpl-table-wrap">
                 <table className="tpl-table">
                   <thead>
-                    {!fuelDetailCostMode ? (
-                      <tr>
-                        <th>Description</th>
-                        <th className="text-right">Fuel consumed</th>
-                        <th className="text-right">Bulk fuel inserted in tank</th>
-                        <th className="text-right">Fuel left in tank</th>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <th>Description</th>
-                        <th className="text-right">Fuel consumed cost</th>
-                        <th className="text-right">Bulk fuel inserted in tank cost</th>
-                        <th className="text-right">Fuel left in tank cost</th>
-                      </tr>
-                    )}
+                    <tr>
+                      <th>Description</th>
+                      <th className="text-right">Fuel consumed</th>
+                      <th className="text-right">Fuel consumed cost</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {fuelAnalysisRows.map((row) =>
-                      !fuelDetailCostMode ? (
-                        <tr key={row.id}>
-                          <td><strong>{row.description}</strong></td>
-                          <td className="text-right">{numFmt(row.consumedQty)}</td>
-                          <td className="text-right">{numFmt(row.bulkInsertedQty)}</td>
-                          <td className="text-right">
-                            <strong>{numFmt(row.fuelLeftQty)}</strong>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={row.id}>
-                          <td><strong>{row.description}</strong></td>
-                          <td className="text-right">{money(row.consumedCost)}</td>
-                          <td className="text-right">{money(row.bulkInsertedCost)}</td>
-                          <td className="text-right">
-                            <strong>{money(row.fuelLeftCost)}</strong>
-                          </td>
-                        </tr>
-                      ),
-                    )}
+                    {fuelAnalysisRows.map((row) => (
+                      <tr key={row.id}>
+                        <td><strong>{row.description}</strong></td>
+                        <td className="text-right">{numFmt(row.consumedQty)} {row.unit || 'L'}</td>
+                        <td className="text-right"><strong>{money(row.consumedCost)}</strong></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -768,7 +730,7 @@ export default function CeoProjectsOverview({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setRodcroftSubView('menu')}
+                onClick={backDash}
               >
                 ← Back to Engineering
               </button>

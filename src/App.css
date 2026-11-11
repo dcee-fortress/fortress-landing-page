@@ -91,7 +91,8 @@
 .phone-content {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
+  min-width: 0;
+  overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
   --content-pad: 18px;
@@ -720,6 +721,8 @@
   display: grid;
   gap: 12px;
   padding: 16px 0 72px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .profile-calc-panel {
@@ -3095,6 +3098,7 @@
   .phone-content {
     --content-pad: 14px;
     padding: 14px 14px 12px;
+    overflow: auto;
   }
 
   .hero-card {
@@ -3103,6 +3107,38 @@
 
   .quick-creator {
     padding-inline: 14px;
+  }
+
+  .ceo-overview-header-card,
+  .rc-choice-card,
+  .pb-choice-btn {
+    min-width: 0;
+  }
+
+  .rc-choice-grid,
+  .pb-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .phone-header {
+    padding: 6px 12px;
+    padding-top: calc(6px + env(safe-area-inset-top));
+  }
+
+  .title-row h1 {
+    font-size: 1.35rem;
+  }
+
+  .phone-content {
+    --content-pad: 12px;
+    padding: 8px 12px;
+    overflow: auto;
+  }
+
+  .ceo-overview-panel .tpl-table-wrap {
+    max-height: none;
   }
 }
 
@@ -5205,6 +5241,33 @@
   flex-direction: column;
   gap: 14px;
   padding-top: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ceo-overview-panel .pb-panel,
+.ceo-overview-panel .tpl-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ceo-overview-panel .tpl-table-wrap {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+.ceo-overview-panel .tpl-table,
+.ceo-overview-panel .rc-ev-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.ceo-overview-panel .tpl-table th,
+.ceo-overview-panel .tpl-table td,
+.ceo-overview-panel .rc-ev-table th,
+.ceo-overview-panel .rc-ev-table td {
+  white-space: nowrap;
 }
 
 .ceo-site-pills {

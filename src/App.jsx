@@ -1383,6 +1383,8 @@ const parseHashPath = (path, findCompany) => {
         projectId: c ? decodeURIComponent(c) : '',
         view: d ? decodeURIComponent(d) : '',
       },
+      profileTab: 'gallery',
+      dashView: 'menu',
     }
   }
   if (a === 'calc') {
@@ -1392,6 +1394,8 @@ const parseHashPath = (path, findCompany) => {
       settingsView: 'home',
       overlay: null,
       route: { kind: 'calc', panel },
+      profileTab: 'gallery',
+      dashView: 'menu',
     }
   }
 
@@ -1399,6 +1403,12 @@ const parseHashPath = (path, findCompany) => {
   let settingsView = tab === 'settings' && b ? decodeURIComponent(b) : 'home'
   if (tab === 'settings' && (!b || b === 'card' || b === 'open' || b === 'add')) settingsView = 'home'
   let overlay = null
+  let profileTab = 'gallery'
+  let dashView = 'menu'
+  if (a === 'profile' && b === 'dash') {
+    profileTab = 'dash'
+    dashView = c ? decodeURIComponent(c) : 'menu'
+  }
 
   if (b === 'card' && c) {
     const company = findCompany(decodeURIComponent(c))
@@ -1421,7 +1431,7 @@ const parseHashPath = (path, findCompany) => {
   else if (a === 'profile' && b === 'feature-pay') overlay = { type: 'feature-ecocash' }
   else if (a === 'home' && b === 'gate') overlay = { type: 'gate' }
 
-  return { tab, settingsView, overlay, route: { kind: '', slug: '' } }
+  return { tab, settingsView, overlay, profileTab, dashView, route: { kind: '', slug: '' } }
 }
 
 const uniqueSlug = (name, accounts) => {
@@ -5554,7 +5564,12 @@ function App() {
       return { ...DEMO_COMMENTS }
     }
   })
-  const [profileTab, setProfileTab] = useState('gallery')
+  const [profileTab, setProfileTab] = useState(
+    () => parseHashPath(readHashPath(), () => null).profileTab || 'gallery',
+  )
+  const [dashView, setDashView] = useState(
+    () => parseHashPath(readHashPath(), () => null).dashView || 'menu',
+  )
   const [compose, setCompose] = useState({
     mode: '',
     photo: '',
@@ -5706,6 +5721,8 @@ function App() {
     else setSettingsView('home')
     setOverlay(parsed.overlay)
     setAppRoute(parsed.route || { kind: '', slug: '' })
+    setProfileTab(parsed.profileTab || 'gallery')
+    setDashView(parsed.dashView || 'menu')
     setMenuOpen(false)
   }
 
@@ -6020,6 +6037,23 @@ function App() {
   const canGoBack = navIndexRef.current > 0
   const canGoForward = navIndexRef.current < navStackRef.current.length - 1
   void navTick
+
+  const openDashView = (next, options = {}) => {
+    const view = !next || next === 'menu' ? '' : `/${encodeURIComponent(next)}`
+    navigateApp(`/profile/dash${view}`, options)
+  }
+
+  const returnToPrevious = () => {
+    if (navIndexRef.current > 0) {
+      goAppHistory(-1)
+      return
+    }
+    setAppRoute({ kind: '', slug: '' })
+    setTab('profile')
+    setProfileTab('dash')
+    setDashView('menu')
+    pushPath('/profile/dash')
+  }
 
   const historyNavProps = {
     canHistoryBack: canGoBack,
@@ -7325,7 +7359,7 @@ function App() {
     return (
       <PausedTenant
         site={publishedSite}
-        onBack={detectActiveSubdomain() ? undefined : leavePublished}
+        onBack={detectActiveSubdomain() ? undefined : returnToPrevious}
         onSubscribe={beginReactivate}
       />
     )
@@ -7345,7 +7379,7 @@ function App() {
   if (appRoute.kind === 'site' && !publishedSite) {
     return (
       <section className="paused-tenant">
-        <button type="button" className="text-back" onClick={leavePublished}>
+        <button type="button" className="text-back" onClick={returnToPrevious}>
           Back
         </button>
         <h1>This website was deleted.</h1>
@@ -7369,8 +7403,10 @@ function App() {
             url.searchParams.delete('site')
             url.hash = '#/home'
             window.history.pushState({}, '', url.toString())
+            leavePublished()
+            return
           }
-          leavePublished()
+          returnToPrevious()
         }}
         onMetadataUpdated={(updatedMeta) => {
           if (publishedSite?.id && signedInAccount) {
@@ -7708,7 +7744,7 @@ function App() {
                   role="tab"
                   aria-selected={profileTab === 'gallery'}
                   className={profileTab === 'gallery' ? 'ig-tab active' : 'ig-tab'}
-                  onClick={() => setProfileTab('gallery')}
+                  onClick={() => navigateApp('/profile')}
                   aria-label="Gallery"
                 >
                   <IconGrid />
@@ -7719,7 +7755,7 @@ function App() {
                   role="tab"
                   aria-selected={profileTab === 'dash'}
                   className={profileTab === 'dash' ? 'ig-tab active' : 'ig-tab'}
-                  onClick={() => setProfileTab('dash')}
+                  onClick={() => navigateApp('/profile/dash')}
                   aria-label={
                     (dashSite || currentProfile)?.systemType === 'manufacturing'
                       ? 'CEO Analysis'
@@ -7785,6 +7821,12 @@ function App() {
                       openPrivateSystem(targetSite, projId, targetView)
                     }
                     onOpenCalc={(targetSite) => openOwnedCalculator(targetSite)}
+                    dashView={dashView}
+                    onDashView={(next) => openDashView(next)}
+                    onDashBack={() => {
+                      if (navIndexRef.current > 0) goAppHistory(-1)
+                      else openDashView('menu', { replace: true })
+                    }}
                   />
                   <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
                 </div>
