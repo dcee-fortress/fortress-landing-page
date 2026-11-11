@@ -665,6 +665,23 @@ export const saveAllCeoMetadata = (map) => {
   }
 }
 
+export const readSavedTenantKind = (slugOrSite) => {
+  const raw =
+    typeof slugOrSite === 'string'
+      ? slugOrSite
+      : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
+  const slug = cleanSlug(String(raw).replace(/^site-/, ''))
+  if (!slug || isDeletedSlug(slug)) return ''
+  if (slug === 'prixburg') return 'manufacturing'
+  if (slug === 'rodcroft') return 'construction'
+  const saved = loadAllCeoMetadata()[slug]
+  if (!saved) return ''
+  if (saved.systemType === 'manufacturing' || saved.template === 'prixburg') return 'manufacturing'
+  if (saved.systemType === 'fabrication') return 'fabrication'
+  if (saved.systemType === 'construction' || saved.template === 'rodcroft') return 'construction'
+  return ''
+}
+
 export const getSiteCeoMetadata = (siteOrSlug) => {
   const all = loadAllCeoMetadata()
   const rawSlug =

@@ -7,7 +7,6 @@ import {
   loadLiveFeedCache,
   publishLiveUpload,
 } from './liveFeed'
-import { noteAccountDevice } from './deviceSessions'
 import {
   drawingNatureKey,
   extractSteelSchedule,
@@ -27,7 +26,6 @@ import DrawingChatSession from './DrawingChatSession'
 import GateChatSession from './GateChatSession'
 import PlanChatSession from './PlanChatSession'
 import RodcroftTemplate from './RodcroftTemplate'
-import PrixburgTemplate from './PrixburgTemplate'
 import CeoProjectsOverview from './CeoProjectsOverview'
 import {
   buildDefaultTemplateMetadata,
@@ -38,10 +36,12 @@ import {
   isDeletedSlug,
   purgeStoredLemonSite,
   rememberDeletedSlug,
+  readSavedTenantKind,
   saveSiteCeoMetadata,
   subdomainLabelFor,
   subdomainUrlFor,
 } from './fortressMetadata'
+import { fetchTenantKind, publishTenantKind } from './tenantRegistry'
 import {
   BURGLAR_TYPES,
   emptyBurglarDraft,
@@ -2665,36 +2665,29 @@ function CeoDashboard({
 }) {
   const meta = getSiteCeoMetadata(site)
   const slug = cleanSlug(site?.slug || site?.catalogId || site?.name || '')
-  const isPrixburgLive = slug === 'prixburg' || site?.catalogId === 'prixburg'
-  if (isPrixburgLive) {
+  const isManufacturing = site?.systemType === 'manufacturing' || meta?.template === 'prixburg' || slug === 'prixburg'
+  if (isManufacturing) {
+    const tenant = slug || 'prixburg'
+    const onSubdomain = detectActiveSubdomain() === tenant
     return (
       <section className="prixburg-live-shell">
-        {onBack ? (
+        {onBack && !onSubdomain ? (
           <div className="prixburg-live-bar">
             <button type="button" className="text-back" onClick={onBack}>
               Back
             </button>
-            <span>prixburg.fortress.vercel.app</span>
+            <span>{subdomainLabelFor(tenant)}</span>
           </div>
         ) : null}
         <iframe
           className="prixburg-live-frame"
-          title="Prixburg"
-          src="/prixburg-live/index.html"
+          title={site?.name || 'Manufacturing'}
+          src={`/prixburg-live/index.html?tenant=${encodeURIComponent(tenant)}`}
         />
       </section>
     )
   }
-  const isManufacturing = site?.systemType === 'manufacturing' || meta?.template === 'prixburg'
-  const content = isManufacturing ? (
-    <PrixburgTemplate
-      site={site}
-      initialProjectId={initialProjectId}
-      initialView={initialView}
-      onBack={embedded ? undefined : onBack}
-      onMetadataUpdated={onMetadataUpdated}
-    />
-  ) : (
+  const content = (
     <RodcroftTemplate
       site={site}
       initialProjectId={initialProjectId}
@@ -5587,7 +5580,6 @@ function App() {
   const [offlineNotice, setOfflineNotice] = useState('')
   const [liveFeedItems, setLiveFeedItems] = useState(() => loadLiveFeedCache())
   const [menuOpen, setMenuOpen] = useState(false)
-  const [deviceNotice, setDeviceNotice] = useState('')
   const [siteLinkMenu, setSiteLinkMenu] = useState(null)
   const [deleteSiteFlow, setDeleteSiteFlow] = useState(null)
   const [homeQuery, setHomeQuery] = useState('')
@@ -5663,10 +5655,61 @@ function App() {
   const findCompanyRef = useRef(() => null)
   const domainEditedRef = useRef(false)
   const reactivateSiteRef = useRef('')
+  const publishedTenantsRef = useRef(new Set())
+  const [hostTenantKind, setHostTenantKind] = useState('')
 
   useEffect(() => {
     setAccounts((previous) => withCompanyAccounts(previous))
   }, [])
+
+  useEffect(() => {
+    accounts.forEach((account) => {
+      ;(account.websites || []).forEach((site) => {
+        const slug = cleanSlug(site.slug || site.catalogId || site.name)
+        const kind = site.systemType
+        if (!slug || !kind || publishedTenantsRef.current.has(slug)) return
+        publishedTenantsRef.current.add(slug)
+        publishTenantKind(slug, kind)
+      })
+    })
+  }, [accounts])
+
+  const hostSlug = detectActiveSubdomain()
+
+  useEffect(() => {
+    if (!hostSlug || hostSlug === 'rodcroft') return undefined
+    let cancelled = false
+    const openManufacturing = () => {
+      const next = `/prixburg-live/index.html?tenant=${encodeURIComponent(hostSlug)}`
+      if (!window.location.pathname.startsWith('/prixburg-live')) {
+        window.location.replace(next)
+      }
+    }
+    if (hostSlug === 'prixburg') {
+      openManufacturing()
+      return undefined
+    }
+    const owned = accounts
+      .flatMap((account) => account.websites || [])
+      .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)
+    const localKind = owned?.systemType || readSavedTenantKind(hostSlug)
+    if (localKind === 'manufacturing') {
+      openManufacturing()
+      return undefined
+    }
+    if (localKind === 'construction' || localKind === 'fabrication') {
+      setHostTenantKind(localKind)
+      return undefined
+    }
+    fetchTenantKind(hostSlug).then((kind) => {
+      if (cancelled) return
+      if (kind === 'manufacturing') openManufacturing()
+      else setHostTenantKind(kind || 'unknown')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hostSlug, accounts])
 
   useEffect(() => {
     if (profileTab === 'buy') setProfileTab('gallery')
@@ -5834,38 +5877,6 @@ function App() {
   }, [siteLinkMenu])
 
   const signedInAccount = accounts.find((account) => account.id === signedInId) || null
-  const deviceNoticeDismissed = useRef(false)
-
-  useEffect(() => {
-    deviceNoticeDismissed.current = false
-    setDeviceNotice('')
-    if (!signedInAccount) return undefined
-    let cancelled = false
-    const look = () => {
-      noteAccountDevice(signedInAccount).then((result) => {
-        if (cancelled || !result) return
-        setAccounts((previous) =>
-          previous.map((account) => {
-            if (account.id !== signedInAccount.id) return account
-            const ids = (rows) =>
-              (rows || [])
-                .map((row) => row.id)
-                .sort()
-                .join('|')
-            if (ids(account.devices) === ids(result.devices)) return account
-            return { ...account, devices: result.devices }
-          }),
-        )
-        if (result.notify && !deviceNoticeDismissed.current) setDeviceNotice(result.message)
-      })
-    }
-    look()
-    const timer = window.setInterval(look, 60000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [signedInAccount?.id])
 
   useEffect(() => {
     if (signedInId && !signedInAccount) {
@@ -6384,6 +6395,7 @@ function App() {
       })
       saveSiteCeoMetadata(slug, initialMeta)
     }
+    publishTenantKind(slug, type.id)
 
     const site = makeWebsite({
       name,
@@ -7244,13 +7256,21 @@ function App() {
           ) ||
         (() => {
           if (isDeletedSlug(appRoute.slug)) return null
-          const meta = getSiteCeoMetadata(appRoute.slug)
+          const knownKind =
+            readSavedTenantKind(appRoute.slug) ||
+            (hostSlug === appRoute.slug ? hostTenantKind : '')
+          if (!knownKind || knownKind === 'unknown') return null
+          const meta = getSiteCeoMetadata({
+            slug: appRoute.slug,
+            systemType: knownKind,
+            name: appRoute.slug,
+          })
           if (!meta || isDeletedSlug(meta.slug)) return null
           return makeWebsite({
             id: `site-${meta.slug}`,
             name: meta.companyName || meta.slug,
-            type: meta.systemType === 'manufacturing' ? 'Manufacturing' : 'Construction',
-            systemType: meta.systemType || 'construction',
+            type: knownKind === 'manufacturing' ? 'Manufacturing' : 'Construction',
+            systemType: knownKind === 'fabrication' ? 'fabrication' : knownKind,
             slug: meta.slug,
             link: subdomainUrlFor(meta.slug),
             ceo: meta.ceo || '',
@@ -7362,6 +7382,25 @@ function App() {
     return fabricationCalculator(publishedSite, leavePublished)
   }
 
+  if (hostSlug && hostSlug !== 'rodcroft') {
+    const ownedKind =
+      accounts
+        .flatMap((account) => account.websites || [])
+        .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)?.systemType ||
+      readSavedTenantKind(hostSlug)
+    const kind = hostSlug === 'prixburg' ? 'manufacturing' : ownedKind || hostTenantKind
+    if (!kind || kind === 'manufacturing') {
+      return <section className="prixburg-live-shell" aria-label="Opening website" />
+    }
+    if (kind === 'unknown') {
+      return (
+        <section className="paused-tenant">
+          <h1>This website is not available.</h1>
+        </section>
+      )
+    }
+  }
+
   if (
     !detectActiveSubdomain() &&
     (appRoute.kind === 'calc' || (appRoute.kind === 'site' && publishedSite?.systemType === 'fabrication'))
@@ -7471,22 +7510,6 @@ function App() {
                 Dismiss
               </button>
             ) : null}
-          </div>
-        ) : null}
-
-        {deviceNotice ? (
-          <div className="app-offline-banner" role="status">
-            <p>{deviceNotice}</p>
-            <button
-              type="button"
-              className="text-back"
-              onClick={() => {
-                deviceNoticeDismissed.current = true
-                setDeviceNotice('')
-              }}
-            >
-              Dismiss
-            </button>
           </div>
         ) : null}
 

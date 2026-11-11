@@ -1,3 +1,47 @@
+(function () {
+    function hostTenant() {
+        var host = String(location.hostname || '').toLowerCase();
+        var suffix = '.fortress.vercel.app';
+        if (host.endsWith(suffix)) {
+            var sub = host.slice(0, -suffix.length);
+            if (sub && sub !== 'www' && sub !== 'fortress-zw' && sub.indexOf('.') === -1) return sub;
+        }
+        if (host.endsWith('.localhost')) {
+            var localSub = host.slice(0, -'.localhost'.length);
+            if (localSub && localSub.indexOf('.') === -1) return localSub;
+        }
+        return '';
+    }
+    var queryTenant = '';
+    try { queryTenant = new URLSearchParams(location.search).get('tenant') || ''; } catch (err) { /* ignore */ }
+    var tenant = String(hostTenant() || queryTenant || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (tenant) {
+        try { sessionStorage.setItem('prixburg-tenant', tenant); } catch (err) { /* ignore */ }
+    } else {
+        try { tenant = sessionStorage.getItem('prixburg-tenant') || ''; } catch (err) { tenant = ''; }
+    }
+    tenant = tenant || 'prixburg';
+    window.PRIXBURG_TENANT = tenant;
+    if (tenant === 'prixburg') return;
+    var prefix = 'tenant:' + tenant + ':';
+    var origGet = Storage.prototype.getItem;
+    var origSet = Storage.prototype.setItem;
+    var origRemove = Storage.prototype.removeItem;
+    function keep(key) {
+        key = String(key || '');
+        return key === 'prixburg-tenant' || key.indexOf('tenant:') === 0 || key.indexOf('fortress-') === 0;
+    }
+    Storage.prototype.getItem = function (key) {
+        return origGet.call(this, keep(key) ? key : prefix + key);
+    };
+    Storage.prototype.setItem = function (key, value) {
+        return origSet.call(this, keep(key) ? key : prefix + key, value);
+    };
+    Storage.prototype.removeItem = function (key) {
+        return origRemove.call(this, keep(key) ? key : prefix + key);
+    };
+})();
+
 const PRIXBURG_DB_DEFAULTS = {
     rawMaterialsData: [],
     prixburgDetergentFormulas: [],
@@ -75,6 +119,12 @@ function dbFetch(url, options, ms) {
 
 function dbStampKey(key) {
     return key + '__at';
+}
+
+function dbRemoteKey(key) {
+    var tenant = window.PRIXBURG_TENANT || 'prixburg';
+    if (!tenant || tenant === 'prixburg') return key;
+    return 'tenant:' + tenant + ':' + key;
 }
 
 function dbWriteLocal(key, value, at) {
@@ -196,7 +246,7 @@ function dbUpsert(key, value) {
             Prefer: 'resolution=merge-duplicates,return=minimal'
         }),
         body: JSON.stringify({
-            key: key,
+            key: dbRemoteKey(key),
             value: value,
             updated_at: new Date().toISOString()
         })
@@ -266,8 +316,19 @@ function initPrixburgDb() {
         return res.json();
     }).then(function (rows) {
         const remoteMap = {};
+        const remotePrefix = (window.PRIXBURG_TENANT && window.PRIXBURG_TENANT !== 'prixburg')
+            ? 'tenant:' + window.PRIXBURG_TENANT + ':'
+            : '';
         (rows || []).forEach(function (row) {
-            if (row && PRIXBURG_DB_KEYS.indexOf(row.key) !== -1) remoteMap[row.key] = row;
+            if (!row || !row.key) return;
+            var logical = row.key;
+            if (remotePrefix) {
+                if (String(row.key).indexOf(remotePrefix) !== 0) return;
+                logical = String(row.key).slice(remotePrefix.length);
+            } else if (String(row.key).indexOf('tenant:') === 0) {
+                return;
+            }
+            if (PRIXBURG_DB_KEYS.indexOf(logical) !== -1) remoteMap[logical] = row;
         });
         PRIXBURG_DB_KEYS.forEach(function (key) {
             if ((prixburgWriteGen[key] || 0) > gensAtStart[key]) return;
@@ -299,9 +360,12 @@ function initPrixburgDb() {
 
 function whenDbReady(fn) {
     function start() {
-        if (!prixburgCache) prixburgCache = dbLoadAllLocal();
-        try { fn(); } catch (err) { console.error(err); }
-        (window.dbReady || Promise.resolve()).then(fn).catch(function () { fn(); });
+        var vault = window.fortressVaultReady || Promise.resolve();
+        vault.then(function () {
+            if (!prixburgCache) prixburgCache = dbLoadAllLocal();
+            try { fn(); } catch (err) { console.error(err); }
+            (window.dbReady || Promise.resolve()).then(fn).catch(function () { fn(); });
+        });
     }
     if (document.body) {
         start();
@@ -358,6 +422,8 @@ window.dbLiveReady = false;
 registerPrixburgServiceWorker();
 window.dbReady = new Promise(function (resolve, reject) {
     function begin() {
+        var vault = window.fortressVaultReady || Promise.resolve();
+        vault.then(function () {
         if (!prixburgCache) prixburgCache = dbLoadAllLocal();
         initPrixburgDb().then(function (value) {
             window.dbLiveReady = true;
@@ -365,6 +431,7 @@ window.dbReady = new Promise(function (resolve, reject) {
         }).catch(function (err) {
             window.dbLiveReady = true;
             reject(err);
+        });
         });
     }
     function afterPaint() {
