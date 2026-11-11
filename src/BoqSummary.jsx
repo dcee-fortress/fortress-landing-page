@@ -111,7 +111,7 @@ export default function BoqSummary({
         <label>
           Company name
           <input
-            value={letterhead.companyName || ''}
+            value={letterhead.companyName || companyName}
             placeholder={companyName || 'Company name'}
             onChange={(event) => setLetter('companyName', event.target.value)}
           />

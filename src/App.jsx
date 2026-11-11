@@ -1080,6 +1080,42 @@ const SYSTEM_TYPES = [
   },
 ]
 
+const AUTO_TEMPLATE_MEDIA = new Set()
+SYSTEM_TYPES.forEach((type) => {
+  ;(type.preview || []).forEach((src) => {
+    if (src) AUTO_TEMPLATE_MEDIA.add(src)
+  })
+  ;(type.slides || []).forEach((slide) => {
+    if (slide.photo) AUTO_TEMPLATE_MEDIA.add(slide.photo)
+    if (slide.video) AUTO_TEMPLATE_MEDIA.add(slide.video)
+  })
+})
+
+const stripAutoHomeMedia = (site) => {
+  if (!site || site.catalogId) return site
+  const userSlide = (slide) => {
+    const sources = [slide?.photo, slide?.video].filter(Boolean)
+    return sources.some((src) => !AUTO_TEMPLATE_MEDIA.has(src))
+  }
+  const slides = (site.slides || []).filter(userSlide).map((slide) => ({
+    ...slide,
+    photo: slide.photo && AUTO_TEMPLATE_MEDIA.has(slide.photo) ? '' : slide.photo || '',
+    video: slide.video && AUTO_TEMPLATE_MEDIA.has(slide.video) ? '' : slide.video || '',
+  }))
+  const gallery = (site.gallery || []).filter((src) => src && !AUTO_TEMPLATE_MEDIA.has(src))
+  const profilePhoto =
+    site.profilePhoto && !AUTO_TEMPLATE_MEDIA.has(site.profilePhoto) ? site.profilePhoto : ''
+  const testimonial = slides[0]?.testimonial || ''
+  return {
+    ...site,
+    slides,
+    gallery,
+    profilePhoto,
+    photoCaptions: slides.map((slide) => slide.testimonial || ''),
+    testimonial,
+  }
+}
+
 const systemIdFromCompany = (company) => {
   if (company?.systemType && SYSTEM_TYPES.some((item) => item.id === company.systemType)) {
     return company.systemType
@@ -1364,7 +1400,10 @@ const withCompanyAccounts = (list) => {
     }
     accounts[index] = account
   })
-  return applySavedCeoNames(accounts)
+  return applySavedCeoNames(accounts).map((account) => ({
+    ...account,
+    websites: (account.websites || []).map(stripAutoHomeMedia),
+  }))
 }
 
 const readHashPath = () => {
@@ -1594,6 +1633,24 @@ const displayLivePath = (site) => {
 const liveDomain = (site) => {
   if (!site) return ''
   return subdomainLabelFor(site)
+}
+
+function TrialGlassLock({ locked, onContinue, children }) {
+  if (!locked) return children
+  return (
+    <div className="trial-glass-wrap">
+      <div className="trial-glass-demo" aria-hidden="true">
+        {children}
+      </div>
+      <div className="trial-glass">
+        <p className="subscription-watermark">Your free trial has ended</p>
+        <p>Your records are still on this website.</p>
+        <button type="button" className="primary-button" onClick={onContinue}>
+          Continue to EcoCash
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function PausedTenant({ site, onSubscribe, onBack, compact = false }) {
@@ -1896,6 +1953,33 @@ const findSimilarDrawingTemplate = (fingerprint) => {
   const exact = findDrawingTemplate(fingerprint)
   if (exact) return { ...exact, match: 'exact' }
   return null
+}
+
+const letterheadKeyFor = (siteId) => `fortress-fab-letterhead:${siteId || 'local'}`
+
+const emptyFabLetterhead = () => ({
+  companyName: '',
+  address: '',
+  phone: '',
+  whatsapp: '',
+  email: '',
+})
+
+const loadFabLetterhead = (siteId) => {
+  if (typeof window === 'undefined') return emptyFabLetterhead()
+  try {
+    return { ...emptyFabLetterhead(), ...JSON.parse(storage.getItem(letterheadKeyFor(siteId)) || '{}') }
+  } catch {
+    return emptyFabLetterhead()
+  }
+}
+
+const saveFabLetterhead = (siteId, letterhead) => {
+  try {
+    storage.setItem(letterheadKeyFor(siteId), JSON.stringify({ ...emptyFabLetterhead(), ...letterhead }))
+  } catch {
+    /* ignore quota */
+  }
 }
 
 const loadFabPricing = () => {
@@ -2811,6 +2895,7 @@ const calcPanelFromState = (view, step) => {
   if (view === 'pricing') return 'list'
   if (view === 'subscriptions') return 'subs'
   if (view === 'documents') return 'docs'
+  if (view === 'settings') return 'settings'
   if (step === 1) return 'new'
   if (step === 2) return 'drawing'
   if (step === 3) return 'confirm'
@@ -2823,6 +2908,7 @@ const calcStateFromPanel = (panel = 'home') => {
   if (panel === 'list') return { view: 'pricing', step: 0 }
   if (panel === 'subs') return { view: 'subscriptions', step: 0 }
   if (panel === 'docs') return { view: 'documents', step: 0 }
+  if (panel === 'settings') return { view: 'settings', step: 0 }
   if (panel === 'new') return { view: 'home', step: 1 }
   if (panel === 'drawing') return { view: 'home', step: 2 }
   if (panel === 'confirm') return { view: 'home', step: 3 }
@@ -2836,6 +2922,7 @@ function FabMenuIcon({ name }) {
     home: ['M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z'],
     subscriptions: ['M4 7h16v10H4z', 'M4 11h16', 'M8 15h4'],
     documents: ['M7 3h7l5 5v13H7z', 'M14 3v5h5'],
+    settings: ['M12 8.5a3.5 3.5 0 1 0 .01 0z', 'M12 3v2', 'M12 19v2', 'M3 12h2', 'M19 12h2'],
     pricing: ['M12 3v18', 'M16.5 7.5H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H7'],
   }
   return (
@@ -3146,6 +3233,8 @@ function FabricationCalculator({
   const [note, setNote] = useState('')
   const [priceForm, setPriceForm] = useState(() => ({ ...emptyFabPricing(), ...(pricing || {}) }))
   const [projects, setProjects] = useState(() => loadFabProjects())
+  const [projectToDelete, setProjectToDelete] = useState('')
+  const [letterhead, setLetterhead] = useState(() => loadFabLetterhead(site?.id))
   const [project, setProject] = useState(() => emptyProject())
   const [drawingViewer, setDrawingViewer] = useState(null)
   const [drawingNote, setDrawingNote] = useState('')
@@ -3158,6 +3247,17 @@ function FabricationCalculator({
   /** One freemium credit per project start (drawing upload or gate size entry). */
   const [freemiumConsumedForProject, setFreemiumConsumedForProject] = useState(false)
   const rates = { ...emptyFabPricing(), ...(pricing || {}), ...(priceForm || {}) }
+  const brandName = String(site?.name || '').trim() || 'Fabrication calc'
+  const quoteRates = {
+    ...rates,
+    companyName: letterhead.companyName || '',
+    address: letterhead.address || '',
+    phone: letterhead.phone || '',
+    whatsapp: letterhead.whatsapp || rates.whatsapp || '',
+    email: letterhead.email || '',
+  }
+  const trialLeft = trialDaysLeft(site)
+  const trialEnding = siteBilling(site) === 'trial' && trialLeft > 0 && trialLeft <= 3
   const subActive = fabSubscriptionActive(site)
   const freeLeft = freeDrawsRemaining(freeDrawsUsed)
   const canUseFreemiumJob = subActive || freeLeft > 0
@@ -3180,6 +3280,10 @@ function FabricationCalculator({
       confirmNotes: proj.confirmNotes || '',
       rcStoreys: proj.rcStoreys,
     })
+
+  useEffect(() => {
+    setLetterhead(loadFabLetterhead(site?.id))
+  }, [site?.id])
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
@@ -3290,6 +3394,30 @@ function FabricationCalculator({
     else if (next === 'pricing') navigatePanel('list')
     else if (next === 'subscriptions') navigatePanel('subs')
     else if (next === 'documents') navigatePanel('docs')
+    else if (next === 'settings') navigatePanel('settings')
+  }
+
+  const persistQuoteDetails = (patch) => {
+    const letterKeys = ['companyName', 'address', 'phone', 'whatsapp', 'email']
+    const letters = {}
+    const prices = {}
+    Object.entries(patch || {}).forEach(([key, value]) => {
+      if (letterKeys.includes(key)) letters[key] = value
+      else prices[key] = value
+    })
+    if (Object.keys(letters).length) {
+      const next = { ...letterhead, ...letters }
+      setLetterhead(next)
+      saveFabLetterhead(site?.id, next)
+    }
+    if (Object.keys(prices).length) applySavedPricing(prices)
+  }
+
+  const deleteSavedProject = (id) => {
+    const next = projects.filter((item) => item.id !== id)
+    persistProjects(next)
+    if (project.id === id) setProject(emptyProject())
+    setProjectToDelete('')
   }
 
   const goStep = (nextStep) => navigatePanel(calcPanelFromState('home', nextStep))
@@ -4017,8 +4145,8 @@ function FabricationCalculator({
           onForward={onHistoryForward}
         />
         <div>
-          <p className="eyebrow">Fabrication calc{online ? '' : ' · offline'}</p>
-          <strong>{project.name || 'Fabrication calc'}</strong>
+          <p className="eyebrow">{brandName}{online ? '' : ' · offline'}</p>
+          <strong>{project.name || brandName}</strong>
         </div>
         {onBack ? (
           <button
@@ -4039,6 +4167,12 @@ function FabricationCalculator({
         <p className="fab-offline-banner" role="status">
           Offline — open saved projects, drawings, and photos from this device. Live uploads from other users, new uploads,
           Fortress chat AI, Gemini, WhatsApp, EcoCash, and app updates need internet data.
+        </p>
+      ) : null}
+
+      {trialEnding ? (
+        <p className="trial-ending-note" role="status">
+          Your free trial ends in {trialLeft} day{trialLeft === 1 ? '' : 's'}.
         </p>
       ) : null}
 
@@ -4077,6 +4211,17 @@ function FabricationCalculator({
               <FabMenuIcon name="documents" />
               Documents
             </button>
+            <button
+              type="button"
+              className={view === 'settings' ? 'active' : ''}
+              onClick={() => {
+                setProjectToDelete('')
+                goView('settings')
+              }}
+            >
+              <FabMenuIcon name="settings" />
+              Settings
+            </button>
           </nav>
         </div>
       ) : null}
@@ -4085,7 +4230,7 @@ function FabricationCalculator({
         <main className="fab-home">
           <section className="fab-section">
             <div className="fab-title-row">
-              <h1>Fabrication calc</h1>
+              <h1>{brandName}</h1>
               {!subActive ? <span className="fab-freemium-sticker">Freemium</span> : null}
             </div>
             <p>
@@ -4207,7 +4352,7 @@ function FabricationCalculator({
         <DrawingChatSession
           project={project}
           companyName={site?.name || ''}
-          pricing={rates}
+          pricing={quoteRates}
           online={online}
           jobTypeLabel={jobTypeLabel}
           canUploadDrawing={canUploadDrawing}
@@ -4243,7 +4388,7 @@ function FabricationCalculator({
             }
             return applyVisionExtraction(extracted, base, { deferMeta: true })
           }}
-          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onPersistPricing={persistQuoteDetails}
           onSaveQuote={(finalQuote) => {
             saveCurrentProject(finalQuote)
             setNote('Quote saved.')
@@ -4673,10 +4818,10 @@ function FabricationCalculator({
         <GateChatSession
           project={project}
           companyName={site?.name || ''}
-          pricing={rates}
+          pricing={quoteRates}
           onUpdateGate={(patch) => updateGate(patch)}
           onUpdateProject={(patch) => updateProject(patch)}
-          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onPersistPricing={persistQuoteDetails}
           onSaveQuote={(finalQuote) => {
             saveCurrentProject(finalQuote)
             setNote('Quote saved.')
@@ -4694,7 +4839,7 @@ function FabricationCalculator({
           project={project}
           companyName={site?.name || ''}
           draft={project.planKind === 'palisade' ? project.palisade : project.burglar}
-          pricing={rates}
+          pricing={quoteRates}
           onUpdateDraft={(next) => {
             if (project.planKind === 'palisade') {
               setProject((prev) => ({
@@ -4709,7 +4854,7 @@ function FabricationCalculator({
             }
           }}
           onUpdateProject={(patch) => updateProject(patch)}
-          onPersistPricing={(patch) => applySavedPricing(patch)}
+          onPersistPricing={persistQuoteDetails}
           onSaveQuote={(finalQuote) => {
             saveCurrentProject(finalQuote)
             setNote('Quote saved.')
@@ -5388,6 +5533,46 @@ function FabricationCalculator({
         </main>
       ) : null}
 
+      {view === 'settings' ? (
+        <main className="fab-home">
+          <section className="fab-section">
+            <h1>Settings</h1>
+            <h2>Projects</h2>
+            <p className="fab-note">Delete a saved project from this fabrication calculator.</p>
+            {projects.length ? (
+              <div className="fab-saved">
+                {projects.map((item) => (
+                  <article key={item.id}>
+                    <div>
+                      <strong>{item.name || 'Project'}</strong>
+                      <span>
+                        {item.client || '—'} · {jobTypeLabel(item.jobType, item.drawingType)}
+                      </span>
+                    </div>
+                    {projectToDelete === item.id ? (
+                      <div className="fab-delete-confirm">
+                        <button type="button" className="danger-button" onClick={() => deleteSavedProject(item.id)}>
+                          Delete
+                        </button>
+                        <button type="button" className="text-back" onClick={() => setProjectToDelete('')}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" className="danger-button" onClick={() => setProjectToDelete(item.id)}>
+                        Delete
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-note">No saved projects yet.</p>
+            )}
+          </section>
+        </main>
+      ) : null}
+
       {view === 'documents' ? (
         <main className="fab-home">
           <section className="fab-section">
@@ -5963,7 +6148,7 @@ function App() {
     if (overlay && accountOverlays.includes(overlay.type)) {
       setOverlay(null)
     }
-    const guestSettings = ['create', 'loading', 'buy', 'system', 'ecocash', 'tailor', 'preview']
+    const guestSettings = ['create', 'loading', 'buy', 'system', 'ecocash', 'tailor', 'preview', 'subscriptions-soon']
     const buying = overlay?.type === 'buy-system'
     if (tab === 'profile' && !buying) {
       setTab('login')
@@ -6325,6 +6510,10 @@ function App() {
 
   const approvePayment = (event) => {
     event.preventDefault()
+    if (!reactivateSiteRef.current) {
+      showSubscriptionsSoon()
+      return
+    }
     if (!requireOnline(NETWORK_ACTIONS.pay)) {
       setPaymentNote(offlineActionMessage(NETWORK_ACTIONS.pay))
       return
@@ -6376,6 +6565,7 @@ function App() {
                   ? {
                       ...site,
                       paidUntil: Date.now() + plan.days * 86400000,
+                      trialEndsAt: 0,
                       fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
                     }
                   : site,
@@ -6413,12 +6603,9 @@ function App() {
     const isFabrication = type.id === 'fabrication'
     const trial = tailorMode === 'trial'
     const plan = FAB_PLANS.find((item) => item.id === fabPlan) || FAB_PLANS[0]
-    const slides = type.slides || []
-    const [first, ...rest] = slides
     const slug = uniqueSlug(websiteDomain || name, accounts)
     const ceoName = websiteCeo.trim() || currentProfile?.ceo || ''
     const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
-    const initialProjTitle = websiteProjectName.trim()
     const aboutText = websiteAbout.trim()
 
     if (!isFabrication) {
@@ -6441,11 +6628,11 @@ function App() {
       systemType: type.id,
       slug,
       link: siteHref(slug),
-      profilePhoto: first?.photo || '',
-      testimonial: first?.testimonial || type.how,
-      gallery: rest.map((slide) => slide.photo).filter(Boolean),
-      photoCaptions: rest.map((slide) => slide.testimonial),
-      slides,
+      profilePhoto: '',
+      testimonial: '',
+      gallery: [],
+      photoCaptions: [],
+      slides: [],
       isShop: false,
       items: [],
       brandName: name,
@@ -6960,7 +7147,7 @@ function App() {
     skipShopChoiceRef.current = true
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
-    goSettingsView('ecocash')
+    showSubscriptionsSoon()
   }
 
   const continueFromSystem = (typeId) => {
@@ -6979,17 +7166,15 @@ function App() {
     goSettingsView('preview')
   }
 
-  const continuePreview = () => {
+  const showSubscriptionsSoon = () => {
     clearReactivate()
-    if (pendingSignup) {
-      goSettingsView('ecocash')
-      return
-    }
-    if (signedInAccount && !skipShopChoiceRef.current) {
-      goSettingsView('shop-account')
-      return
-    }
-    goSettingsView('ecocash')
+    setPaymentNote('')
+    setTab('settings')
+    goSettingsView('subscriptions-soon')
+  }
+
+  const continuePreview = () => {
+    showSubscriptionsSoon()
   }
 
   const startFreeTrial = () => {
@@ -7406,18 +7591,15 @@ function App() {
     pushPath('/settings/preview', { replace: true })
   }, [appRoute.kind, appRoute.slug, publishedSite?.systemType, signedInAccount])
 
-  if (publishedSite && siteBilling(publishedSite) === 'paused') {
-    return (
-      <PausedTenant
-        site={publishedSite}
-        onBack={detectActiveSubdomain() ? undefined : returnToPrevious}
-        onSubscribe={beginReactivate}
-      />
-    )
-  }
-
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
-    return fabricationCalculator(publishedSite, leavePublished)
+    return (
+      <TrialGlassLock
+        locked={siteBilling(publishedSite) === 'paused'}
+        onContinue={() => beginReactivate(publishedSite)}
+      >
+        {fabricationCalculator(publishedSite, leavePublished)}
+      </TrialGlassLock>
+    )
   }
 
   if (hostSlug && hostSlug !== 'rodcroft') {
@@ -7462,7 +7644,11 @@ function App() {
       appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
     const requestedView = appRoute.view || 'home'
     return (
-      <CeoDashboard
+      <TrialGlassLock
+        locked={siteBilling(publishedSite) === 'paused'}
+        onContinue={() => beginReactivate(publishedSite)}
+      >
+        <CeoDashboard
         site={publishedSite}
         initialProjectId={requestedProjectId}
         initialView={requestedView}
@@ -7487,6 +7673,7 @@ function App() {
           }
         }}
       />
+      </TrialGlassLock>
     )
   }
 
@@ -7789,6 +7976,11 @@ function App() {
                   <p>
                     Free trial · {trialDaysLeft(dashSite)} days left · {liveDomain(dashSite)}
                   </p>
+                  {trialDaysLeft(dashSite) <= 3 ? (
+                    <p className="trial-ending-note" role="status">
+                      Your free trial ends in {trialDaysLeft(dashSite)} day{trialDaysLeft(dashSite) === 1 ? '' : 's'}.
+                    </p>
+                  ) : null}
                   <button type="button" onClick={() => beginReactivate(dashSite)}>
                     Subscribe with EcoCash
                   </button>
@@ -7856,36 +8048,42 @@ function App() {
                 </div>
               )}
 
-              {profileTab === 'dash' && siteBilling(dashSite) === 'paused' ? (
-                <div className="profile-tab-panel">
-                  <PausedTenant compact site={dashSite} onSubscribe={beginReactivate} />
-                </div>
-              ) : profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
+              {profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
                 <div className="profile-tab-panel profile-calc-panel">
-                  {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
+                  <TrialGlassLock
+                    locked={siteBilling(dashSite) === 'paused'}
+                    onContinue={() => beginReactivate(dashSite)}
+                  >
+                    {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
+                  </TrialGlassLock>
                 </div>
               ) : profileTab === 'dash' ? (
                 <div className="profile-tab-panel">
-                  <CeoProjectsOverview
-                    sites={privateSystems.length ? privateSystems : currentProfile ? [currentProfile] : []}
-                    activeSite={dashSite || currentProfile}
-                    onSelectSite={(selected) => {
-                      setActiveProfileId(selected.id)
-                      const idx = privateSystems.findIndex((s) => s.id === selected.id)
-                      if (idx >= 0) setDashCursor(idx)
-                    }}
-                    onOpenGeneratedApp={(targetSite, projId, targetView) =>
-                      openPrivateSystem(targetSite, projId, targetView)
-                    }
-                    onOpenCalc={(targetSite) => openOwnedCalculator(targetSite)}
-                    dashView={dashView}
-                    onDashView={(next) => openDashView(next)}
-                    onDashBack={() => {
-                      if (navIndexRef.current > 0) goAppHistory(-1)
-                      else openDashView('menu', { replace: true })
-                    }}
-                  />
-                  <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
+                  <TrialGlassLock
+                    locked={siteBilling(dashSite) === 'paused'}
+                    onContinue={() => beginReactivate(dashSite)}
+                  >
+                    <CeoProjectsOverview
+                      sites={privateSystems.length ? privateSystems : currentProfile ? [currentProfile] : []}
+                      activeSite={dashSite || currentProfile}
+                      onSelectSite={(selected) => {
+                        setActiveProfileId(selected.id)
+                        const idx = privateSystems.findIndex((s) => s.id === selected.id)
+                        if (idx >= 0) setDashCursor(idx)
+                      }}
+                      onOpenGeneratedApp={(targetSite, projId, targetView) =>
+                        openPrivateSystem(targetSite, projId, targetView)
+                      }
+                      onOpenCalc={(targetSite) => openOwnedCalculator(targetSite)}
+                      dashView={dashView}
+                      onDashView={(next) => openDashView(next)}
+                      onDashBack={() => {
+                        if (navIndexRef.current > 0) goAppHistory(-1)
+                        else openDashView('menu', { replace: true })
+                      }}
+                    />
+                    <input ref={drawingInputRef} type="file" accept="image/*" hidden onChange={handleDrawingFile} />
+                  </TrialGlassLock>
                 </div>
               ) : null}
             </section>
@@ -8218,6 +8416,13 @@ function App() {
                 onClick={() => {
                   setEcocash({ number: '', password: '', name: '' })
                   setPaymentNote('')
+                  if (reactivateSiteId) {
+                    clearReactivate()
+                    setTab('profile')
+                    setProfileTab('dash')
+                    pushPath('/profile')
+                    return
+                  }
                   clearReactivate()
                   if (pendingSignup) {
                     goSettingsView('buy')
@@ -8309,6 +8514,19 @@ function App() {
                   </button>
                 ) : null}
               </form>
+            </section>
+          )}
+
+          {tab === 'settings' && settingsView === 'subscriptions-soon' && (
+            <section className="panel-box settings-page subscriptions-soon">
+              <button
+                type="button"
+                className="text-back"
+                onClick={() => goSettingsView(chosenSystem ? 'preview' : 'home')}
+              >
+                Back
+              </button>
+              <p className="subscription-watermark">Subscriptions are opening soon</p>
             </section>
           )}
 

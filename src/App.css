@@ -4612,6 +4612,74 @@
   font: inherit;
 }
 
+.subscription-watermark {
+  min-height: 46vh;
+  margin: 12px 0 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: rgba(28, 25, 21, 0.38);
+}
+
+.trial-ending-note {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff4e5;
+  color: #7a4b00;
+  font-weight: 800;
+}
+
+.fab-app > .trial-ending-note {
+  margin: 8px 12px 0;
+}
+
+.fab-delete-confirm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.trial-glass-wrap {
+  position: relative;
+  min-height: 280px;
+}
+
+.trial-glass-demo {
+  pointer-events: none;
+  user-select: none;
+  filter: blur(1.5px);
+  max-height: 68vh;
+  overflow: hidden;
+}
+
+.trial-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 252, 248, 0.42);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+}
+
+.trial-glass .subscription-watermark {
+  min-height: 0;
+  margin: 0;
+}
+
+.trial-glass p {
+  margin: 0;
+}
+
 .subdomain-list {
   display: grid;
   gap: 10px;
