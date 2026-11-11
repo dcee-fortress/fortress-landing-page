@@ -5,6 +5,7 @@ import {
   saveSiteCeoMetadata,
   subdomainLabelFor,
 } from './fortressMetadata'
+import { ensureProjectFiles, PERIOD_CHOICES } from './rodcroftCalendar'
 
 const money = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', {
@@ -100,6 +101,7 @@ export default function RodcroftTemplate({
   const [statusNote, setStatusNote] = useState('')
   const [valQuery, setValQuery] = useState('')
   const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
+  const [entryFile, setEntryFile] = useState(null)
 
   // New project form
   const [newProjName, setNewProjName] = useState('')
@@ -170,6 +172,16 @@ export default function RodcroftTemplate({
   const currentProject =
     projects.find((p) => p.id === activeProjectId) || activeProjects[0] || projects[0] || null
 
+  useEffect(() => {
+    if (!currentProject?.id || !currentProject.startDate) return
+    const files = ensureProjectFiles(currentProject.files, currentProject.startDate)
+    if (files === currentProject.files) return
+    const nextProjects = projects.map((project) =>
+      project.id === currentProject.id ? { ...project, files } : project,
+    )
+    persistMeta({ ...meta, projects: nextProjects })
+  }, [currentProject?.id, currentProject?.startDate, currentProject?.files, projects, meta])
+
   const overviews = useMemo(() => computeSiteProjectsOverview(meta), [meta])
   const currentOverview = overviews.find((o) => o.id === currentProject?.id) || overviews[0] || null
 
@@ -192,6 +204,7 @@ export default function RodcroftTemplate({
       manager: meta.ceo || 'Engineer',
       status: 'active',
       startDate: newProjStart || new Date().toISOString().slice(0, 10),
+      files: ensureProjectFiles(null, newProjStart || new Date().toISOString().slice(0, 10)),
       endDate: null,
       summary: `Construction and site works for ${name}.`,
       valuations: [],
@@ -224,6 +237,7 @@ export default function RodcroftTemplate({
         ...(proj.valuations || []),
         {
           id: `val-${Date.now()}`,
+          fileId: entryFile?.detailView === 'work-valued' ? entryFile.id : '',
           description: desc,
           valueEarned,
           production,
@@ -246,6 +260,7 @@ export default function RodcroftTemplate({
         ...(proj.materialAnalysis || []),
         {
           id: `ma-${Date.now()}`,
+          fileId: entryFile?.detailView === 'material-analysis' || entryFile?.detailView === 'materials-overview' ? entryFile.id : '',
           description: desc,
           unit: matDraft.unit || 'm3',
           requestedQuantity: req,
@@ -272,7 +287,11 @@ export default function RodcroftTemplate({
         entries: [
           {
             id: `gr-${Date.now()}`,
-            date: fuelDraft.date || new Date().toISOString().slice(0, 10),
+            fileId: entryFile?.detailView === 'fuel-analysis' ? entryFile.id : '',
+            date:
+              entryFile?.detailView === 'fuel-analysis' && /^\d{4}-\d{2}-\d{2}$/.test(entryFile.id)
+                ? entryFile.id
+                : fuelDraft.date || new Date().toISOString().slice(0, 10),
             description: fuelDraft.description.trim() || 'Diesel',
             unit: fuelDraft.unit || 'L',
             quantity: qty,
@@ -322,6 +341,7 @@ export default function RodcroftTemplate({
         ...(proj.workers || []),
         {
           id: `w-${Date.now()}`,
+          fileId: entryFile?.detailView === 'workers' ? entryFile.id : '',
           name,
           role: workerDraft.role.trim() || 'Site Crew',
           register: workerDraft.register || 'induction',
@@ -333,16 +353,23 @@ export default function RodcroftTemplate({
     setWorkerDraft({ name: '', role: '', register: 'induction', plant: '' })
   }
 
-  const valuationsList = currentProject?.valuations || []
+  const rowsForOpenFile = (rows, detailView) => {
+    if (!entryFile?.id || entryFile.detailView !== detailView) return rows || []
+    return (rows || []).filter((row) => row.fileId === entryFile.id)
+  }
+
+  const valuationsList = rowsForOpenFile(currentProject?.valuations, 'work-valued')
   const filteredValuations = useMemo(() => {
     const q = valQuery.trim().toLowerCase()
     if (!q) return valuationsList
     return valuationsList.filter((r) => String(r.description || '').toLowerCase().includes(q))
   }, [valuationsList, valQuery])
+  const valuationTotal = filteredValuations.reduce((sum, row) => sum + (Number(row.valueEarned) || 0), 0)
+  const valuationProduction = filteredValuations.reduce((sum, row) => sum + (Number(row.production) || 0), 0)
 
   // Group fuel consumed by fuel description (project-to-date rollup & Fuel Analysis rows)
   const fuelAnalysisRows = useMemo(() => {
-    const entries = currentProject?.fuel?.entries || []
+    const entries = rowsForOpenFile(currentProject?.fuel?.entries, 'fuel-analysis')
     const bulkTotalLiters = Number(currentProject?.fuel?.bulkInsertedLiters) || 0
     const bulkTotalCost = Number(currentProject?.fuel?.bulkInsertedCost) || 0
     const map = new Map()
@@ -371,7 +398,103 @@ export default function RodcroftTemplate({
         fuelLeftCost: Math.round((row.consumedCost - bulkInsertedCost) * 100) / 100,
       }
     })
-  }, [currentProject])
+  }, [currentProject, entryFile])
+
+  const materialRows = rowsForOpenFile(
+    currentProject?.materialAnalysis,
+    entryFile?.detailView === 'materials-overview' ? 'materials-overview' : 'material-analysis',
+  )
+  const workerRows = rowsForOpenFile(currentProject?.workers, 'workers')
+  const calendarFiles = currentProject?.files || { daily: [], weekly: [], monthly: [] }
+
+  const openArea = (menuView) => {
+    setEntryFile(null)
+    setView(menuView)
+  }
+
+  const openCalendarFile = (file, listView, detailView) => {
+    setEntryFile({ id: file.id, label: file.label, listView, detailView })
+    setView(detailView)
+  }
+
+  const leaveDetail = (fallback) => {
+    if (entryFile?.listView) {
+      const next = entryFile.listView
+      setEntryFile(null)
+      setView(next)
+      return
+    }
+    setView(fallback)
+  }
+
+  const periodMenu = (menuView, title, detailView) => (
+    <div className="rc-content-shell">
+      <button type="button" className="rc-back-link" onClick={() => setView(menuView === 'valuations' || menuView === 'fuel-periods' ? 'ceo-dashboards' : menuView === 'worker-periods' ? 'project-home' : 'qs-engineering')}>
+        ← Back
+      </button>
+      <header className="rc-section-header">
+        <p className="rc-eyebrow">{currentProject?.name}</p>
+        <h1>{title}</h1>
+        <p className="rc-sub">
+          Daily, weekly, and monthly files are created from {currentProject?.startDate}. They stay empty until you enter data.
+        </p>
+      </header>
+      <div className="rc-choice-grid">
+        {PERIOD_CHOICES.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            className="rc-choice-card"
+            onClick={() => {
+              if (choice.id === 'project-to-date') openCalendarFile({ id: '', label: 'Project to date' }, menuView, detailView)
+              else setView(`${menuView}-${choice.id}`)
+            }}
+          >
+            <div>
+              <h2>{choice.id === 'project-to-date' ? 'Project to date' : `${choice.label} files`}</h2>
+              <p>{choice.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const periodFiles = (menuView, period, detailView) => {
+    const files = calendarFiles[period] || []
+    const title = period === 'daily' ? 'Daily files' : period === 'weekly' ? 'Weekly files' : 'Monthly files'
+    return (
+      <div className="rc-content-shell">
+        <button type="button" className="rc-back-link" onClick={() => setView(menuView)}>
+          ← Back
+        </button>
+        <header className="rc-section-header">
+          <p className="rc-eyebrow">{currentProject?.name}</p>
+          <h1>{title}</h1>
+          <p className="rc-sub">Awaiting entry. Nothing is filled in until you open a file and write it.</p>
+        </header>
+        <div className="rc-choice-grid">
+          {files.length ? (
+            files.map((file) => (
+              <button
+                key={file.id}
+                type="button"
+                className="rc-choice-card"
+                onClick={() => openCalendarFile(file, `${menuView}-${period}`, detailView)}
+              >
+                <div>
+                  <h2>{file.label}</h2>
+                  <p>{file.isToday ? 'Today · Awaiting entry' : file.completedAt || 'Awaiting entry'}</p>
+                </div>
+              </button>
+            ))
+          ) : (
+            <p className="rc-sub">No files yet. Create a project with a start date.</p>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rc-app">
@@ -614,7 +737,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('work-valued')}
+                onClick={() => openArea('valuations')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="hard-hat" />
@@ -628,21 +751,21 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('material-analysis')}
+                onClick={() => openArea('material-periods')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="package" />
                 </span>
                 <div>
                   <h2>Material analysis</h2>
-                  <p>Project to date bulk material requested, received, and balance left on site</p>
+                  <p>Daily, weekly, monthly, and project-to-date files from the day the project started</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('fuel-analysis')}
+                onClick={() => openArea('fuel-periods')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="fuel" />
@@ -656,7 +779,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('workers')}
+                onClick={() => openArea('worker-periods')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="users" />
@@ -690,7 +813,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('work-valued')}
+                onClick={() => openArea('valuations')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="chart-bar" />
@@ -704,7 +827,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('materials-overview')}
+                onClick={() => openArea('material-periods')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="package" />
@@ -718,7 +841,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-choice-card"
-                onClick={() => setView('fuel-analysis')}
+                onClick={() => openArea('fuel-periods')}
               >
                 <span className="rc-icon-tile">
                   <ChoiceIcon name="fuel" />
@@ -732,19 +855,36 @@ export default function RodcroftTemplate({
           </div>
         )}
 
+        {currentProject && view === 'valuations' && periodMenu('valuations', 'Valuations', 'work-valued')}
+        {currentProject && view === 'valuations-daily' && periodFiles('valuations', 'daily', 'work-valued')}
+        {currentProject && view === 'valuations-weekly' && periodFiles('valuations', 'weekly', 'work-valued')}
+        {currentProject && view === 'valuations-monthly' && periodFiles('valuations', 'monthly', 'work-valued')}
+        {currentProject && view === 'fuel-periods' && periodMenu('fuel-periods', 'Fuel schedule & Fuel analysis', 'fuel-analysis')}
+        {currentProject && view === 'fuel-periods-daily' && periodFiles('fuel-periods', 'daily', 'fuel-analysis')}
+        {currentProject && view === 'fuel-periods-weekly' && periodFiles('fuel-periods', 'weekly', 'fuel-analysis')}
+        {currentProject && view === 'fuel-periods-monthly' && periodFiles('fuel-periods', 'monthly', 'fuel-analysis')}
+        {currentProject && view === 'material-periods' && periodMenu('material-periods', 'Material schedule & Material analysis', 'material-analysis')}
+        {currentProject && view === 'material-periods-daily' && periodFiles('material-periods', 'daily', 'material-analysis')}
+        {currentProject && view === 'material-periods-weekly' && periodFiles('material-periods', 'weekly', 'material-analysis')}
+        {currentProject && view === 'material-periods-monthly' && periodFiles('material-periods', 'monthly', 'material-analysis')}
+        {currentProject && view === 'worker-periods' && periodMenu('worker-periods', 'Workers', 'workers')}
+        {currentProject && view === 'worker-periods-daily' && periodFiles('worker-periods', 'daily', 'workers')}
+        {currentProject && view === 'worker-periods-weekly' && periodFiles('worker-periods', 'weekly', 'workers')}
+        {currentProject && view === 'worker-periods-monthly' && periodFiles('worker-periods', 'monthly', 'workers')}
+
         {/* Exact Rodcroft Total Work Valued / Cumulative Valuations (`CeoWorkValuedPageClient.jsx` & `ProjectToDateReport.jsx`) */}
         {currentProject && view === 'work-valued' && (
           <div className="rc-content-shell">
             <button
               type="button"
               className="rc-back-link"
-              onClick={() => setView('ceo-dashboards')}
+              onClick={() => leaveDetail('ceo-dashboards')}
             >
-              ← Back to Engineering
+              ← Back
             </button>
 
             <header className="rc-section-header">
-              <p className="rc-eyebrow">Project to Date Report · Cumulative Valuations</p>
+              <p className="rc-eyebrow">{entryFile?.label || 'Project to Date Report · Cumulative Valuations'}</p>
               <h1>{currentProject.name}</h1>
               <p className="rc-sub">
                 Cumulative from project start ({currentProject.startDate}) to date.
@@ -756,7 +896,7 @@ export default function RodcroftTemplate({
                 <p className="rc-eyebrow">Project to Date Report</p>
                 <h2>{currentProject.name}</h2>
                 <p className="rc-sub">
-                  Total Actual Cost on Site: <strong>{money(currentOverview?.metrics.totalWorkValued)}</strong>
+                  Total Actual Cost on Site: <strong>{money(valuationTotal)}</strong>
                 </p>
               </div>
 
@@ -801,9 +941,9 @@ export default function RodcroftTemplate({
                       })}
                       <tr className="rc-ev-total-row">
                         <td>Total</td>
-                        <td className="text-right">{money(currentOverview?.metrics.totalWorkValued)}</td>
-                        <td className="text-right">{numFmt(currentOverview?.metrics.totalProduction)}</td>
-                        <td className="text-right">{rateMoney(currentOverview?.metrics.overallRate)}</td>
+                        <td className="text-right">{money(valuationTotal)}</td>
+                        <td className="text-right">{numFmt(valuationProduction)}</td>
+                        <td className="text-right">{rateMoney(valuationProduction > 0 ? valuationTotal / valuationProduction : null)}</td>
                       </tr>
                     </tbody>
                     <tfoot>
@@ -907,11 +1047,11 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setView('ceo-dashboards')}
+                onClick={() => leaveDetail('ceo-dashboards')}
               >
-                ← Back to Engineering
+                ← Back
               </button>
-              <p className="rc-eyebrow">Material analysis</p>
+              <p className="rc-eyebrow">{entryFile?.detailView === 'material-analysis' ? entryFile.label : 'Material analysis'}</p>
               <h1>{currentProject.name}</h1>
               <p className="rc-sub">
                 Read-only project to date. Similar descriptions are one line. Balance of material left is bulk material requested minus cumulative material received.
@@ -939,7 +1079,7 @@ export default function RodcroftTemplate({
               <div className="rc-card-head">
                 <h2>Project to date</h2>
               </div>
-              {(currentProject.materialAnalysis || []).length === 0 ? (
+              {materialRows.length === 0 ? (
                 <p className="rc-empty-msg">No bulk material request or material received yet.</p>
               ) : (
                 <div className="tpl-table-wrap">
@@ -953,7 +1093,7 @@ export default function RodcroftTemplate({
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentProject.materialAnalysis || []).map((row) => (
+                      {materialRows.map((row) => (
                         <tr key={row.id}>
                           <td><strong>{row.description}</strong></td>
                           <td className="text-right">{numFmt(row.requestedQuantity)}</td>
@@ -1029,7 +1169,7 @@ export default function RodcroftTemplate({
               <div className="rc-card-head">
                 <h2>Project to date material on site</h2>
               </div>
-              {(currentProject.materialAnalysis || []).length === 0 ? (
+              {materialRows.length === 0 ? (
                 <p className="rc-empty-msg">No material on site entries yet.</p>
               ) : (
                 <div className="tpl-table-wrap">
@@ -1043,7 +1183,7 @@ export default function RodcroftTemplate({
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentProject.materialAnalysis || []).map((row) => {
+                      {materialRows.map((row) => {
                         const brought = Number(row.broughtOnSite ?? row.receivedQuantity) || 0
                         const used = Number(row.materialUsed) || 0
                         const left = Number(row.onSiteLeft ?? brought - used) || 0
@@ -1073,11 +1213,11 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setView('ceo-dashboards')}
+                onClick={() => leaveDetail('ceo-dashboards')}
               >
-                ← Back to Engineering
+                ← Back
               </button>
-              <p className="rc-eyebrow">Fuel analysis &amp; Fuel consumed to date</p>
+              <p className="rc-eyebrow">{entryFile?.detailView === 'fuel-analysis' ? entryFile.label : 'Fuel analysis & Fuel consumed to date'}</p>
               <h1>{currentProject.name}</h1>
               <p className="rc-sub">
                 Read-only project to date. Each fuel name is one line comparing fuel consumed against bulk fuel inserted in tank.
@@ -1243,7 +1383,7 @@ export default function RodcroftTemplate({
               <button
                 type="button"
                 className="rc-back-link"
-                onClick={() => setView(view === 'safety-health' ? 'project-home' : 'ceo-dashboards')}
+                onClick={() => (view === 'safety-health' ? setView('project-home') : leaveDetail('ceo-dashboards'))}
               >
                 ← Back to {view === 'safety-health' ? 'project home' : 'Engineering'}
               </button>
@@ -1275,7 +1415,7 @@ export default function RodcroftTemplate({
               <div className="rc-card-head">
                 <h2>Site Staff (Admin), Induction &amp; Plant Operator Registers</h2>
               </div>
-              {(currentProject.workers || []).length === 0 ? (
+              {workerRows.length === 0 ? (
                 <p className="rc-empty-msg">No workers registered on this project yet.</p>
               ) : (
                 <div className="tpl-table-wrap">
@@ -1289,7 +1429,7 @@ export default function RodcroftTemplate({
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentProject.workers || []).map((w) => (
+                      {workerRows.map((w) => (
                         <tr key={w.id}>
                           <td><strong>{w.name}</strong></td>
                           <td>{w.role}</td>
