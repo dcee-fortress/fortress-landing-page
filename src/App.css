@@ -6026,9 +6026,13 @@
 
 .rc-brand-name {
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: #18181b;
   font-size: 1rem;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (min-width: 640px) {
@@ -6149,11 +6153,13 @@
 
 .rc-brand-wordmark {
   margin: 0;
+  max-width: min(92vw, 42rem);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-indent: 0.1em;
+  letter-spacing: 0.04em;
   font-size: clamp(2.25rem, 7vw, 3.5rem);
+  line-height: 1.15;
   color: #18181b;
+  overflow-wrap: anywhere;
   animation: rc-wordmark-fade 2s ease-in-out infinite;
 }
 

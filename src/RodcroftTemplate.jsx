@@ -6,35 +6,38 @@ import {
 } from './fortressMetadata'
 import { ensureProjectFiles, entryBelongsToFile, isDailyEntryFile, PERIOD_CHOICES } from './rodcroftCalendar'
 
-const RODCROFT_BRAND = 'Rodcroft'
-
 const fileListCopy = (menuView, period) => {
-  const periodWord = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : 'Monthly'
+  const periodWord = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : period === 'yearly' ? 'Yearly' : 'Monthly'
   const placeholders = {
     daily: 'Search daily files by day, date, or id…',
     weekly: 'Search weekly files by week range or id…',
     monthly: 'Search monthly files by month, year, or id…',
+    yearly: 'Search yearly files by year or id…',
   }
   const areas = {
     valuations: {
       daily: ['Daily cost', 'Click a file to open it. Daily files run from the project start through today.'],
       weekly: ['Weekly cost', 'Weekly files are created from the project start date through the current week.'],
       monthly: ['Monthly cost', 'Monthly files are created from the project start date through the current month.'],
+      yearly: ['Yearly cost', 'Yearly files are created from the project start date through the current year.'],
     },
     'material-periods': {
       daily: ['Material received', 'Daily material received files from the day the project started.'],
       weekly: ['Material received', 'Weekly material received files from the project start.'],
       monthly: ['Material received', 'Monthly material received files from the project start.'],
+      yearly: ['Material received', 'Yearly material received files from the project start.'],
     },
     'fuel-periods': {
       daily: ['Daily fuel consumed', 'Daily fuel consumed files from the day the project started.'],
       weekly: ['Fuel consumed', 'Weekly fuel consumed files from the project start.'],
       monthly: ['Fuel consumed', 'Monthly fuel consumed files from the project start.'],
+      yearly: ['Fuel consumed', 'Yearly fuel consumed files from the project start.'],
     },
     'worker-periods': {
       daily: ['Workers', 'Daily worker files from the day the project started.'],
       weekly: ['Workers', 'Weekly worker files from the project start.'],
       monthly: ['Workers', 'Monthly worker files from the project start.'],
+      yearly: ['Workers', 'Yearly worker files from the project start.'],
     },
   }
   const area = areas[menuView]?.[period] || [`${periodWord} files`, 'Files are created from the project start.']
@@ -205,12 +208,14 @@ export default function RodcroftTemplate({
     setEntryPanel('')
   }, [view])
 
+  const brandName = meta?.brandName || meta?.companyName || site?.name || 'Company'
+
   useEffect(() => {
-    document.title = RODCROFT_BRAND
+    document.title = brandName
     return () => {
       document.title = 'Fortress'
     }
-  }, [])
+  }, [brandName])
 
   const persistMeta = (nextMeta) => {
     const saved = saveSiteCeoMetadata(site || nextMeta.slug, nextMeta)
@@ -460,7 +465,7 @@ export default function RodcroftTemplate({
     entryFile?.detailView === 'materials-overview' ? 'materials-overview' : 'material-analysis',
   )
   const workerRows = rowsForOpenFile(currentProject?.workers, 'workers')
-  const calendarFiles = currentProject?.files || { daily: [], weekly: [], monthly: [] }
+  const calendarFiles = currentProject?.files || { daily: [], weekly: [], monthly: [], yearly: [] }
 
   const openArea = (menuView) => {
     setEntryFile(null)
@@ -491,7 +496,7 @@ export default function RodcroftTemplate({
         <p className="rc-eyebrow">{currentProject?.name}</p>
         <h1>{title}</h1>
         <p className="rc-sub">
-          Daily, weekly, and monthly files are created from {currentProject?.startDate}. They stay empty until you enter data.
+          Daily, weekly, monthly, and yearly files are created from {currentProject?.startDate}. They stay empty until you enter data.
         </p>
       </header>
       <div className="rc-choice-grid">
@@ -704,7 +709,7 @@ export default function RodcroftTemplate({
               }}
             >
               <span className="rc-brand-f">F</span>
-              <span className="rc-brand-name">{RODCROFT_BRAND}</span>
+              <span className="rc-brand-name">{brandName}</span>
             </button>
           </div>
 
@@ -764,8 +769,8 @@ export default function RodcroftTemplate({
         {/* Exact Rodcroft Home (`GroveLanding.jsx`) */}
         {view === 'home' && (
           <div className="rc-landing-stage">
-            <h1 className="rc-brand-wordmark" aria-label={RODCROFT_BRAND}>
-              {RODCROFT_BRAND}
+            <h1 className="rc-brand-wordmark" aria-label={brandName}>
+              {brandName}
             </h1>
           </div>
         )}
@@ -924,7 +929,7 @@ export default function RodcroftTemplate({
                 <span className="rc-icon-tile"><ChoiceIcon name="chart-bar" /></span>
                 <div>
                   <h2>Valuations</h2>
-                  <p>Open earned value dashboards for monthly, weekly, and daily reports</p>
+                  <p>Open earned value dashboards for yearly, monthly, weekly, and daily reports</p>
                 </div>
               </button>
               <button type="button" className="rc-choice-card" onClick={() => setView('qs-schedules')}>
@@ -1002,18 +1007,22 @@ export default function RodcroftTemplate({
         {currentProject && view === 'valuations-daily' && periodFiles('valuations', 'daily', 'work-valued')}
         {currentProject && view === 'valuations-weekly' && periodFiles('valuations', 'weekly', 'work-valued')}
         {currentProject && view === 'valuations-monthly' && periodFiles('valuations', 'monthly', 'work-valued')}
+        {currentProject && view === 'valuations-yearly' && periodFiles('valuations', 'yearly', 'work-valued')}
         {currentProject && view === 'fuel-periods' && periodMenu('fuel-periods', 'Fuel schedule & Fuel analysis', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-daily' && periodFiles('fuel-periods', 'daily', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-weekly' && periodFiles('fuel-periods', 'weekly', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-monthly' && periodFiles('fuel-periods', 'monthly', 'fuel-analysis')}
+        {currentProject && view === 'fuel-periods-yearly' && periodFiles('fuel-periods', 'yearly', 'fuel-analysis')}
         {currentProject && view === 'material-periods' && periodMenu('material-periods', 'Material schedule & Material analysis', 'material-analysis')}
         {currentProject && view === 'material-periods-daily' && periodFiles('material-periods', 'daily', 'material-analysis')}
         {currentProject && view === 'material-periods-weekly' && periodFiles('material-periods', 'weekly', 'material-analysis')}
         {currentProject && view === 'material-periods-monthly' && periodFiles('material-periods', 'monthly', 'material-analysis')}
+        {currentProject && view === 'material-periods-yearly' && periodFiles('material-periods', 'yearly', 'material-analysis')}
         {currentProject && view === 'worker-periods' && periodMenu('worker-periods', 'Workers', 'workers')}
         {currentProject && view === 'worker-periods-daily' && periodFiles('worker-periods', 'daily', 'workers')}
         {currentProject && view === 'worker-periods-weekly' && periodFiles('worker-periods', 'weekly', 'workers')}
         {currentProject && view === 'worker-periods-monthly' && periodFiles('worker-periods', 'monthly', 'workers')}
+        {currentProject && view === 'worker-periods-yearly' && periodFiles('worker-periods', 'yearly', 'workers')}
 
         {/* Exact Rodcroft Total Work Valued / Cumulative Valuations (`CeoWorkValuedPageClient.jsx` & `ProjectToDateReport.jsx`) */}
         {currentProject && view === 'work-valued' && (
@@ -1668,7 +1677,7 @@ export default function RodcroftTemplate({
                 className="rc-back-link"
                 onClick={() => setView('home')}
               >
-                ← Back to {RODCROFT_BRAND}
+                ← Back to {brandName}
               </button>
               <h1>Settings</h1>
               <p className="rc-sub">Manage projects on this website.</p>
