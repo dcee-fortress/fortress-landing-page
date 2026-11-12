@@ -7,37 +7,32 @@ import {
 import { ensureProjectFiles, entryBelongsToFile, isDailyEntryFile, PERIOD_CHOICES } from './rodcroftCalendar'
 
 const fileListCopy = (menuView, period) => {
-  const periodWord = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : period === 'yearly' ? 'Yearly' : 'Monthly'
+  const periodWord = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : 'Monthly'
   const placeholders = {
     daily: 'Search daily files by day, date, or id…',
     weekly: 'Search weekly files by week range or id…',
     monthly: 'Search monthly files by month, year, or id…',
-    yearly: 'Search yearly files by year or id…',
   }
   const areas = {
     valuations: {
       daily: ['Daily cost', 'Click a file to open it. Daily files run from the project start through today.'],
       weekly: ['Weekly cost', 'Weekly files are created from the project start date through the current week.'],
       monthly: ['Monthly cost', 'Monthly files are created from the project start date through the current month.'],
-      yearly: ['Yearly cost', 'Yearly files are created from the project start date through the current year.'],
     },
     'material-periods': {
       daily: ['Material received', 'Daily material received files from the day the project started.'],
       weekly: ['Material received', 'Weekly material received files from the project start.'],
       monthly: ['Material received', 'Monthly material received files from the project start.'],
-      yearly: ['Material received', 'Yearly material received files from the project start.'],
     },
     'fuel-periods': {
       daily: ['Daily fuel consumed', 'Daily fuel consumed files from the day the project started.'],
       weekly: ['Fuel consumed', 'Weekly fuel consumed files from the project start.'],
       monthly: ['Fuel consumed', 'Monthly fuel consumed files from the project start.'],
-      yearly: ['Fuel consumed', 'Yearly fuel consumed files from the project start.'],
     },
     'worker-periods': {
       daily: ['Workers', 'Daily worker files from the day the project started.'],
       weekly: ['Workers', 'Weekly worker files from the project start.'],
       monthly: ['Workers', 'Monthly worker files from the project start.'],
-      yearly: ['Workers', 'Yearly worker files from the project start.'],
     },
   }
   const area = areas[menuView]?.[period] || [`${periodWord} files`, 'Files are created from the project start.']
@@ -53,6 +48,87 @@ const fileListCopy = (menuView, period) => {
     rowNote: 'Ready for entry. This file stays empty until you write in it.',
   }
 }
+
+const HOUR_SLOTS = [
+  { id: '0700-0900', startTime: '07:00', endTime: '09:00', order: 1 },
+  { id: '0900-1100', startTime: '09:00', endTime: '11:00', order: 2 },
+  { id: '1100-1300', startTime: '11:00', endTime: '13:00', order: 3 },
+  { id: '1300-1500', startTime: '13:00', endTime: '15:00', order: 4 },
+  { id: '1500-1700', startTime: '15:00', endTime: '17:00', order: 5 },
+]
+
+const VALUATION_COLUMNS = [
+  { key: 'date', label: 'Date' },
+  { key: 'activityDescription', label: 'Activity description' },
+  { key: 'details', label: 'Details' },
+  { key: 'plantName', label: 'Plant name' },
+  { key: 'fuelAllocated', label: 'Fuel allocated', numeric: true },
+  { key: 'fuelPrice', label: 'Fuel price', numeric: true },
+  { key: 'fuelCost', label: 'Fuel cost', numeric: true, computed: true },
+  { key: 'plantHire', label: 'Plant hire', numeric: true },
+  { key: 'laborCost', label: 'Labor cost', numeric: true },
+  { key: 'totalCost', label: 'Total cost', numeric: true, computed: true },
+  { key: 'unit', label: 'Unit' },
+  { key: 'production', label: 'Production', numeric: true },
+  { key: 'rate', label: 'Rate', numeric: true, computed: true },
+]
+
+const sheetDate = (dayId) => {
+  const [year, month, day] = String(dayId || '').split('-')
+  if (!year || !month || !day) return ''
+  return `${Number(day)}/${Number(month)}/${year}`
+}
+
+const blankValuationRow = (dayId) => ({
+  id: `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  date: sheetDate(dayId),
+  activityDescription: '',
+  details: '',
+  plantName: '',
+  fuelAllocated: '',
+  fuelPrice: '1.96',
+  fuelCost: '',
+  plantHire: '',
+  laborCost: '',
+  totalCost: '',
+  unit: '',
+  production: '',
+  rate: '',
+})
+
+const sheetNumber = (value) => {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  const number = Number(text)
+  return Number.isFinite(number) ? number : null
+}
+
+const roundMoney = (value) => Math.round(value * 100) / 100
+
+const resolveValuationRow = (row) => {
+  const fuelAllocated = sheetNumber(row.fuelAllocated)
+  const fuelPrice = sheetNumber(row.fuelPrice)
+  const plantHire = sheetNumber(row.plantHire)
+  const laborCost = sheetNumber(row.laborCost)
+  const production = sheetNumber(row.production)
+  const fuelCost =
+    sheetNumber(row.fuelCost) ??
+    (fuelAllocated != null && fuelPrice != null ? roundMoney(fuelAllocated * fuelPrice) : null)
+  const totalCost =
+    sheetNumber(row.totalCost) ??
+    (fuelCost != null || plantHire != null || laborCost != null
+      ? roundMoney((fuelCost || 0) + (plantHire || 0) + (laborCost || 0))
+      : null)
+  const rate =
+    sheetNumber(row.rate) ??
+    (totalCost != null && production > 0 ? Math.round((totalCost / production) * 10000) / 10000 : null)
+  return { fuelCost, totalCost, production, rate }
+}
+
+const rowHasValuationData = (row) =>
+  ['activityDescription', 'details', 'plantName', 'fuelAllocated', 'plantHire', 'laborCost', 'production', 'unit'].some(
+    (key) => String(row?.[key] ?? '').trim(),
+  )
 
 const money = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', {
@@ -153,6 +229,8 @@ export default function RodcroftTemplate({
   const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
   const [entryFile, setEntryFile] = useState(null)
   const [entryPanel, setEntryPanel] = useState('')
+  const [entrySlot, setEntrySlot] = useState(null)
+  const [sheetRows, setSheetRows] = useState([])
 
   // New project form
   const [newProjName, setNewProjName] = useState('')
@@ -465,7 +543,24 @@ export default function RodcroftTemplate({
     entryFile?.detailView === 'materials-overview' ? 'materials-overview' : 'material-analysis',
   )
   const workerRows = rowsForOpenFile(currentProject?.workers, 'workers')
-  const calendarFiles = currentProject?.files || { daily: [], weekly: [], monthly: [], yearly: [] }
+  const calendarFiles = currentProject?.files || { daily: [], weekly: [], monthly: [] }
+
+  const daySlots = (dayId) => {
+    const saved = currentProject?.hourlySlots?.[dayId]
+    return saved?.length ? [...saved].sort((left, right) => (left.order || 0) - (right.order || 0)) : []
+  }
+
+  useEffect(() => {
+    if (view !== 'hourly-dashboards' || !isDailyEntryFile(entryFile) || !currentProject?.id) return
+    if (currentProject.hourlySlots?.[entryFile.id]?.length) return
+    updateCurrentProject((proj) => ({
+      ...proj,
+      hourlySlots: {
+        ...(proj.hourlySlots || {}),
+        [entryFile.id]: [{ ...HOUR_SLOTS[0] }],
+      },
+    }))
+  }, [view, entryFile?.id, currentProject?.id, currentProject?.hourlySlots])
 
   const openArea = (menuView) => {
     setEntryFile(null)
@@ -473,8 +568,47 @@ export default function RodcroftTemplate({
   }
 
   const openCalendarFile = (file, listView, detailView) => {
-    setEntryFile({ id: file.id, label: file.label, listView, detailView })
-    setView(detailView)
+    const nextFile = { id: file.id, label: file.label, listView, detailView }
+    setEntryFile(nextFile)
+    setEntrySlot(null)
+    setView(detailView === 'work-valued' && isDailyEntryFile(nextFile) ? 'hourly-dashboards' : detailView)
+  }
+
+  const openValuationsEntry = (slot) => {
+    const key = `${entryFile?.id}::${slot.id}`
+    const saved = currentProject?.valuationSheets?.[key]
+    setEntrySlot(slot)
+    setSheetRows(saved?.length ? saved.map((row) => ({ ...row })) : [blankValuationRow(entryFile?.id)])
+    setView('valuations-entry')
+  }
+
+  const saveValuationsEntry = () => {
+    if (!entryFile?.id || !entrySlot?.id) return
+    const key = `${entryFile.id}::${entrySlot.id}`
+    const kept = sheetRows.filter(rowHasValuationData)
+    updateCurrentProject((proj) => ({
+      ...proj,
+      valuationSheets: {
+        ...(proj.valuationSheets || {}),
+        [key]: kept,
+      },
+      valuations: [
+        ...(proj.valuations || []).filter((row) => !(row.fileId === entryFile.id && row.slotId === entrySlot.id)),
+        ...kept.map((row) => {
+          const resolved = resolveValuationRow(row)
+          return {
+            id: row.id,
+            date: entryFile.id,
+            fileId: entryFile.id,
+            slotId: entrySlot.id,
+            description: row.activityDescription.trim() || row.details.trim() || 'Activity',
+            valueEarned: resolved.totalCost || 0,
+            production: resolved.production || 0,
+          }
+        }),
+      ],
+    }))
+    setView('hourly-dashboards')
   }
 
   const leaveDetail = (fallback) => {
@@ -496,7 +630,7 @@ export default function RodcroftTemplate({
         <p className="rc-eyebrow">{currentProject?.name}</p>
         <h1>{title}</h1>
         <p className="rc-sub">
-          Daily, weekly, monthly, and yearly files are created from {currentProject?.startDate}. They stay empty until you enter data.
+          Daily, weekly, and monthly files are created from {currentProject?.startDate}. They stay empty until you enter data.
         </p>
       </header>
       <div className="rc-choice-grid">
@@ -929,7 +1063,7 @@ export default function RodcroftTemplate({
                 <span className="rc-icon-tile"><ChoiceIcon name="chart-bar" /></span>
                 <div>
                   <h2>Valuations</h2>
-                  <p>Open earned value dashboards for yearly, monthly, weekly, and daily reports</p>
+                  <p>Open earned value dashboards for monthly, weekly, and daily reports</p>
                 </div>
               </button>
               <button type="button" className="rc-choice-card" onClick={() => setView('qs-schedules')}>
@@ -1007,22 +1141,186 @@ export default function RodcroftTemplate({
         {currentProject && view === 'valuations-daily' && periodFiles('valuations', 'daily', 'work-valued')}
         {currentProject && view === 'valuations-weekly' && periodFiles('valuations', 'weekly', 'work-valued')}
         {currentProject && view === 'valuations-monthly' && periodFiles('valuations', 'monthly', 'work-valued')}
-        {currentProject && view === 'valuations-yearly' && periodFiles('valuations', 'yearly', 'work-valued')}
         {currentProject && view === 'fuel-periods' && periodMenu('fuel-periods', 'Fuel schedule & Fuel analysis', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-daily' && periodFiles('fuel-periods', 'daily', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-weekly' && periodFiles('fuel-periods', 'weekly', 'fuel-analysis')}
         {currentProject && view === 'fuel-periods-monthly' && periodFiles('fuel-periods', 'monthly', 'fuel-analysis')}
-        {currentProject && view === 'fuel-periods-yearly' && periodFiles('fuel-periods', 'yearly', 'fuel-analysis')}
         {currentProject && view === 'material-periods' && periodMenu('material-periods', 'Material schedule & Material analysis', 'material-analysis')}
         {currentProject && view === 'material-periods-daily' && periodFiles('material-periods', 'daily', 'material-analysis')}
         {currentProject && view === 'material-periods-weekly' && periodFiles('material-periods', 'weekly', 'material-analysis')}
         {currentProject && view === 'material-periods-monthly' && periodFiles('material-periods', 'monthly', 'material-analysis')}
-        {currentProject && view === 'material-periods-yearly' && periodFiles('material-periods', 'yearly', 'material-analysis')}
         {currentProject && view === 'worker-periods' && periodMenu('worker-periods', 'Workers', 'workers')}
         {currentProject && view === 'worker-periods-daily' && periodFiles('worker-periods', 'daily', 'workers')}
         {currentProject && view === 'worker-periods-weekly' && periodFiles('worker-periods', 'weekly', 'workers')}
         {currentProject && view === 'worker-periods-monthly' && periodFiles('worker-periods', 'monthly', 'workers')}
-        {currentProject && view === 'worker-periods-yearly' && periodFiles('worker-periods', 'yearly', 'workers')}
+
+        {currentProject && view === 'hourly-dashboards' && isDailyEntryFile(entryFile) && (
+          <div className="rc-content-shell">
+            <button type="button" className="rc-back-link" onClick={() => leaveDetail('valuations')}>
+              ← Back to daily files
+            </button>
+            <header className="rc-section-header">
+              <p className="rc-eyebrow">Daily cost</p>
+              <h1>{entryFile.label}</h1>
+              <p className="rc-sub">
+                Enter values in valuations entry on each hourly dashboard. Totals roll up to daily, weekly, monthly, and project to date.
+              </p>
+            </header>
+            <article className="rc-report-card">
+              <div className="rc-report-banner">
+                <p className="rc-eyebrow">Daily total</p>
+                <h2>{currentProject.name}</h2>
+                <p className="rc-sub">Roll-up from hourly dashboards: <strong>{money(valuationTotal)}</strong></p>
+              </div>
+            </article>
+            <div className="rc-hour-head">
+              <h2>Hourly dashboards</h2>
+              <button
+                type="button"
+                className="tpl-primary-btn"
+                disabled={daySlots(entryFile.id).length >= HOUR_SLOTS.length}
+                onClick={() => {
+                  const used = new Set(daySlots(entryFile.id).map((slot) => slot.id))
+                  const next = HOUR_SLOTS.find((slot) => !used.has(slot.id))
+                  if (!next) return
+                  updateCurrentProject((proj) => ({
+                    ...proj,
+                    hourlySlots: {
+                      ...(proj.hourlySlots || {}),
+                      [entryFile.id]: [...(proj.hourlySlots?.[entryFile.id] || []), { ...next }],
+                    },
+                  }))
+                }}
+              >
+                Add hourly dashboard
+              </button>
+            </div>
+            <div className="rc-hour-list">
+              {daySlots(entryFile.id).map((slot) => {
+                const slotTotal = valuationsList
+                  .filter((row) => row.slotId === slot.id)
+                  .reduce((sum, row) => sum + (Number(row.valueEarned) || 0), 0)
+                return (
+                  <article key={slot.id} className="rc-report-card">
+                    <div className="rc-hour-card">
+                      <div>
+                        <p className="rc-eyebrow">Hourly dashboard</p>
+                        <p className="rc-sub">{slot.startTime} – {slot.endTime}</p>
+                        <p className="rc-sub">Values from the valuations entry: <strong>{money(slotTotal)}</strong></p>
+                      </div>
+                      <div className="rc-hour-actions">
+                        <button type="button" className="rc-entry-btn" onClick={() => openValuationsEntry(slot)}>
+                          Valuations entry
+                        </button>
+                        <button
+                          type="button"
+                          className="rc-file-search-clear"
+                          onClick={() => {
+                            const key = `${entryFile.id}::${slot.id}`
+                            updateCurrentProject((proj) => ({
+                              ...proj,
+                              hourlySlots: {
+                                ...(proj.hourlySlots || {}),
+                                [entryFile.id]: (proj.hourlySlots?.[entryFile.id] || []).filter((item) => item.id !== slot.id),
+                              },
+                              valuationSheets: { ...(proj.valuationSheets || {}), [key]: [] },
+                              valuations: (proj.valuations || []).filter((row) => !(row.fileId === entryFile.id && row.slotId === slot.id)),
+                            }))
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {currentProject && view === 'valuations-entry' && entrySlot && (
+          <div className="rc-content-shell">
+            <button type="button" className="rc-back-link" onClick={() => setView('hourly-dashboards')}>
+              ← Back to hourly dashboards
+            </button>
+            <header className="rc-section-header">
+              <p className="rc-eyebrow">Valuations entry · Actual cost on site</p>
+              <h1>{currentProject.name}</h1>
+              <p className="rc-sub">
+                {entryFile?.label} · {entrySlot.startTime} – {entrySlot.endTime}. Add a row for each activity. Saving rolls the totals into this hourly dashboard, then the daily, weekly, monthly, and project-to-date dashboards.
+              </p>
+            </header>
+            <section className="rc-report-card">
+              <div className="rc-sheet-wrap">
+                <table className="rc-sheet">
+                  <thead>
+                    <tr>
+                      {VALUATION_COLUMNS.map((column) => (
+                        <th key={column.key}>{column.label}</th>
+                      ))}
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheetRows.map((row, rowIndex) => {
+                      const resolved = resolveValuationRow(row)
+                      return (
+                        <tr key={row.id}>
+                          {VALUATION_COLUMNS.map((column) => {
+                            const computedValue =
+                              column.key === 'fuelCost' ? resolved.fuelCost
+                              : column.key === 'totalCost' ? resolved.totalCost
+                              : column.key === 'rate' ? resolved.rate
+                              : null
+                            const shown = String(row[column.key] ?? '')
+                            return (
+                              <td key={column.key}>
+                                <input
+                                  type={column.numeric ? 'number' : 'text'}
+                                  step={column.numeric ? '0.01' : undefined}
+                                  value={shown}
+                                  placeholder={column.computed && computedValue != null && !shown ? String(computedValue) : ''}
+                                  onChange={(event) => {
+                                    const value = event.target.value
+                                    setSheetRows((current) => current.map((item, index) => (
+                                      index === rowIndex ? { ...item, [column.key]: value } : item
+                                    )))
+                                  }}
+                                />
+                              </td>
+                            )
+                          })}
+                          <td>
+                            <button
+                              type="button"
+                              className="rc-file-search-clear"
+                              onClick={() => setSheetRows((current) => current.filter((item) => item.id !== row.id))}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="rc-sheet-actions">
+                <button
+                  type="button"
+                  className="rc-entry-btn"
+                  onClick={() => setSheetRows((current) => [...current, blankValuationRow(entryFile?.id)])}
+                >
+                  Add row
+                </button>
+                <button type="button" className="tpl-primary-btn" onClick={saveValuationsEntry}>
+                  Save
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* Exact Rodcroft Total Work Valued / Cumulative Valuations (`CeoWorkValuedPageClient.jsx` & `ProjectToDateReport.jsx`) */}
         {currentProject && view === 'work-valued' && (
@@ -1108,44 +1406,7 @@ export default function RodcroftTemplate({
                   </table>
                 </div>
 
-                {isDailyEntryFile(entryFile) ? (
-                  <button type="button" className="rc-entry-btn" onClick={() => setEntryPanel((open) => (open === 'valuation' ? '' : 'valuation'))}>
-                    Valuations entry
-                  </button>
-                ) : (
-                  <p className="rc-sub">These totals roll up from the daily valuations entries.</p>
-                )}
-                {entryPanel === 'valuation' ? (
-                <form className="tpl-inline-form" onSubmit={handleAddValuation}>
-                  <h4>Valuations entry</h4>
-                  <div className="tpl-form-row">
-                    <input
-                      type="text"
-                      placeholder="Activity description"
-                      value={valDraft.description}
-                      onChange={(e) => setValDraft({ ...valDraft, description: e.target.value })}
-                      required
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Actual Cost on Site ($)"
-                      value={valDraft.valueEarned}
-                      onChange={(e) => setValDraft({ ...valDraft, valueEarned: e.target.value })}
-                      required
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Production quantity"
-                      value={valDraft.production}
-                      onChange={(e) => setValDraft({ ...valDraft, production: e.target.value })}
-                      required
-                    />
-                    <button type="submit" className="tpl-primary-btn">Save Valuation</button>
-                  </div>
-                </form>
-                ) : null}
+                <p className="rc-sub">These totals roll up from the hourly valuations entries.</p>
               </div>
             </article>
           </div>

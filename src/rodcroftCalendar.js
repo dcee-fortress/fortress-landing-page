@@ -30,7 +30,7 @@ const formatShortDate = (date) =>
 const formatDayLabel = (date) =>
   `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
 
-const emptyFiles = () => ({ daily: [], weekly: [], monthly: [], yearly: [], deletedDailyIds: [] })
+const emptyFiles = () => ({ daily: [], weekly: [], monthly: [], deletedDailyIds: [] })
 
 const buildCalendar = (startDate, today = new Date()) => {
   const start = parseDayId(startDate)
@@ -101,21 +101,7 @@ const buildCalendar = (startDate, today = new Date()) => {
   }
   monthly.reverse()
 
-  const yearly = []
-  for (let year = start.getFullYear(); year <= through.getFullYear(); year += 1) {
-    const inProgress = year === through.getFullYear()
-    yearly.push({
-      id: String(year),
-      label: String(year),
-      completedAt: inProgress ? 'In progress' : `1 Jan ${year + 1}`,
-      inProgress,
-      valueEarned: 0,
-      production: 0,
-    })
-  }
-  yearly.reverse()
-
-  return { daily, weekly, monthly, yearly, deletedDailyIds: [] }
+  return { daily, weekly, monthly, deletedDailyIds: [] }
 }
 
 const idsOf = (files = []) => files.map((file) => file.id).join('|')
@@ -127,7 +113,6 @@ const sameCalendar = (existing, next) => {
     idsOf(existing.daily) === idsOf(next.daily) &&
     idsOf(existing.weekly) === idsOf(next.weekly) &&
     idsOf(existing.monthly) === idsOf(next.monthly) &&
-    idsOf(existing.yearly) === idsOf(next.yearly) &&
     todayFlag(existing.daily) === todayFlag(next.daily)
   )
 }
@@ -156,7 +141,6 @@ export const ensureProjectFiles = (existing, startDate) => {
     daily: built.daily.filter((file) => !deleted.has(file.id)),
     weekly: built.weekly,
     monthly: built.monthly,
-    yearly: built.yearly,
     deletedDailyIds: [...deleted],
   }
   if (sameCalendar(existing, next)) return existing
@@ -164,7 +148,6 @@ export const ensureProjectFiles = (existing, startDate) => {
     daily: mergeList(existing?.daily, next.daily),
     weekly: mergeList(existing?.weekly, next.weekly),
     monthly: mergeList(existing?.monthly, next.monthly),
-    yearly: mergeList(existing?.yearly, next.yearly),
     deletedDailyIds: next.deletedDailyIds,
   }
 }
@@ -189,7 +172,6 @@ export const isDailyEntryFile = (file) =>
 export const entryBelongsToFile = (entry, file) => {
   if (!file?.id) return true
   const date = entryDate(entry)
-  if (/^\d{4}$/.test(file.id)) return date.startsWith(file.id)
   if (/^\d{4}-\d{2}$/.test(file.id)) return date.startsWith(file.id)
   if (String(file.label || '').startsWith('Week ')) {
     const end = shiftDayId(file.id, 7)
@@ -204,11 +186,6 @@ export const PERIOD_CHOICES = [
     id: 'project-to-date',
     label: 'Project to date',
     description: 'Cumulative cost, production, and rate from the project start',
-  },
-  {
-    id: 'yearly',
-    label: 'Yearly',
-    description: 'Yearly files from the day the project started',
   },
   {
     id: 'monthly',
