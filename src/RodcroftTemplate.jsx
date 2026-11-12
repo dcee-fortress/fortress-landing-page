@@ -8,6 +8,49 @@ import { ensureProjectFiles, PERIOD_CHOICES } from './rodcroftCalendar'
 
 const RODCROFT_BRAND = 'Rodcroft'
 
+const fileListCopy = (menuView, period) => {
+  const periodWord = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : 'Monthly'
+  const placeholders = {
+    daily: 'Search daily files by day, date, or id…',
+    weekly: 'Search weekly files by week range or id…',
+    monthly: 'Search monthly files by month, year, or id…',
+  }
+  const areas = {
+    valuations: {
+      daily: ['Daily cost', 'Click a file to open it. Daily files run from the project start through today.'],
+      weekly: ['Weekly cost', 'Weekly files are created from the project start date through the current week.'],
+      monthly: ['Monthly cost', 'Monthly files are created from the project start date through the current month.'],
+    },
+    'material-periods': {
+      daily: ['Material received', 'Daily material received files from the day the project started.'],
+      weekly: ['Material received', 'Weekly material received files from the project start.'],
+      monthly: ['Material received', 'Monthly material received files from the project start.'],
+    },
+    'fuel-periods': {
+      daily: ['Daily fuel consumed', 'Daily fuel consumed files from the day the project started.'],
+      weekly: ['Fuel consumed', 'Weekly fuel consumed files from the project start.'],
+      monthly: ['Fuel consumed', 'Monthly fuel consumed files from the project start.'],
+    },
+    'worker-periods': {
+      daily: ['Workers', 'Daily worker files from the day the project started.'],
+      weekly: ['Workers', 'Weekly worker files from the project start.'],
+      monthly: ['Workers', 'Monthly worker files from the project start.'],
+    },
+  }
+  const area = areas[menuView]?.[period] || [`${periodWord} files`, 'Files are created from the project start.']
+  const materialPlaceholder =
+    menuView === 'material-periods' && period === 'daily' ? 'Search daily files by date…' : null
+  const fuelPlaceholder =
+    menuView === 'fuel-periods' && period === 'daily' ? 'Search daily fuel consumed files' : null
+  return {
+    eyebrow: area[0],
+    blurb: area[1],
+    heading: `${periodWord} Files`,
+    placeholder: materialPlaceholder || fuelPlaceholder || placeholders[period],
+    rowNote: 'Ready for entry. This file stays empty until you write in it.',
+  }
+}
+
 const money = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -99,6 +142,9 @@ export default function RodcroftTemplate({
     () => initialProjectId || getSiteCeoMetadata(site).projects?.[0]?.id || '',
   )
   const [view, setView] = useState(() => (initialProjectId ? initialView || 'project-home' : initialView))
+  const [fileQuery, setFileQuery] = useState('')
+  const [fileActiveQuery, setFileActiveQuery] = useState('')
+  const [showAllFiles, setShowAllFiles] = useState(false)
   const [statusNote, setStatusNote] = useState('')
   const [valQuery, setValQuery] = useState('')
   const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
@@ -150,6 +196,12 @@ export default function RodcroftTemplate({
       setView(initialView)
     }
   }, [site?.id, site?.slug, initialProjectId, initialView])
+
+  useEffect(() => {
+    setFileQuery('')
+    setFileActiveQuery('')
+    setShowAllFiles(false)
+  }, [view])
 
   useEffect(() => {
     document.title = RODCROFT_BRAND
@@ -460,36 +512,119 @@ export default function RodcroftTemplate({
 
   const periodFiles = (menuView, period, detailView) => {
     const files = calendarFiles[period] || []
-    const title = period === 'daily' ? 'Daily files' : period === 'weekly' ? 'Weekly files' : 'Monthly files'
+    const copy = fileListCopy(menuView, period)
+    const needle = fileActiveQuery.trim().toLowerCase()
+    const matched = needle
+      ? files.filter((file) =>
+          [file.label, file.id, file.date, file.completedAt].filter(Boolean).join(' ').toLowerCase().includes(needle),
+        )
+      : files
+    const visible = needle || showAllFiles ? matched : matched.slice(0, 21)
+    const hiddenCount = Math.max(matched.length - visible.length, 0)
+    const singleMatch = needle && matched.length === 1 ? matched[0] : null
+    const countLabel = ` (${visible.length}${hiddenCount > 0 ? ` of ${matched.length}` : ''}${
+      needle ? ` matching of ${files.length}` : ''
+    })`
     return (
       <div className="rc-content-shell">
-        <button type="button" className="rc-back-link" onClick={() => setView(menuView)}>
-          ← Back
-        </button>
         <header className="rc-section-header">
-          <p className="rc-eyebrow">{currentProject?.name}</p>
-          <h1>{title}</h1>
-          <p className="rc-sub">Awaiting entry. Nothing is filled in until you open a file and write it.</p>
+          <button type="button" className="rc-back-link" onClick={() => setView(menuView)}>
+            ← Back
+          </button>
+          <p className="rc-eyebrow">{copy.eyebrow}</p>
+          <h1>{currentProject?.name}</h1>
+          <p className="rc-sub">{copy.blurb}</p>
         </header>
-        <div className="rc-choice-grid">
-          {files.length ? (
-            files.map((file) => (
+        <section className="rc-file-panel">
+          <div className="rc-file-panel-head">
+            <h2>
+              {copy.heading}
+              {countLabel}
+            </h2>
+          </div>
+          <form
+            className="rc-file-search"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setFileActiveQuery(fileQuery.trim())
+            }}
+          >
+            <input
+              type="search"
+              value={fileQuery}
+              placeholder={copy.placeholder}
+              aria-label="Search files"
+              onChange={(event) => setFileQuery(event.target.value)}
+            />
+            <button type="submit">Search</button>
+            {fileActiveQuery ? (
               <button
-                key={file.id}
                 type="button"
-                className="rc-choice-card"
-                onClick={() => openCalendarFile(file, `${menuView}-${period}`, detailView)}
+                className="rc-file-search-clear"
+                onClick={() => {
+                  setFileQuery('')
+                  setFileActiveQuery('')
+                }}
               >
-                <div>
-                  <h2>{file.label}</h2>
-                  <p>{file.isToday ? 'Today · Awaiting entry' : file.completedAt || 'Awaiting entry'}</p>
-                </div>
+                Clear
               </button>
-            ))
+            ) : null}
+          </form>
+          {fileActiveQuery ? (
+            <p className="rc-file-search-note">
+              {matched.length === 0
+                ? `No files match "${fileActiveQuery}".`
+                : `${matched.length} file${matched.length === 1 ? '' : 's'} found for "${fileActiveQuery}".`}
+            </p>
+          ) : null}
+          {singleMatch ? (
+            <div className="rc-file-match">
+              <div>
+                <p>Match found</p>
+                <strong>{singleMatch.label}</strong>
+              </div>
+              <button type="button" onClick={() => openCalendarFile(singleMatch, `${menuView}-${period}`, detailView)}>
+                Open dashboard
+              </button>
+            </div>
+          ) : null}
+          {visible.length ? (
+            <ul className="rc-file-list">
+              {visible.map((file) => (
+                <li key={file.id}>
+                  <button
+                    type="button"
+                    className="rc-file-row"
+                    onClick={() => openCalendarFile(file, `${menuView}-${period}`, detailView)}
+                  >
+                    <span className="rc-file-mark" aria-hidden="true">
+                      {period === 'daily' ? 'D' : period === 'weekly' ? 'W' : 'M'}
+                    </span>
+                    <span className="rc-file-copy">
+                      <strong>{file.label}</strong>
+                      <span>{copy.rowNote}</span>
+                    </span>
+                    <span className={`rc-file-status${file.inProgress ? ' is-progress' : ''}`}>
+                      {file.inProgress ? 'In progress' : 'Awaiting entry'}
+                    </span>
+                    <span className="rc-file-chevron" aria-hidden="true">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <p className="rc-sub">No files yet. Create a project with a start date.</p>
+            <p className="rc-file-empty">
+              {needle ? `No files match your search.` : `No ${period} files yet.`}
+            </p>
           )}
-        </div>
+          {hiddenCount > 0 ? (
+            <div className="rc-file-more">
+              <button type="button" onClick={() => setShowAllFiles(true)}>
+                Show all {matched.length} {period} files
+              </button>
+            </div>
+          ) : null}
+        </section>
       </div>
     )
   }
