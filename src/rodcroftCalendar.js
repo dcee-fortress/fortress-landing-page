@@ -152,6 +152,35 @@ export const ensureProjectFiles = (existing, startDate) => {
   }
 }
 
+const entryDate = (entry) => {
+  const date = String(entry?.date || '')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  const fileId = String(entry?.fileId || '')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fileId)) return fileId
+  return ''
+}
+
+const shiftDayId = (dayId, days) => {
+  const parsed = parseDayId(dayId)
+  if (!parsed) return ''
+  return dayIdFromDate(addDays(parsed, days))
+}
+
+export const isDailyEntryFile = (file) =>
+  Boolean(file?.id && /^\d{4}-\d{2}-\d{2}$/.test(file.id) && !String(file.label || '').startsWith('Week '))
+
+export const entryBelongsToFile = (entry, file) => {
+  if (!file?.id) return true
+  const date = entryDate(entry)
+  if (/^\d{4}-\d{2}$/.test(file.id)) return date.startsWith(file.id)
+  if (String(file.label || '').startsWith('Week ')) {
+    const end = shiftDayId(file.id, 7)
+    return Boolean(date && end && date >= file.id && date < end)
+  }
+  if (isDailyEntryFile(file)) return date === file.id || entry?.fileId === file.id
+  return true
+}
+
 export const PERIOD_CHOICES = [
   {
     id: 'project-to-date',

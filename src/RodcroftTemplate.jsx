@@ -4,7 +4,7 @@ import {
   getSiteCeoMetadata,
   saveSiteCeoMetadata,
 } from './fortressMetadata'
-import { ensureProjectFiles, PERIOD_CHOICES } from './rodcroftCalendar'
+import { ensureProjectFiles, entryBelongsToFile, isDailyEntryFile, PERIOD_CHOICES } from './rodcroftCalendar'
 
 const RODCROFT_BRAND = 'Rodcroft'
 
@@ -149,6 +149,7 @@ export default function RodcroftTemplate({
   const [valQuery, setValQuery] = useState('')
   const [fuelDetailCostMode, setFuelDetailCostMode] = useState(false)
   const [entryFile, setEntryFile] = useState(null)
+  const [entryPanel, setEntryPanel] = useState('')
 
   // New project form
   const [newProjName, setNewProjName] = useState('')
@@ -201,6 +202,7 @@ export default function RodcroftTemplate({
     setFileQuery('')
     setFileActiveQuery('')
     setShowAllFiles(false)
+    setEntryPanel('')
   }, [view])
 
   useEffect(() => {
@@ -287,7 +289,8 @@ export default function RodcroftTemplate({
         ...(proj.valuations || []),
         {
           id: `val-${Date.now()}`,
-          fileId: entryFile?.detailView === 'work-valued' ? entryFile.id : '',
+          date: isDailyEntryFile(entryFile) ? entryFile.id : '',
+          fileId: isDailyEntryFile(entryFile) ? entryFile.id : '',
           description: desc,
           valueEarned,
           production,
@@ -310,7 +313,8 @@ export default function RodcroftTemplate({
         ...(proj.materialAnalysis || []),
         {
           id: `ma-${Date.now()}`,
-          fileId: entryFile?.detailView === 'material-analysis' || entryFile?.detailView === 'materials-overview' ? entryFile.id : '',
+          date: isDailyEntryFile(entryFile) ? entryFile.id : '',
+          fileId: isDailyEntryFile(entryFile) ? entryFile.id : '',
           description: desc,
           unit: matDraft.unit || 'm3',
           requestedQuantity: req,
@@ -404,8 +408,9 @@ export default function RodcroftTemplate({
   }
 
   const rowsForOpenFile = (rows, detailView) => {
-    if (!entryFile?.id || entryFile.detailView !== detailView) return rows || []
-    return (rows || []).filter((row) => row.fileId === entryFile.id)
+    const list = rows || []
+    if (!entryFile?.id || entryFile.detailView !== detailView) return list
+    return list.filter((row) => entryBelongsToFile(row, entryFile))
   }
 
   const valuationsList = rowsForOpenFile(currentProject?.valuations, 'work-valued')
@@ -1094,8 +1099,16 @@ export default function RodcroftTemplate({
                   </table>
                 </div>
 
+                {isDailyEntryFile(entryFile) ? (
+                  <button type="button" className="rc-entry-btn" onClick={() => setEntryPanel((open) => (open === 'valuation' ? '' : 'valuation'))}>
+                    Valuations entry
+                  </button>
+                ) : (
+                  <p className="rc-sub">These totals roll up from the daily valuations entries.</p>
+                )}
+                {entryPanel === 'valuation' ? (
                 <form className="tpl-inline-form" onSubmit={handleAddValuation}>
-                  <h4>Add Daily Valuation Entry</h4>
+                  <h4>Valuations entry</h4>
                   <div className="tpl-form-row">
                     <input
                       type="text"
@@ -1123,6 +1136,7 @@ export default function RodcroftTemplate({
                     <button type="submit" className="tpl-primary-btn">Save Valuation</button>
                   </div>
                 </form>
+                ) : null}
               </div>
             </article>
           </div>
@@ -1247,8 +1261,16 @@ export default function RodcroftTemplate({
               )}
 
               <div className="rc-card-body">
+                {isDailyEntryFile(entryFile) ? (
+                  <button type="button" className="rc-entry-btn" onClick={() => setEntryPanel((open) => (open === 'material' ? '' : 'material'))}>
+                    Material entry
+                  </button>
+                ) : (
+                  <p className="rc-sub">These totals roll up from the daily material entries.</p>
+                )}
+                {entryPanel === 'material' ? (
                 <form className="tpl-inline-form" onSubmit={handleAddMaterialAnalysis}>
-                  <h4>Add Bulk Material Request / Received Line</h4>
+                  <h4>Material entry</h4>
                   <div className="tpl-form-row">
                     <input
                       type="text"
@@ -1280,6 +1302,7 @@ export default function RodcroftTemplate({
                     <button type="submit" className="tpl-primary-btn">Save Material</button>
                   </div>
                 </form>
+                ) : null}
               </div>
             </section>
           </div>
@@ -1452,8 +1475,16 @@ export default function RodcroftTemplate({
               )}
 
               <div className="rc-card-body">
+                {isDailyEntryFile(entryFile) ? (
+                  <button type="button" className="rc-entry-btn" onClick={() => setEntryPanel((open) => (open === 'fuel' ? '' : 'fuel'))}>
+                    Fuel on site entry
+                  </button>
+                ) : (
+                  <p className="rc-sub">These totals roll up from the daily fuel on site entries.</p>
+                )}
+                {entryPanel === 'fuel' ? (
                 <form className="tpl-inline-form" onSubmit={handleAddFuel}>
-                  <h4>Add Daily Fuel Consumed Entry</h4>
+                  <h4>Fuel on site entry</h4>
                   <div className="tpl-form-row">
                     <input
                       type="date"
@@ -1486,6 +1517,7 @@ export default function RodcroftTemplate({
                     <button type="submit" className="tpl-primary-btn">Save Fuel Consumed</button>
                   </div>
                 </form>
+                ) : null}
 
                 <form className="tpl-inline-form" onSubmit={handleAddBulkFuel} style={{ marginTop: 12 }}>
                   <h4>Add Bulk Fuel Inserted in Tank</h4>
