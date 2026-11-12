@@ -43,7 +43,7 @@ const fileListCopy = (menuView, period) => {
   return {
     eyebrow: area[0],
     blurb: area[1],
-    heading: `${periodWord} Files`,
+    heading: menuView === 'valuations' ? `${periodWord} dashboards` : `${periodWord} Files`,
     placeholder: materialPlaceholder || fuelPlaceholder || placeholders[period],
     rowNote: 'Ready for entry. This file stays empty until you write in it.',
   }
@@ -129,6 +129,66 @@ const rowHasValuationData = (row) =>
   ['activityDescription', 'details', 'plantName', 'fuelAllocated', 'plantHire', 'laborCost', 'production', 'unit'].some(
     (key) => String(row?.[key] ?? '').trim(),
   )
+
+const groupValuationRows = (rows) => {
+  const groups = []
+  ;(rows || []).forEach((row) => {
+    const description = String(row.description || 'Activity').trim() || 'Activity'
+    const key = description.toLowerCase()
+    let group = groups.find((item) => item.key === key)
+    if (!group) {
+      group = { key, id: row.id, description, valueEarned: 0, production: 0 }
+      groups.push(group)
+    }
+    group.valueEarned += Number(row.valueEarned) || 0
+    group.production += Number(row.production) || 0
+  })
+  return groups
+}
+
+function ValuationRollupTable({ rows, emptyNote }) {
+  const grouped = groupValuationRows(rows)
+  const total = grouped.reduce((sum, row) => sum + row.valueEarned, 0)
+  const production = grouped.reduce((sum, row) => sum + row.production, 0)
+  if (!grouped.length) {
+    return <p className="rc-sub">{emptyNote || 'No valuations entry yet.'}</p>
+  }
+  return (
+    <div className="tpl-table-wrap">
+      <table className="rc-ev-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th className="text-right">Actual Cost on Site</th>
+            <th className="text-right">Production</th>
+            <th className="text-right">Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {grouped.map((row) => (
+            <tr key={row.id}>
+              <td><strong>{row.description}</strong></td>
+              <td className="text-right">{money(row.valueEarned)}</td>
+              <td className="text-right">{numFmt(row.production)}</td>
+              <td className="text-right">{rateMoney(row.production > 0 ? row.valueEarned / row.production : null)}</td>
+            </tr>
+          ))}
+          <tr className="rc-ev-total-row">
+            <td>Total</td>
+            <td className="text-right">{money(total)}</td>
+            <td className="text-right">{numFmt(production)}</td>
+            <td className="text-right">{rateMoney(production > 0 ? total / production : null)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={4}>Rate = actual cost on site ÷ production for each row and the dashboard total.</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  )
+}
 
 const money = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', {
@@ -502,9 +562,6 @@ export default function RodcroftTemplate({
     if (!q) return valuationsList
     return valuationsList.filter((r) => String(r.description || '').toLowerCase().includes(q))
   }, [valuationsList, valQuery])
-  const valuationTotal = filteredValuations.reduce((sum, row) => sum + (Number(row.valueEarned) || 0), 0)
-  const valuationProduction = filteredValuations.reduce((sum, row) => sum + (Number(row.production) || 0), 0)
-
   // Group fuel consumed by fuel description (project-to-date rollup & Fuel Analysis rows)
   const fuelAnalysisRows = useMemo(() => {
     const entries = rowsForOpenFile(currentProject?.fuel?.entries, 'fuel-analysis')
@@ -630,7 +687,9 @@ export default function RodcroftTemplate({
         <p className="rc-eyebrow">{currentProject?.name}</p>
         <h1>{title}</h1>
         <p className="rc-sub">
-          Daily, weekly, and monthly files are created from {currentProject?.startDate}. They stay empty until you enter data.
+          {menuView === 'valuations'
+            ? `Each daily dashboard holds the hourly dashboards. A valuations entry rolls from that hour into the daily, weekly, and project-to-date dashboards. Files start on ${currentProject?.startDate}.`
+            : `Daily, weekly, and monthly files are created from ${currentProject?.startDate}. They stay empty until you enter data.`}
         </p>
       </header>
       <div className="rc-choice-grid">
@@ -645,7 +704,15 @@ export default function RodcroftTemplate({
             }}
           >
             <div>
-              <h2>{choice.id === 'project-to-date' ? 'Project to date' : `${choice.label} files`}</h2>
+              <h2>
+                {menuView === 'valuations'
+                  ? choice.id === 'project-to-date'
+                    ? 'Project to date dashboard'
+                    : `${choice.label} dashboards`
+                  : choice.id === 'project-to-date'
+                    ? 'Project to date'
+                    : `${choice.label} files`}
+              </h2>
               <p>{choice.description}</p>
             </div>
           </button>
@@ -1163,14 +1230,20 @@ export default function RodcroftTemplate({
               <p className="rc-eyebrow">Daily cost</p>
               <h1>{entryFile.label}</h1>
               <p className="rc-sub">
-                Enter values in valuations entry on each hourly dashboard. Totals roll up to daily, weekly, monthly, and project to date.
+                Valuations entry on each hourly dashboard rolls into this daily dashboard, then the weekly and project-to-date dashboards.
               </p>
             </header>
             <article className="rc-report-card">
               <div className="rc-report-banner">
-                <p className="rc-eyebrow">Daily total</p>
-                <h2>{currentProject.name}</h2>
-                <p className="rc-sub">Roll-up from hourly dashboards: <strong>{money(valuationTotal)}</strong></p>
+                <p className="rc-eyebrow">Daily dashboard</p>
+                <h2>{entryFile.label}</h2>
+                <p className="rc-sub">Roll-up from the hourly dashboards on this day.</p>
+              </div>
+              <div className="rc-report-body">
+                <ValuationRollupTable
+                  rows={valuationsList}
+                  emptyNote="No valuations entry yet. Open an hourly dashboard below and save a row."
+                />
               </div>
             </article>
             <div className="rc-hour-head">
@@ -1197,16 +1270,13 @@ export default function RodcroftTemplate({
             </div>
             <div className="rc-hour-list">
               {daySlots(entryFile.id).map((slot) => {
-                const slotTotal = valuationsList
-                  .filter((row) => row.slotId === slot.id)
-                  .reduce((sum, row) => sum + (Number(row.valueEarned) || 0), 0)
+                const slotRows = valuationsList.filter((row) => row.slotId === slot.id)
                 return (
                   <article key={slot.id} className="rc-report-card">
                     <div className="rc-hour-card">
                       <div>
                         <p className="rc-eyebrow">Hourly dashboard</p>
                         <p className="rc-sub">{slot.startTime} – {slot.endTime}</p>
-                        <p className="rc-sub">Values from the valuations entry: <strong>{money(slotTotal)}</strong></p>
                       </div>
                       <div className="rc-hour-actions">
                         <button type="button" className="rc-entry-btn" onClick={() => openValuationsEntry(slot)}>
@@ -1232,6 +1302,9 @@ export default function RodcroftTemplate({
                         </button>
                       </div>
                     </div>
+                    <div className="rc-report-body">
+                      <ValuationRollupTable rows={slotRows} emptyNote="This hourly dashboard is empty until you save a valuations entry." />
+                    </div>
                   </article>
                 )
               })}
@@ -1248,7 +1321,7 @@ export default function RodcroftTemplate({
               <p className="rc-eyebrow">Valuations entry · Actual cost on site</p>
               <h1>{currentProject.name}</h1>
               <p className="rc-sub">
-                {entryFile?.label} · {entrySlot.startTime} – {entrySlot.endTime}. Add a row for each activity. Saving rolls the totals into this hourly dashboard, then the daily, weekly, monthly, and project-to-date dashboards.
+                {entryFile?.label} · {entrySlot.startTime} – {entrySlot.endTime}. Add a row for each activity. Saving rolls the totals into this hourly dashboard, the daily dashboard, the weekly dashboard, and project to date.
               </p>
             </header>
             <section className="rc-report-card">
@@ -1334,28 +1407,28 @@ export default function RodcroftTemplate({
             </button>
 
             <header className="rc-section-header">
-              <p className="rc-eyebrow">{entryFile?.label || 'Project to Date Report · Cumulative Valuations'}</p>
-              <h1>{currentProject.name}</h1>
+              <p className="rc-eyebrow">
+                {!entryFile?.id
+                  ? 'Project to date dashboard'
+                  : String(entryFile.label || '').startsWith('Week ')
+                    ? 'Weekly dashboard'
+                    : /^\d{4}-\d{2}$/.test(entryFile.id)
+                      ? 'Monthly dashboard'
+                      : 'Daily dashboard'}
+              </p>
+              <h1>{entryFile?.label || currentProject.name}</h1>
               <p className="rc-sub">
-                Cumulative from project start ({currentProject.startDate}) to date.
+                {!entryFile?.id
+                  ? `Cumulative from project start (${currentProject.startDate}) to date. Same valuations entry rows as the hourly and daily dashboards.`
+                  : String(entryFile.label || '').startsWith('Week ')
+                    ? 'Totals from the daily valuations entries in this week.'
+                    : 'Totals from the valuations entries in this period.'}
               </p>
             </header>
 
             <article className="rc-report-card">
-              <div className="rc-report-banner">
-                <p className="rc-eyebrow">Project to Date Report</p>
-                <h2>{currentProject.name}</h2>
-                <p className="rc-sub">
-                  Total Actual Cost on Site: <strong>{money(valuationTotal)}</strong>
-                </p>
-              </div>
-
               <div className="rc-report-body">
-                <h3>Activities Completed on Site</h3>
-                <p className="rc-sub" style={{ marginBottom: 12 }}>
-                  Cumulative from project start to date. Activities with the same or similar narrative are grouped under one narrative.
-                </p>
-
+                <h3>Activities completed on site</h3>
                 <input
                   type="search"
                   className="rc-search-input"
@@ -1363,50 +1436,10 @@ export default function RodcroftTemplate({
                   value={valQuery}
                   onChange={(e) => setValQuery(e.target.value)}
                 />
-
-                <div className="tpl-table-wrap">
-                  <table className="rc-ev-table">
-                    <thead>
-                      <tr>
-                        <th>Description</th>
-                        <th className="text-right">Actual Cost on Site</th>
-                        <th className="text-right">Production</th>
-                        <th className="text-right">Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredValuations.map((row) => {
-                        const rate =
-                          Number(row.production) > 0
-                            ? Number(row.valueEarned) / Number(row.production)
-                            : null
-                        return (
-                          <tr key={row.id}>
-                            <td><strong>{row.description}</strong></td>
-                            <td className="text-right">{money(row.valueEarned)}</td>
-                            <td className="text-right">{numFmt(row.production)}</td>
-                            <td className="text-right">{rateMoney(rate)}</td>
-                          </tr>
-                        )
-                      })}
-                      <tr className="rc-ev-total-row">
-                        <td>Total</td>
-                        <td className="text-right">{money(valuationTotal)}</td>
-                        <td className="text-right">{numFmt(valuationProduction)}</td>
-                        <td className="text-right">{rateMoney(valuationProduction > 0 ? valuationTotal / valuationProduction : null)}</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan={4}>
-                          Rate = actual cost on site ÷ production for each row and the dashboard total.
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-
-                <p className="rc-sub">These totals roll up from the hourly valuations entries.</p>
+                <ValuationRollupTable
+                  rows={filteredValuations}
+                  emptyNote="No valuations entry in this dashboard yet."
+                />
               </div>
             </article>
           </div>
