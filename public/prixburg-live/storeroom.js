@@ -287,10 +287,20 @@ function addMaterial() {
     if (nameInput) nameInput.focus();
 }
 
-function deleteMaterial(id) {
+function deleteMaterialNow(id) {
     if (selectedQtyId === id) selectedQtyId = '';
     saveMaterials(loadMaterials().filter(function (row) { return row.id !== id; }));
     renderStoreroom();
+}
+
+function deleteMaterial(id) {
+    if (typeof protectDeleteFile === 'function') {
+        protectDeleteFile(function () {
+            deleteMaterialNow(id);
+        });
+        return;
+    }
+    deleteMaterialNow(id);
 }
 
 function updateGrandTotal() {

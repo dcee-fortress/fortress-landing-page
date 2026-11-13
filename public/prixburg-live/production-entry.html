@@ -46,9 +46,27 @@
                 </div>
             </div>
             <p id="produceStatus"></p>
+            <div class="table-wrap" style="margin-top: 16px;">
+                <table class="data-table" id="productionEntryTable">
+                    <thead>
+                        <tr>
+                            <th>Detergent</th>
+                            <th>Quantity</th>
+                            <th>Unit</th>
+                            <th>Cost of raw materials</th>
+                            <th>Expected sales</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productionEntryBody"></tbody>
+                </table>
+            </div>
+            <p id="productionEntryEmpty" style="display: none;">No production batches entered on this daily file yet.</p>
         </div>
     </main>
     <script src="search.js" defer></script>
+    <script src="file-select.js" defer></script>
+    <script src="recycle-bin.js" defer></script>
     <script src="qty-math.js" defer></script>
     <script src="formulas.js" defer></script>
     <script src="pricing.js" defer></script>

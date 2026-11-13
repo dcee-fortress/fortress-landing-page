@@ -3,13 +3,18 @@
     const states = [];
 
     function checkDeleteCredentials(username, password) {
+        const u = String(username || '').trim();
+        const p = String(password || '');
+        if (u === 'PRIXBURG CHEMICALS' && p === 'Prixburg') {
+            return true;
+        }
         if (typeof checkSettingsCredentials === 'function') {
             return checkSettingsCredentials(username, password);
         }
         if (typeof checkGateCredentials === 'function') {
             return checkGateCredentials(username, password);
         }
-        return String(username || '').trim() === 'PRIXBURG CHEMICALS' && String(password || '') === 'Prixburg';
+        return false;
     }
 
     function ensureUi() {

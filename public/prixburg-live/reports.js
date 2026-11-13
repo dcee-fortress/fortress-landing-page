@@ -1313,6 +1313,7 @@ function runProduceDetergent(name, amount, unit, setStatus) {
         ? remainingUsedStockText(result.rows, result.used)
         : remainingStockText(result.rows));
     logProductionMovement(formula.name, amount, unit, result.used, remaining);
+    renderProductionEntryRows();
     if (!(rate > 0) && !(unitPrice > 0)) {
         setStatus('Produced ' + amount + ' ' + unit + ' ' + formula.name + '. Storeroom and batch updated. Add formula unit prices and Pricing files so the dashboard can calculate cost and expected sales.');
         return;
@@ -1616,7 +1617,8 @@ function renderSalesEntryDashboard(current) {
         'Customer name',
         'Unit price',
         'Quantity of detergent sold',
-        'Total sales'
+        'Total sales',
+        ''
     ]);
     const allRows = flattenPeriodSalesRows(current.type, period);
     const query = typeof currentSearchValue === 'function' ? currentSearchValue('salesEntrySearch') : '';
@@ -1639,6 +1641,7 @@ function renderSalesEntryDashboard(current) {
             + '<td><input data-sale-field="unitPrice" type="number" min="0" step="0.01" value="' + escapeHtml(price) + '" placeholder="0.00"></td>'
             + '<td><input data-sale-field="quantity" type="number" min="0" step="0.01" value="' + escapeHtml(qty) + '" placeholder="0"></td>'
             + '<td data-sale-total>' + moneyText(saleLineTotal(row)) + '</td>'
+            + '<td><button type="button" class="danger-btn" data-delete-sale="' + escapeHtml(row.id) + '">Delete</button></td>'
             + '</tr>';
     }).join('');
     if (empty) {
@@ -1768,6 +1771,34 @@ function addSalesEntryRow() {
     if (inputs.length) inputs[inputs.length - 1].focus();
 }
 
+function deleteSalesEntryRowNow(rowId) {
+    const all = loadAllReportFiles();
+    let changedDate = '';
+    all.daily = (all.daily || []).map(function (file) {
+        const before = (file.salesRows || []).length;
+        file.salesRows = (file.salesRows || []).filter(function (row) {
+            return String(row.id) !== String(rowId);
+        });
+        if (file.salesRows.length !== before) changedDate = file.period || changedDate;
+        return file;
+    });
+    saveAllReportFiles(all);
+    refreshFilesSnap('daily');
+    if (changedDate) refreshSalesAnalysisSnapsForDate(changedDate);
+    notifySalesChanged();
+    renderSalesEntryDashboard(dashboardFile());
+}
+
+function deleteSalesEntryRow(rowId) {
+    if (typeof protectDeleteFile === 'function') {
+        protectDeleteFile(function () {
+            deleteSalesEntryRowNow(rowId);
+        });
+        return;
+    }
+    deleteSalesEntryRowNow(rowId);
+}
+
 function bindSalesEntryTable() {
     const table = document.getElementById('dashboardTable');
     const addBtn = document.getElementById('addSalesRowBtn');
@@ -1778,6 +1809,12 @@ function bindSalesEntryTable() {
     if (!table || table._salesBound) return;
     table._salesBound = true;
     table.addEventListener('click', function (event) {
+        const delBtn = event.target.closest('[data-delete-sale]');
+        if (delBtn) {
+            event.preventDefault();
+            deleteSalesEntryRow(delBtn.getAttribute('data-delete-sale'));
+            return;
+        }
         const toggle = event.target.closest('[data-sale-toggle]');
         if (!toggle) return;
         const tr = toggle.closest('tr[data-row-id]');
@@ -1949,6 +1986,52 @@ function renderDashboard() {
     renderProfitDashboard(current);
 }
 
+function renderProductionEntryRows() {
+    const body = document.getElementById('productionEntryBody');
+    const empty = document.getElementById('productionEntryEmpty');
+    if (!body) return;
+    const file = getDailyReportFile();
+    const list = (file && file.productions) || [];
+    body.innerHTML = list.map(function (row) {
+        const enriched = enrichProduction(row);
+        return '<tr data-prod-id="' + escapeHtml(row.id) + '">'
+            + '<td><strong>' + escapeHtml(enriched.product) + '</strong></td>'
+            + '<td>' + qtyText(row.quantity) + '</td>'
+            + '<td>' + escapeHtml(enriched.unit || 'L') + '</td>'
+            + '<td>' + moneyText(enriched.cost) + '</td>'
+            + '<td>' + moneyText(enriched.production) + '</td>'
+            + '<td><button type="button" class="danger-btn" onclick="deleteProductionBatchRow(\'' + escapeHtml(row.id) + '\')">Delete</button></td>'
+            + '</tr>';
+    }).join('');
+    if (empty) empty.style.display = list.length ? 'none' : 'block';
+}
+
+function deleteProductionBatchRowNow(prodId) {
+    const file = getDailyReportFile();
+    if (!file) return;
+    const all = loadAllReportFiles();
+    all.daily = (all.daily || []).map(function (item) {
+        if (item.id !== file.id) return item;
+        item.productions = (item.productions || []).filter(function (p) {
+            return String(p.id) !== String(prodId);
+        });
+        return item;
+    });
+    saveAllReportFiles(all);
+    notifyProductionChanged();
+    renderProductionEntryRows();
+}
+
+function deleteProductionBatchRow(prodId) {
+    if (typeof protectDeleteFile === 'function') {
+        protectDeleteFile(function () {
+            deleteProductionBatchRowNow(prodId);
+        });
+        return;
+    }
+    deleteProductionBatchRowNow(prodId);
+}
+
 function initProductionEntry() {
     if (!document.getElementById('produceName')) return;
     const file = getDailyReportFile();
@@ -1966,6 +2049,7 @@ function initProductionEntry() {
         back.href = 'production.html?type=daily';
         back.textContent = 'Production report';
     }
+    renderProductionEntryRows();
 }
 
 function scheduleEnsurePeriodFiles() {
@@ -2050,8 +2134,8 @@ function renderWageRows() {
     if (!box || !expenseDraft) return;
     const locked = expensePageType() !== 'daily';
     box.innerHTML = expenseDraft.wages.map(function (row) {
-        const remove = !locked && expenseDraft.wages.length > 1
-            ? '<button type="button" class="action-btn" data-remove-wage="' + escapeHtml(row.id) + '">Remove</button>'
+        const remove = !locked
+            ? '<button type="button" class="danger-btn" data-remove-wage="' + escapeHtml(row.id) + '">Delete</button>'
             : '';
         const readOnly = locked ? ' readonly' : '';
         const amount = locked ? Number(row.amount || 0).toFixed(2) : expenseInputDisplay(row, false);
@@ -2079,7 +2163,7 @@ function renderOtherExpenseRows() {
     }
     box.innerHTML = rows.map(function (row) {
         const remove = !locked
-            ? '<button type="button" class="action-btn" data-remove-other="' + escapeHtml(row.id) + '">Remove</button>'
+            ? '<button type="button" class="danger-btn" data-remove-other="' + escapeHtml(row.id) + '">Delete</button>'
             : '';
         const readOnly = locked ? ' readonly' : '';
         const amount = locked ? Number(row.amount || 0).toFixed(2) : expenseInputDisplay(row, false);
@@ -2143,18 +2227,32 @@ function bindExpenseForm() {
         const wageBtn = event.target.closest('[data-remove-wage]');
         if (wageBtn && expensePageType() === 'daily' && expenseDraft) {
             const wageId = wageBtn.getAttribute('data-remove-wage');
-            if (expenseDraft.wages.length < 2) return;
-            expenseDraft.wages = expenseDraft.wages.filter(function (row) { return row.id !== wageId; });
-            renderWageRows();
-            scheduleExpenseSave();
+            const doRemoveWage = function () {
+                const filtered = expenseDraft.wages.filter(function (row) { return row.id !== wageId; });
+                expenseDraft.wages = filtered.length ? filtered : [emptyWageRow()];
+                renderWageRows();
+                scheduleExpenseSave();
+            };
+            if (typeof protectDeleteFile === 'function') {
+                protectDeleteFile(doRemoveWage);
+            } else {
+                doRemoveWage();
+            }
             return;
         }
         const otherBtn = event.target.closest('[data-remove-other]');
         if (otherBtn && expensePageType() === 'daily' && expenseDraft) {
             const otherId = otherBtn.getAttribute('data-remove-other');
-            expenseDraft.other = (expenseDraft.other || []).filter(function (row) { return row.id !== otherId; });
-            renderOtherExpenseRows();
-            scheduleExpenseSave();
+            const doRemoveOther = function () {
+                expenseDraft.other = (expenseDraft.other || []).filter(function (row) { return row.id !== otherId; });
+                renderOtherExpenseRows();
+                scheduleExpenseSave();
+            };
+            if (typeof protectDeleteFile === 'function') {
+                protectDeleteFile(doRemoveOther);
+            } else {
+                doRemoveOther();
+            }
         }
     });
     form.addEventListener('input', function (event) {
@@ -2816,6 +2914,35 @@ function creditPaidDisplay(paid) {
     return round2(paid).toFixed(2);
 }
 
+function deleteCreditCustomerNow(customerName) {
+    const key = creditCustomerKey(customerName);
+    const all = loadAllReportFiles();
+    all.daily = (all.daily || []).map(function (file) {
+        file.salesRows = (file.salesRows || []).filter(function (row) {
+            if (normalizeSaleType(row.saleType) !== 'credit') return true;
+            return creditCustomerKey(row.customer) !== key;
+        });
+        return file;
+    });
+    saveAllReportFiles(all);
+    const payments = loadCreditPayments().filter(function (p) {
+        return (p.customerKey || creditCustomerKey(p.customer)) !== key;
+    });
+    saveCreditPayments(payments);
+    notifySalesChanged();
+    initOutstandingCreditEntry();
+}
+
+function deleteCreditCustomerRow(customerName) {
+    if (typeof protectDeleteFile === 'function') {
+        protectDeleteFile(function () {
+            deleteCreditCustomerNow(customerName);
+        });
+        return;
+    }
+    deleteCreditCustomerNow(customerName);
+}
+
 function renderCreditEntryRows(rows) {
     const body = document.getElementById('creditEntryBody');
     if (!body) return;
@@ -2833,6 +2960,7 @@ function renderCreditEntryRows(rows) {
                 : '<span class="credit-paid-bold">' + moneyText(row.paid) + '</span>')
             + '</td>'
             + '<td>' + moneyText(row.balance) + '</td>'
+            + '<td><button type="button" class="danger-btn" data-delete-credit="' + escapeHtml(row.customer) + '">Delete</button></td>'
             + '</tr>';
     }).join('');
     const empty = document.getElementById('creditEntryEmpty');
@@ -2893,6 +3021,13 @@ function bindCreditEntryForm() {
     const body = document.getElementById('creditEntryBody');
     if (!body || body._creditEntryBound) return;
     body._creditEntryBound = true;
+    body.addEventListener('click', function (event) {
+        const delBtn = event.target.closest('[data-delete-credit]');
+        if (delBtn) {
+            event.preventDefault();
+            deleteCreditCustomerRow(delBtn.getAttribute('data-delete-credit'));
+        }
+    });
     body.addEventListener('focusin', function (event) {
         const input = event.target.closest('[data-credit-pay]');
         if (!input) return;
