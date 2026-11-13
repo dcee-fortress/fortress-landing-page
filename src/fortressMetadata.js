@@ -674,10 +674,19 @@ export const readSavedTenantKind = (slugOrSite) => {
   if (!slug || isDeletedSlug(slug)) return ''
   if (slug === 'prixburg') return 'manufacturing'
   if (slug === 'rodcroft') return 'construction'
+  try {
+    const mirrored = storage.getItem(`fortress-tenant-local:${slug}`)
+    if (mirrored) {
+      const kind = JSON.parse(mirrored)?.systemType
+      if (kind === 'manufacturing' || kind === 'construction' || kind === 'fabrication') return kind
+    }
+  } catch {
+    /* ignore */
+  }
   const saved = loadAllCeoMetadata()[slug]
   if (!saved) return ''
   if (saved.systemType === 'manufacturing' || saved.template === 'prixburg') return 'manufacturing'
-  if (saved.systemType === 'fabrication') return 'fabrication'
+  if (saved.systemType === 'fabrication' || saved.template === 'fabrication') return 'fabrication'
   if (saved.systemType === 'construction' || saved.template === 'rodcroft') return 'construction'
   return ''
 }

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
-import { storage } from './storage'
+import { hydrateFromDurable, storage } from './storage'
+import {
+  mergeAccountsLocalFirst,
+  removeAccountFromCloud,
+  syncAccountsToCloud,
+} from './accountCloud'
 import {
   fetchLiveFeed,
   loadLiveFeedCache,
@@ -41,7 +46,7 @@ import {
   subdomainLabelFor,
   subdomainUrlFor,
 } from './fortressMetadata'
-import { fetchTenantKind, publishTenantKind } from './tenantRegistry'
+import { fetchTenantRecord, publishTenantKind, readLocalTenant } from './tenantRegistry'
 import {
   BURGLAR_TYPES,
   emptyBurglarDraft,
@@ -1635,19 +1640,31 @@ const liveDomain = (site) => {
   return subdomainLabelFor(site)
 }
 
-function TrialGlassLock({ locked, onContinue, children }) {
+function TrialGlassLock({
+  locked,
+  onContinue,
+  children,
+  autoSubscribe = false,
+  subscribeForm = null,
+}) {
   if (!locked) return children
   return (
     <div className="trial-glass-wrap">
       <div className="trial-glass-demo" aria-hidden="true">
         {children}
       </div>
-      <div className="trial-glass">
-        <p className="subscription-watermark">Your free trial has ended</p>
-        <p>Your records are still on this website.</p>
-        <button type="button" className="primary-button" onClick={onContinue}>
-          Continue to EcoCash
-        </button>
+      <div className={`trial-glass${autoSubscribe ? ' trial-glass-subscribe' : ''}`}>
+        {autoSubscribe && subscribeForm ? (
+          subscribeForm
+        ) : (
+          <>
+            <p className="subscription-watermark">Your free trial has ended</p>
+            <p>Your records are still on this website.</p>
+            <button type="button" className="primary-button" onClick={onContinue}>
+              Continue to EcoCash
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -5874,6 +5891,11 @@ function App() {
   const reactivateSiteRef = useRef('')
   const publishedTenantsRef = useRef(new Set())
   const [hostTenantKind, setHostTenantKind] = useState('')
+  const [hostTenantBilling, setHostTenantBilling] = useState({
+    fabPlan: '',
+    paidUntil: 0,
+    trialEndsAt: 0,
+  })
 
   useEffect(() => {
     setAccounts((previous) => withCompanyAccounts(previous))
@@ -5884,9 +5906,15 @@ function App() {
       ;(account.websites || []).forEach((site) => {
         const slug = cleanSlug(site.slug || site.catalogId || site.name)
         const kind = site.systemType
-        if (!slug || !kind || publishedTenantsRef.current.has(slug)) return
-        publishedTenantsRef.current.add(slug)
-        publishTenantKind(slug, kind, site.name || site.brandName || '')
+        if (!slug || !kind) return
+        const stamp = `${slug}:${kind}:${Number(site.paidUntil) || 0}:${Number(site.trialEndsAt) || 0}:${site.fabPlan || ''}`
+        if (publishedTenantsRef.current.has(stamp)) return
+        publishedTenantsRef.current.add(stamp)
+        publishTenantKind(slug, kind, site.name || site.brandName || '', {
+          fabPlan: site.fabPlan || '',
+          paidUntil: site.paidUntil || 0,
+          trialEndsAt: site.trialEndsAt || 0,
+        })
       })
     })
   }, [accounts])
@@ -5915,19 +5943,49 @@ function App() {
     const owned = accounts
       .flatMap((account) => account.websites || [])
       .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)
-    const localKind = owned?.systemType || readSavedTenantKind(hostSlug)
+    const mirrored = readLocalTenant(hostSlug)
+    const localKind =
+      owned?.systemType || readSavedTenantKind(hostSlug) || mirrored.systemType || ''
     if (localKind === 'manufacturing') {
       openManufacturing()
       return undefined
     }
     if (localKind === 'construction' || localKind === 'fabrication') {
       setHostTenantKind(localKind)
-      return undefined
+      if (mirrored.systemType === localKind) {
+        setHostTenantBilling({
+          fabPlan: owned?.fabPlan || mirrored.fabPlan || '',
+          paidUntil: Number(owned?.paidUntil) || Number(mirrored.paidUntil) || 0,
+          trialEndsAt: Number(owned?.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
+        })
+      }
+      // Still refresh cloud billing, but never bounce fabrication to Prixburg.
+      fetchTenantRecord(hostSlug).then((record) => {
+        if (cancelled || !record.systemType) return
+        if (record.systemType === 'manufacturing') return
+        setHostTenantKind(record.systemType)
+        setHostTenantBilling({
+          fabPlan: record.fabPlan || '',
+          paidUntil: Number(record.paidUntil) || 0,
+          trialEndsAt: Number(record.trialEndsAt) || 0,
+        })
+      })
+      return () => {
+        cancelled = true
+      }
     }
-    fetchTenantKind(hostSlug).then((kind) => {
+    fetchTenantRecord(hostSlug).then((record) => {
       if (cancelled) return
-      if (kind === 'manufacturing') openManufacturing()
-      else setHostTenantKind(kind || 'unknown')
+      if (record.systemType === 'manufacturing') {
+        openManufacturing()
+        return
+      }
+      setHostTenantKind(record.systemType || 'unknown')
+      setHostTenantBilling({
+        fabPlan: record.fabPlan || '',
+        paidUntil: Number(record.paidUntil) || 0,
+        trialEndsAt: Number(record.trialEndsAt) || 0,
+      })
     })
     return () => {
       cancelled = true
@@ -5940,11 +5998,33 @@ function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    let cancelled = false
+    ;(async () => {
+      const restored = await hydrateFromDurable([STORE_KEY])
+      if (cancelled || !restored[STORE_KEY]) return
+      try {
+        const parsed = JSON.parse(restored[STORE_KEY])
+        if (!Array.isArray(parsed) || !parsed.length) return
+        setAccounts((previous) => mergeAccountsLocalFirst(withCompanyAccounts(previous), parsed))
+      } catch {
+        /* ignore bad durable payload */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const localPayload = stripLemonWebsite(accounts)
     try {
-      storage.setItem(STORE_KEY, JSON.stringify(stripLemonWebsite(accounts)))
+      storage.setItem(STORE_KEY, JSON.stringify(localPayload))
     } catch {
       /* Photos stay on this session if the phone storage is full. */
     }
+    // Local data is already on screen — sync account + billing shells to Supabase after.
+    syncAccountsToCloud(localPayload)
   }, [accounts])
 
   useEffect(() => {
@@ -6541,40 +6621,82 @@ function App() {
 
     const token = flowToken.current + 1
     flowToken.current = token
-    const accountId = signedInAccount?.id || ''
     const reactivateId = reactivateSiteRef.current
+    const reactivateSlug = cleanSlug(
+      accounts
+        .flatMap((account) => account.websites || [])
+        .find((site) => site.id === reactivateId)?.slug ||
+        publishedSite?.slug ||
+        appRoute.slug ||
+        '',
+    )
+    const ownerAccount =
+      accounts.find((account) =>
+        (account.websites || []).some(
+          (site) =>
+            site.id === reactivateId ||
+            (reactivateSlug && cleanSlug(site.slug || site.catalogId || site.name) === reactivateSlug),
+        ),
+      ) || null
+    const accountId = signedInAccount?.id || ownerAccount?.id || ''
+    const onLiveTenant = Boolean(detectActiveSubdomain())
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
     setBusyLabel('Approving payment…')
-    goSettingsView('loading', { replace: true })
+    if (!onLiveTenant) goSettingsView('loading', { replace: true })
 
     window.setTimeout(() => {
       if (flowToken.current !== token) return
       setBusyLabel('')
-      if (reactivateId && accountId) {
+      if (reactivateId) {
         const plan = FAB_PLANS[0]
+        const paidUntil = Date.now() + plan.days * 86400000
         reactivateSiteRef.current = ''
         setReactivateSiteId('')
-        setAccounts((previous) =>
-          previous.map((account) => {
-            if (account.id !== accountId) return account
-            return {
-              ...account,
-              websites: account.websites.map((site) =>
-                site.id === reactivateId
-                  ? {
-                      ...site,
-                      paidUntil: Date.now() + plan.days * 86400000,
-                      trialEndsAt: 0,
-                      fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
-                    }
-                  : site,
-              ),
-            }
-          }),
-        )
+        if (accountId) {
+          setAccounts((previous) =>
+            previous.map((account) => {
+              if (account.id !== accountId) return account
+              return {
+                ...account,
+                websites: account.websites.map((site) => {
+                  const sameSite =
+                    site.id === reactivateId ||
+                    (reactivateSlug &&
+                      cleanSlug(site.slug || site.catalogId || site.name) === reactivateSlug)
+                  if (!sameSite) return site
+                  const next = {
+                    ...site,
+                    paidUntil,
+                    trialEndsAt: 0,
+                    fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
+                  }
+                  publishTenantKind(site.slug || site.catalogId || site.name, site.systemType, site.name, {
+                    fabPlan: next.fabPlan,
+                    paidUntil: next.paidUntil,
+                    trialEndsAt: 0,
+                  })
+                  return next
+                }),
+              }
+            }),
+          )
+        } else if (reactivateSlug) {
+          publishTenantKind(reactivateSlug, 'fabrication', publishedSite?.name || reactivateSlug, {
+            fabPlan: plan.id,
+            paidUntil,
+            trialEndsAt: 0,
+          })
+        }
+        setHostTenantBilling({ fabPlan: plan.id, paidUntil, trialEndsAt: 0 })
         setPaymentNote('')
         setTailorMode('paid')
+        if (onLiveTenant) {
+          setSettingsView('home')
+          setMenuOpen(false)
+          setOverlay(null)
+          return
+        }
         setActiveProfileId(reactivateId)
         setProfileTab('dash')
         setTab('profile')
@@ -6608,7 +6730,17 @@ function App() {
     const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
     const aboutText = websiteAbout.trim()
 
-    if (!isFabrication) {
+    if (isFabrication) {
+      saveSiteCeoMetadata(slug, {
+        slug,
+        companyName: name,
+        ceo: ceoName,
+        location: locName,
+        about: aboutText,
+        systemType: 'fabrication',
+        template: 'fabrication',
+      })
+    } else {
       const initialMeta = buildDefaultTemplateMetadata({
         slug,
         name,
@@ -6620,7 +6752,13 @@ function App() {
       })
       saveSiteCeoMetadata(slug, initialMeta)
     }
-    publishTenantKind(slug, type.id, name)
+    const paidUntil = trial ? 0 : isFabrication ? Date.now() + plan.days * 86400000 : 0
+    const trialEndsAt = trial ? Date.now() + TRIAL_MS : 0
+    publishTenantKind(slug, type.id, name, {
+      fabPlan: isFabrication ? plan.id : '',
+      paidUntil,
+      trialEndsAt,
+    })
 
     const site = makeWebsite({
       name,
@@ -6638,8 +6776,8 @@ function App() {
       brandName: name,
       cssName: slugify(name).replace(/-/g, ''),
       fabPlan: isFabrication ? plan.id : '',
-      paidUntil: trial ? 0 : isFabrication ? Date.now() + plan.days * 86400000 : 0,
-      trialEndsAt: trial ? Date.now() + TRIAL_MS : 0,
+      paidUntil,
+      trialEndsAt,
       drawings: [],
       ceo: ceoName,
     })
@@ -6686,7 +6824,9 @@ function App() {
     if (!signedInAccount) return
     if (!confirmDeleteTwice(`${signedInAccount.email} and the websites on this account`)) return
     const removedId = signedInAccount.id
+    const removedEmail = signedInAccount.email
     setAccounts((previous) => previous.filter((account) => account.id !== removedId))
+    removeAccountFromCloud(removedEmail)
     setSignedInId('')
     setActiveProfileId('')
     goSettingsView('manage')
@@ -7289,6 +7429,24 @@ function App() {
     )
   }
 
+  const openLiveTenantApp = (site) => {
+    if (!site) return
+    const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
+    if (!slug) return
+    publishTenantKind(slug, site.systemType || 'fabrication', site.name || site.brandName || slug, {
+      fabPlan: site.fabPlan || '',
+      paidUntil: site.paidUntil || 0,
+      trialEndsAt: site.trialEndsAt || 0,
+    })
+    const live =
+      companyLiveSite({ catalogId: slug, slug, id: site.id })?.home ||
+      siteHref(slug) ||
+      `https://${subdomainLabelFor(slug)}/`
+    if (typeof window !== 'undefined') {
+      window.open(live, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   const openPrivateSystem = (site, projectId = '', view = 'home') => {
     if (!site) return
     setOverlay(null)
@@ -7300,8 +7458,9 @@ function App() {
       pushPath('/profile')
       return
     }
+    // Fabrication live link opens the real subdomain app (same calculator as CEO tab).
     if (site.systemType === 'fabrication') {
-      openOwnedCalculator(site)
+      openLiveTenantApp(site)
       return
     }
     openGeneratedSite(site, projectId, view)
@@ -7479,27 +7638,56 @@ function App() {
           ) ||
         (() => {
           if (isDeletedSlug(appRoute.slug)) return null
+          const mirrored = readLocalTenant(appRoute.slug)
           const knownKind =
             readSavedTenantKind(appRoute.slug) ||
+            mirrored.systemType ||
             (hostSlug === appRoute.slug ? hostTenantKind : '')
           if (!knownKind || knownKind === 'unknown') return null
           const meta = getSiteCeoMetadata({
             slug: appRoute.slug,
             systemType: knownKind,
-            name: appRoute.slug,
+            name: mirrored.name || appRoute.slug,
           })
           if (!meta || isDeletedSlug(meta.slug)) return null
+          const billing =
+            hostSlug === appRoute.slug
+              ? hostTenantBilling
+              : {
+                  fabPlan: mirrored.fabPlan || '',
+                  paidUntil: Number(mirrored.paidUntil) || 0,
+                  trialEndsAt: Number(mirrored.trialEndsAt) || 0,
+                }
           return makeWebsite({
             id: `site-${meta.slug}`,
-            name: meta.companyName || meta.slug,
-            type: knownKind === 'manufacturing' ? 'Manufacturing' : 'Construction',
+            name: meta.companyName || mirrored.name || meta.slug,
+            type:
+              knownKind === 'manufacturing'
+                ? 'Manufacturing'
+                : knownKind === 'fabrication'
+                  ? 'Fabrication'
+                  : 'Construction',
             systemType: knownKind === 'fabrication' ? 'fabrication' : knownKind,
             slug: meta.slug,
             link: subdomainUrlFor(meta.slug),
             ceo: meta.ceo || '',
+            fabPlan: billing.fabPlan || mirrored.fabPlan || (knownKind === 'fabrication' ? 'month' : ''),
+            paidUntil: Number(billing.paidUntil) || Number(mirrored.paidUntil) || 0,
+            trialEndsAt: Number(billing.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
           })
         })()
       : null
+
+  const fabPaused = publishedSite?.systemType === 'fabrication' && siteBilling(publishedSite) === 'paused'
+
+  useEffect(() => {
+    if (!fabPaused || !publishedSite?.id) return
+    // After trial: automatically arm the EcoCash subscribe tier ($100 / month).
+    reactivateSiteRef.current = publishedSite.id
+    setReactivateSiteId(publishedSite.id)
+    setFabPlan('month')
+    setSystemType('fabrication')
+  }, [fabPaused, publishedSite?.id])
 
   const openFabPay = (planId) => {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
@@ -7538,15 +7726,70 @@ function App() {
     }
   }
 
-  const fabricationCalculator = (site, onBack) => (
+  const fabEcoCashSubscribeForm = (site) => {
+    const plan = FAB_PLANS[0]
+    return (
+      <form className={`ecocash-card trial-ecocash${!PHASE1_COMPLETE ? ' is-sealed' : ''}`} onSubmit={approvePayment}>
+        {!PHASE1_COMPLETE ? (
+          <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
+        ) : null}
+        <p className="ecocash-kicker">Subscribe with EcoCash</p>
+        <h3>{site?.name || 'Fabrication'} · {plan.label}</h3>
+        <p className="shop-copy">
+          Your free trial has ended. {formatPrice(plan.price)} · {plan.label}. Photos, drawings, and records stay on
+          this website.
+        </p>
+        <label>
+          EcoCash number
+          <input
+            type="tel"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="07xxxxxxxx"
+            value={ecocash.number}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, number: event.target.value }))}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Password"
+            value={ecocash.password}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, password: event.target.value }))}
+          />
+        </label>
+        <label>
+          Name on EcoCash
+          <input
+            type="text"
+            autoComplete="name"
+            placeholder="Name on EcoCash"
+            value={ecocash.name}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, name: event.target.value }))}
+          />
+        </label>
+        {paymentNote ? <p className="form-error">{paymentNote}</p> : null}
+        <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
+          Pay {formatPrice(plan.price)} with EcoCash
+        </button>
+      </form>
+    )
+  }
+
+  const fabricationCalculator = (site, onBack, { standalone = false } = {}) => (
     <FabricationCalculator
-      embedded
+      embedded={!standalone}
       site={site}
       draft={drawingDraft}
       onChange={setDrawingDraft}
       onSave={site?.id ? () => saveDrawing(site) : undefined}
       onRenew={openFabPay}
-      onBack={onBack}
+      onBack={standalone ? undefined : onBack}
       pricing={fabPricing}
       onSavePricing={saveFabPricing}
       {...historyNavProps}
@@ -7594,10 +7837,12 @@ function App() {
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
     return (
       <TrialGlassLock
-        locked={siteBilling(publishedSite) === 'paused'}
+        locked={fabPaused}
+        autoSubscribe={fabPaused}
+        subscribeForm={fabEcoCashSubscribeForm(publishedSite)}
         onContinue={() => beginReactivate(publishedSite)}
       >
-        {fabricationCalculator(publishedSite, leavePublished)}
+        {fabricationCalculator(publishedSite, undefined, { standalone: true })}
       </TrialGlassLock>
     )
   }
@@ -7607,16 +7852,49 @@ function App() {
       accounts
         .flatMap((account) => account.websites || [])
         .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)?.systemType ||
-      readSavedTenantKind(hostSlug)
+      readSavedTenantKind(hostSlug) ||
+      readLocalTenant(hostSlug).systemType
     const kind = hostSlug === 'prixburg' ? 'manufacturing' : ownedKind || hostTenantKind
-    if (!kind || kind === 'manufacturing') {
+    if (kind === 'manufacturing') {
       return <section className="prixburg-live-shell" aria-label="Opening website" />
+    }
+    if (!kind) {
+      return (
+        <section className="paused-tenant" aria-busy="true">
+          <h1>Opening {subdomainLabelFor(hostSlug)}…</h1>
+        </section>
+      )
     }
     if (kind === 'unknown') {
       return (
         <section className="paused-tenant">
           <h1>This website is not available.</h1>
         </section>
+      )
+    }
+    if (kind === 'fabrication' && !publishedSite) {
+      const mirrored = readLocalTenant(hostSlug)
+      const liveFabSite = makeWebsite({
+        id: `site-${hostSlug}`,
+        name: mirrored.name || hostSlug,
+        type: 'Fabrication',
+        systemType: 'fabrication',
+        slug: hostSlug,
+        link: subdomainUrlFor(hostSlug),
+        fabPlan: mirrored.fabPlan || hostTenantBilling.fabPlan || 'month',
+        paidUntil: Number(mirrored.paidUntil) || Number(hostTenantBilling.paidUntil) || 0,
+        trialEndsAt: Number(mirrored.trialEndsAt) || Number(hostTenantBilling.trialEndsAt) || 0,
+      })
+      const livePaused = siteBilling(liveFabSite) === 'paused'
+      return (
+        <TrialGlassLock
+          locked={livePaused}
+          autoSubscribe={livePaused}
+          subscribeForm={livePaused ? fabEcoCashSubscribeForm(liveFabSite) : null}
+          onContinue={() => beginReactivate(liveFabSite)}
+        >
+          {fabricationCalculator(liveFabSite, undefined, { standalone: true })}
+        </TrialGlassLock>
       )
     }
   }
@@ -7643,9 +7921,13 @@ function App() {
     const requestedProjectId =
       appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
     const requestedView = appRoute.view || 'home'
+    const sitePaused = siteBilling(publishedSite) === 'paused'
+    const autoFabSubscribe = publishedSite?.systemType === 'fabrication' && sitePaused
     return (
       <TrialGlassLock
-        locked={siteBilling(publishedSite) === 'paused'}
+        locked={sitePaused}
+        autoSubscribe={autoFabSubscribe}
+        subscribeForm={autoFabSubscribe ? fabEcoCashSubscribeForm(publishedSite) : null}
         onContinue={() => beginReactivate(publishedSite)}
       >
         <CeoDashboard
@@ -8052,6 +8334,10 @@ function App() {
                 <div className="profile-tab-panel profile-calc-panel">
                   <TrialGlassLock
                     locked={siteBilling(dashSite) === 'paused'}
+                    autoSubscribe={siteBilling(dashSite) === 'paused'}
+                    subscribeForm={
+                      siteBilling(dashSite) === 'paused' ? fabEcoCashSubscribeForm(dashSite) : null
+                    }
                     onContinue={() => beginReactivate(dashSite)}
                   >
                     {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
