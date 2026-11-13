@@ -20,18 +20,28 @@
       (function () {
         var host = String(location.hostname || '').toLowerCase()
         var slug = ''
-        if (host === 'prixburg.vercel.app' || host === 'prixburg-fortress.vercel.app') slug = 'prixburg'
-        else if (host === 'rodcroft.vercel.app' || host === 'rodcroft-fortress.vercel.app') slug = 'rodcroft'
-        else if (host.endsWith('.fortress.vercel.app')) {
-          var sub = host.slice(0, -'.fortress.vercel.app'.length)
-          if (sub && sub !== 'www' && sub.indexOf('.') === -1) slug = sub
-        } else if (host.endsWith('.localhost')) {
-          var localSub = host.slice(0, -'.localhost'.length)
-          if (localSub && localSub.indexOf('.') === -1) slug = localSub
+        try {
+          var params = new URLSearchParams(location.search || '')
+          slug = String(params.get('subdomain') || params.get('site') || params.get('tenant') || '')
+            .toLowerCase()
+            .trim()
+        } catch (e) {
+          slug = ''
+        }
+        if (!slug) {
+          if (host === 'prixburg.vercel.app' || host === 'prixburg-fortress.vercel.app') slug = 'prixburg'
+          else if (host === 'rodcroft.vercel.app' || host === 'rodcroft-fortress.vercel.app') slug = 'rodcroft'
+          else if (host.endsWith('.fortress.vercel.app')) {
+            var sub = host.slice(0, -'.fortress.vercel.app'.length)
+            if (sub && sub !== 'www' && sub.indexOf('.') === -1) slug = sub
+          } else if (host.endsWith('.localhost')) {
+            var localSub = host.slice(0, -'.localhost'.length)
+            if (localSub && localSub.indexOf('.') === -1) slug = localSub
+          }
         }
         if (!slug || slug === 'rodcroft' || location.pathname.indexOf('/prixburg-live') === 0) return
         if (slug === 'prixburg') {
-          location.replace('/prixburg-live/index.html')
+          location.replace('/prixburg-live/index.html?tenant=prixburg')
           return
         }
         document.documentElement.classList.add('tenant-pending')

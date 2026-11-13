@@ -48,6 +48,7 @@ import {
   rememberDeletedSlug,
   readSavedTenantKind,
   saveSiteCeoMetadata,
+  liveTenantAppUrlFor,
   subdomainLabelFor,
   subdomainUrlFor,
 } from './fortressMetadata'
@@ -1527,7 +1528,7 @@ const uniqueSlug = (name, accounts) => {
   return `${base}-${count}`
 }
 
-const siteHref = (slug) => subdomainUrlFor(slug)
+const siteHref = (slug) => liveTenantAppUrlFor(slug)
 
 const slidesForSite = (site) => {
   const slides = [...(site?.slides || [])]
@@ -7499,10 +7500,8 @@ function App() {
       paidUntil: site.paidUntil || 0,
       trialEndsAt: site.trialEndsAt || 0,
     })
-    const live =
-      companyLiveSite({ catalogId: slug, slug, id: site.id })?.home ||
-      siteHref(slug) ||
-      `https://${subdomainLabelFor(slug)}/`
+    // Use fortress-zw/?subdomain=… — nested *.fortress.vercel.app hosts fail TLS for new tenants.
+    const live = liveTenantAppUrlFor(slug)
     if (typeof window !== 'undefined') {
       window.open(live, '_blank', 'noopener,noreferrer')
     }

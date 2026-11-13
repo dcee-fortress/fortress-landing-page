@@ -23,7 +23,40 @@ export const subdomainLabelFor = (slugOrSite) => {
   return `${slug}.${FORTRESS_SUBDOMAIN_ROOT}`
 }
 
+/** Pretty subdomain host label URL (may not have TLS until wildcard is attached on Vercel). */
 export const subdomainUrlFor = (slugOrSite) => `https://${subdomainLabelFor(slugOrSite)}`
+
+const fortressAppOrigin = () => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FORTRESS_ORIGIN) {
+      return String(import.meta.env.VITE_FORTRESS_ORIGIN).replace(/\/$/, '')
+    }
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined') {
+    const host = String(window.location.hostname || '').toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) {
+      return window.location.origin
+    }
+  }
+  return 'https://fortress-zw.vercel.app'
+}
+
+/**
+ * Working live app URL for a tenant. Opens the same fabrication/CEO app in a new tab
+ * via fortress-zw (or local) with ?subdomain= so it does not depend on broken
+ * nested TLS for *.fortress.vercel.app.
+ */
+export const liveTenantAppUrlFor = (slugOrSite) => {
+  const rawSlug =
+    typeof slugOrSite === 'string'
+      ? slugOrSite
+      : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
+  const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
+  if (!slug) return fortressAppOrigin()
+  return `${fortressAppOrigin()}/?subdomain=${encodeURIComponent(slug)}`
+}
 
 /**
  * Detects if the current browser request is on a tenant subdomain of Fortress
