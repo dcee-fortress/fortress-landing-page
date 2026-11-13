@@ -4,9 +4,11 @@ import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
 import { hydrateFromDurable, storage } from './storage'
 import {
   fetchAccountFromCloud,
+  fetchCeoMetadataFromCloud,
   loginAccountFromCloud,
   mergeAccountsLocalFirst,
   persistAccountToCloud,
+  persistCeoMetadataToCloud,
   removeAccountFromCloud,
   restoreAccountBySlugFromCloud,
   restoreCloudAccount,
@@ -44,6 +46,7 @@ import {
   deleteSiteCeoMetadata,
   getSiteCeoMetadata,
   isDeletedSlug,
+  loadAllCeoMetadata,
   purgeStoredLemonSite,
   rememberDeletedSlug,
   readSavedTenantKind,
@@ -871,7 +874,14 @@ const siteBilling = (site) => {
   if (Number(site.paidUntil) > now) return 'paid'
   if (Number(site.trialEndsAt) > now) return 'trial'
   if (Number(site.trialEndsAt) > 0) return 'paused'
+  // Buy-created sites stay watermark-locked until EcoCash subscribe unlocks them.
+  if (site.watermarkLocked) return 'watermark'
   return 'open'
+}
+
+const siteIsLocked = (site) => {
+  const billing = siteBilling(site)
+  return billing === 'paused' || billing === 'watermark'
 }
 
 const trialDaysLeft = (site) => {
@@ -1195,6 +1205,7 @@ const makeWebsite = ({
   fabPlan = '',
   paidUntil = 0,
   trialEndsAt = 0,
+  watermarkLocked = false,
   drawings = [],
   catalogId = '',
   ceo = '',
@@ -1219,6 +1230,7 @@ const makeWebsite = ({
   fabPlan,
   paidUntil,
   trialEndsAt,
+  watermarkLocked: Boolean(watermarkLocked),
   drawings,
   catalogId,
   ceo,
@@ -1652,8 +1664,10 @@ function TrialGlassLock({
   children,
   autoSubscribe = false,
   subscribeForm = null,
+  mode = 'paused',
 }) {
   if (!locked) return children
+  const watermarkMode = mode === 'watermark'
   return (
     <div className="trial-glass-wrap">
       <div className="trial-glass-demo" aria-hidden="true">
@@ -1664,10 +1678,16 @@ function TrialGlassLock({
           subscribeForm
         ) : (
           <>
-            <p className="subscription-watermark">Your free trial has ended</p>
-            <p>Your records are still on this website.</p>
+            <p className="subscription-watermark">
+              {watermarkMode ? 'Subscriptions are opening soon' : 'Your free trial has ended'}
+            </p>
+            <p>
+              {watermarkMode
+                ? 'Your subdomain is created and saved. The app stays watermarked until you unlock with EcoCash.'
+                : 'Your records are still on this website.'}
+            </p>
             <button type="button" className="primary-button" onClick={onContinue}>
-              Continue to EcoCash
+              {watermarkMode ? 'Unlock with EcoCash' : 'Continue to EcoCash'}
             </button>
           </>
         )}
@@ -5901,6 +5921,7 @@ function App() {
     fabPlan: '',
     paidUntil: 0,
     trialEndsAt: 0,
+    watermarkLocked: false,
   })
 
   useEffect(() => {
@@ -5976,6 +5997,7 @@ function App() {
           fabPlan: owned?.fabPlan || mirrored.fabPlan || '',
           paidUntil: Number(owned?.paidUntil) || Number(mirrored.paidUntil) || 0,
           trialEndsAt: Number(owned?.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
+          watermarkLocked: Boolean(owned?.watermarkLocked ?? mirrored.watermarkLocked),
         })
       }
       // Still refresh cloud billing, but never bounce fabrication to Prixburg.
@@ -5987,6 +6009,7 @@ function App() {
           fabPlan: record.fabPlan || '',
           paidUntil: Number(record.paidUntil) || 0,
           trialEndsAt: Number(record.trialEndsAt) || 0,
+          watermarkLocked: Boolean(record.watermarkLocked),
         })
       })
       return () => {
@@ -6004,6 +6027,7 @@ function App() {
         fabPlan: record.fabPlan || '',
         paidUntil: Number(record.paidUntil) || 0,
         trialEndsAt: Number(record.trialEndsAt) || 0,
+        watermarkLocked: Boolean(record.watermarkLocked),
       })
     })
     return () => {
@@ -6045,6 +6069,43 @@ function App() {
     // Local data is already on screen — sync account + billing shells to Supabase after.
     syncAccountsToCloud(localPayload)
   }, [accounts])
+
+  // Construction/manufacturing project data: local first, then Fortress DB (survives logout/cache).
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const syncMeta = () => {
+      const all = loadAllCeoMetadata()
+      Object.entries(all).forEach(([slug, meta]) => {
+        if (!slug || slug === 'rodcroft' || slug === 'prixburg') return
+        if (!meta || typeof meta !== 'object') return
+        void persistCeoMetadataToCloud(slug, meta)
+      })
+    }
+    const timer = window.setTimeout(syncMeta, 600)
+    window.addEventListener('fortress-ceo-metadata-change', syncMeta)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('fortress-ceo-metadata-change', syncMeta)
+    }
+  }, [accounts])
+
+  useEffect(() => {
+    if (!hostSlug || hostSlug === 'rodcroft' || hostSlug === 'prixburg') return undefined
+    let cancelled = false
+    fetchCeoMetadataFromCloud(hostSlug).then((remote) => {
+      if (cancelled || !remote?.slug) return
+      const local = getSiteCeoMetadata(hostSlug)
+      const localProjects = Array.isArray(local?.projects) ? local.projects.length : 0
+      const remoteProjects = Array.isArray(remote.projects) ? remote.projects.length : 0
+      // Local-first: only fill when this device has no project rows yet.
+      if (localProjects > 0) return
+      if (remoteProjects === 0 && !remote.companyName) return
+      saveSiteCeoMetadata(hostSlug, { ...remote, slug: hostSlug })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hostSlug])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -6722,12 +6783,14 @@ function App() {
                     ...site,
                     paidUntil,
                     trialEndsAt: 0,
+                    watermarkLocked: false,
                     fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
                   }
                   publishTenantKind(site.slug || site.catalogId || site.name, site.systemType, site.name, {
                     fabPlan: next.fabPlan,
                     paidUntil: next.paidUntil,
                     trialEndsAt: 0,
+                    watermarkLocked: false,
                   })
                   return next
                 }),
@@ -6735,13 +6798,14 @@ function App() {
             }),
           )
         } else if (reactivateSlug) {
-          publishTenantKind(reactivateSlug, 'fabrication', publishedSite?.name || reactivateSlug, {
+          publishTenantKind(reactivateSlug, publishedSite?.systemType || 'fabrication', publishedSite?.name || reactivateSlug, {
             fabPlan: plan.id,
             paidUntil,
             trialEndsAt: 0,
+            watermarkLocked: false,
           })
         }
-        setHostTenantBilling({ fabPlan: plan.id, paidUntil, trialEndsAt: 0 })
+        setHostTenantBilling({ fabPlan: plan.id, paidUntil, trialEndsAt: 0, watermarkLocked: false })
         setPaymentNote('')
         setTailorMode('paid')
         if (onLiveTenant) {
@@ -6783,10 +6847,12 @@ function App() {
     const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
     const aboutText = websiteAbout.trim()
 
+    // Construction = empty Rodcroft clone; manufacturing = empty Prixburg clone; name = brand only.
     if (isFabrication) {
       saveSiteCeoMetadata(slug, {
         slug,
         companyName: name,
+        brandName: name,
         ceo: ceoName,
         location: locName,
         about: aboutText,
@@ -6805,12 +6871,15 @@ function App() {
       })
       saveSiteCeoMetadata(slug, initialMeta)
     }
-    const paidUntil = trial ? 0 : isFabrication ? Date.now() + plan.days * 86400000 : 0
+    // Trial: live for 14 days on this subdomain. Buy: subdomain is created but stays watermark-locked.
+    const paidUntil = 0
     const trialEndsAt = trial ? Date.now() + TRIAL_MS : 0
+    const watermarkLocked = !trial
     publishTenantKind(slug, type.id, name, {
       fabPlan: isFabrication ? plan.id : '',
       paidUntil,
       trialEndsAt,
+      watermarkLocked,
     })
 
     const site = makeWebsite({
@@ -6831,6 +6900,7 @@ function App() {
       fabPlan: isFabrication ? plan.id : '',
       paidUntil,
       trialEndsAt,
+      watermarkLocked,
       drawings: [],
       ceo: ceoName,
     })
@@ -7407,13 +7477,18 @@ function App() {
 
   const openGeneratedSite = (site, projectId = '', view = 'home') => {
     if (!site) return
-    if (siteBilling(site) === 'paused') {
+    if (siteIsLocked(site)) {
       setOverlay(null)
       setActiveProfileId(site.id)
       setProfileTab('dash')
       setTab('profile')
       setAppRoute({ kind: '', slug: '' })
       pushPath('/profile')
+      return
+    }
+    // Live tenant apps open as their own address (not inside main Fortress chrome).
+    if (CEO_SYSTEM_IDS.includes(site.systemType)) {
+      openLiveTenantApp(site, projectId, view)
       return
     }
     const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
@@ -7491,7 +7566,7 @@ function App() {
     )
   }
 
-  const openLiveTenantApp = (site) => {
+  const openLiveTenantApp = (site, projectId = '', view = 'home') => {
     if (!site) return
     const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
     if (!slug) return
@@ -7499,9 +7574,15 @@ function App() {
       fabPlan: site.fabPlan || '',
       paidUntil: site.paidUntil || 0,
       trialEndsAt: site.trialEndsAt || 0,
+      watermarkLocked: Boolean(site.watermarkLocked),
     })
-    // Use fortress-zw/?subdomain=… — nested *.fortress.vercel.app hosts fail TLS for new tenants.
-    const live = liveTenantAppUrlFor(slug)
+    const live = liveTenantAppUrlFor({
+      slug,
+      name: site.name || site.brandName || slug,
+      systemType: site.systemType,
+      projectId,
+      view,
+    })
     if (typeof window !== 'undefined') {
       window.open(live, '_blank', 'noopener,noreferrer')
     }
@@ -7510,7 +7591,7 @@ function App() {
   const openPrivateSystem = (site, projectId = '', view = 'home') => {
     if (!site) return
     setOverlay(null)
-    if (siteBilling(site) === 'paused') {
+    if (siteIsLocked(site)) {
       setActiveProfileId(site.id)
       setProfileTab('dash')
       setTab('profile')
@@ -7518,9 +7599,9 @@ function App() {
       pushPath('/profile')
       return
     }
-    // Fabrication live link opens the real subdomain app (same calculator as CEO tab).
-    if (site.systemType === 'fabrication') {
-      openLiveTenantApp(site)
+    // CEO websites open as standalone live apps on their tenant address.
+    if (CEO_SYSTEM_IDS.includes(site.systemType)) {
+      openLiveTenantApp(site, projectId, view)
       return
     }
     openGeneratedSite(site, projectId, view)
@@ -7717,6 +7798,7 @@ function App() {
                   fabPlan: mirrored.fabPlan || '',
                   paidUntil: Number(mirrored.paidUntil) || 0,
                   trialEndsAt: Number(mirrored.trialEndsAt) || 0,
+                  watermarkLocked: Boolean(mirrored.watermarkLocked),
                 }
           return makeWebsite({
             id: `site-${meta.slug}`,
@@ -7729,25 +7811,29 @@ function App() {
                   : 'Construction',
             systemType: knownKind === 'fabrication' ? 'fabrication' : knownKind,
             slug: meta.slug,
-            link: subdomainUrlFor(meta.slug),
+            link: siteHref(meta.slug),
             ceo: meta.ceo || '',
+            brandName: meta.brandName || meta.companyName || mirrored.name || meta.slug,
             fabPlan: billing.fabPlan || mirrored.fabPlan || (knownKind === 'fabrication' ? 'month' : ''),
             paidUntil: Number(billing.paidUntil) || Number(mirrored.paidUntil) || 0,
             trialEndsAt: Number(billing.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
+            watermarkLocked: Boolean(billing.watermarkLocked ?? mirrored.watermarkLocked),
           })
         })()
       : null
 
-  const fabPaused = publishedSite?.systemType === 'fabrication' && siteBilling(publishedSite) === 'paused'
+  const fabLocked =
+    publishedSite?.systemType === 'fabrication' && siteIsLocked(publishedSite)
+  const fabLockMode = siteBilling(publishedSite) === 'watermark' ? 'watermark' : 'paused'
 
   useEffect(() => {
-    if (!fabPaused || !publishedSite?.id) return
-    // After trial: automatically arm the EcoCash subscribe tier ($100 / month).
+    if (!fabLocked || !publishedSite?.id) return
+    // After trial / watermark: automatically arm the EcoCash subscribe tier ($100 / month).
     reactivateSiteRef.current = publishedSite.id
     setReactivateSiteId(publishedSite.id)
     setFabPlan('month')
     setSystemType('fabrication')
-  }, [fabPaused, publishedSite?.id])
+  }, [fabLocked, publishedSite?.id])
 
   const openFabPay = (planId) => {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
@@ -7897,9 +7983,12 @@ function App() {
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
     return (
       <TrialGlassLock
-        locked={fabPaused}
-        autoSubscribe={fabPaused}
-        subscribeForm={fabEcoCashSubscribeForm(publishedSite)}
+        locked={fabLocked}
+        mode={fabLockMode}
+        autoSubscribe={fabLocked && fabLockMode === 'paused'}
+        subscribeForm={
+          fabLocked && fabLockMode === 'paused' ? fabEcoCashSubscribeForm(publishedSite) : null
+        }
         onContinue={() => beginReactivate(publishedSite)}
       >
         {fabricationCalculator(publishedSite, undefined, { standalone: true })}
@@ -7945,12 +8034,16 @@ function App() {
         paidUntil: Number(mirrored.paidUntil) || Number(hostTenantBilling.paidUntil) || 0,
         trialEndsAt: Number(mirrored.trialEndsAt) || Number(hostTenantBilling.trialEndsAt) || 0,
       })
-      const livePaused = siteBilling(liveFabSite) === 'paused'
+      const liveLocked = siteIsLocked(liveFabSite)
+      const liveMode = siteBilling(liveFabSite) === 'watermark' ? 'watermark' : 'paused'
       return (
         <TrialGlassLock
-          locked={livePaused}
-          autoSubscribe={livePaused}
-          subscribeForm={livePaused ? fabEcoCashSubscribeForm(liveFabSite) : null}
+          locked={liveLocked}
+          mode={liveMode}
+          autoSubscribe={liveLocked && liveMode === 'paused'}
+          subscribeForm={
+            liveLocked && liveMode === 'paused' ? fabEcoCashSubscribeForm(liveFabSite) : null
+          }
           onContinue={() => beginReactivate(liveFabSite)}
         >
           {fabricationCalculator(liveFabSite, undefined, { standalone: true })}
@@ -7981,11 +8074,14 @@ function App() {
     const requestedProjectId =
       appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
     const requestedView = appRoute.view || 'home'
-    const sitePaused = siteBilling(publishedSite) === 'paused'
-    const autoFabSubscribe = publishedSite?.systemType === 'fabrication' && sitePaused
+    const siteLocked = siteIsLocked(publishedSite)
+    const lockMode = siteBilling(publishedSite) === 'watermark' ? 'watermark' : 'paused'
+    const autoFabSubscribe =
+      publishedSite?.systemType === 'fabrication' && siteLocked && lockMode === 'paused'
     return (
       <TrialGlassLock
-        locked={sitePaused}
+        locked={siteLocked}
+        mode={lockMode}
         autoSubscribe={autoFabSubscribe}
         subscribeForm={autoFabSubscribe ? fabEcoCashSubscribeForm(publishedSite) : null}
         onContinue={() => beginReactivate(publishedSite)}
@@ -8262,6 +8358,7 @@ function App() {
                     {index + 1}) {liveDomain(site)}
                     {siteBilling(site) === 'trial' ? ` · Trial ${trialDaysLeft(site)}d` : ''}
                     {siteBilling(site) === 'paused' ? ' · Paused' : ''}
+                    {siteBilling(site) === 'watermark' ? ' · Watermark' : ''}
                   </button>
                 ))
               ) : (
@@ -8393,7 +8490,8 @@ function App() {
               {profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
                 <div className="profile-tab-panel profile-calc-panel">
                   <TrialGlassLock
-                    locked={siteBilling(dashSite) === 'paused'}
+                    locked={siteIsLocked(dashSite)}
+                    mode={siteBilling(dashSite) === 'watermark' ? 'watermark' : 'paused'}
                     autoSubscribe={siteBilling(dashSite) === 'paused'}
                     subscribeForm={
                       siteBilling(dashSite) === 'paused' ? fabEcoCashSubscribeForm(dashSite) : null
@@ -8406,7 +8504,8 @@ function App() {
               ) : profileTab === 'dash' ? (
                 <div className="profile-tab-panel">
                   <TrialGlassLock
-                    locked={siteBilling(dashSite) === 'paused'}
+                    locked={siteIsLocked(dashSite)}
+                    mode={siteBilling(dashSite) === 'watermark' ? 'watermark' : 'paused'}
                     onContinue={() => beginReactivate(dashSite)}
                   >
                     <CeoProjectsOverview
@@ -8883,12 +8982,12 @@ function App() {
                 <h3>Tailor making details</h3>
                 <p className="shop-copy">
                   {tailorMode === 'trial'
-                    ? 'Write a domain. Fortress creates a free temporary subdomain from it. You can edit the domain before you start. The website works fully for 14 days and stays next to your profile. When the trial ends it is paused, not deleted. Paying later unlocks this same website.'
+                    ? 'Write a domain. Fortress creates that subdomain now. It works fully for 14 days and stays on your profile. When the trial ends it is paused, not deleted. Buying later unlocks this same subdomain.'
                     : systemType === 'manufacturing'
-                      ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
+                      ? 'Creates an exact Prixburg manufacturing website (empty data) as a Fortress subdomain. For now it stays watermarked until EcoCash unlock — the subdomain address is reserved.'
                       : systemType === 'construction'
-                        ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
-                        : 'Creates your fabrication calculator as a tenant subdomain of Fortress. $100 a month, paid with EcoCash.'}
+                        ? 'Creates an exact Rodcroft construction website (empty data) as a Fortress subdomain. For now it stays watermarked until EcoCash unlock — the subdomain address is reserved.'
+                        : 'Creates your fabrication calculator subdomain. For now it stays watermarked until EcoCash unlock. A 14 day trial unlocks it immediately.'}
                 </p>
                 <label>
                   Name of website

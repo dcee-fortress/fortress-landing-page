@@ -29,6 +29,7 @@ export const rememberLocalTenant = (slug, systemType, name = '', billing = {}) =
         fabPlan: billing.fabPlan || '',
         paidUntil: Number(billing.paidUntil) || 0,
         trialEndsAt: Number(billing.trialEndsAt) || 0,
+        watermarkLocked: Boolean(billing.watermarkLocked),
       }),
     )
   } catch {
@@ -51,9 +52,10 @@ export const readLocalTenant = (slug) => {
       fabPlan: String(value?.fabPlan || '').trim(),
       paidUntil: Number(value?.paidUntil) || 0,
       trialEndsAt: Number(value?.trialEndsAt) || 0,
+      watermarkLocked: Boolean(value?.watermarkLocked),
     }
   } catch {
-    return { systemType: '', name: '', fabPlan: '', paidUntil: 0, trialEndsAt: 0 }
+    return { systemType: '', name: '', fabPlan: '', paidUntil: 0, trialEndsAt: 0, watermarkLocked: false }
   }
 }
 
@@ -90,6 +92,7 @@ export const publishTenantKind = (slug, systemType, name = '', billing = {}) => 
         fabPlan: billing.fabPlan || '',
         paidUntil: Number(billing.paidUntil) || 0,
         trialEndsAt: Number(billing.trialEndsAt) || 0,
+        watermarkLocked: Boolean(billing.watermarkLocked),
       },
       updated_at: new Date().toISOString(),
     }),
@@ -117,6 +120,8 @@ export const fetchTenantRecord = async (slug) => {
       fabPlan: String(value.fabPlan || local.fabPlan || '').trim(),
       paidUntil: Number(value.paidUntil) || Number(local.paidUntil) || 0,
       trialEndsAt: Number(value.trialEndsAt) || Number(local.trialEndsAt) || 0,
+      watermarkLocked:
+        value.watermarkLocked != null ? Boolean(value.watermarkLocked) : Boolean(local.watermarkLocked),
     }
     rememberLocalTenant(cleaned, record.systemType, record.name, record)
     return record

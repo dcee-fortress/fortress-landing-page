@@ -18,6 +18,7 @@ const headers = (extra = {}) => ({
 
 const accountCloudKey = (email) => `fortress-account:${String(email || '').trim().toLowerCase()}`
 const slugOwnerKey = (slug) => `fortress-slug-owner:${cleanSlug(slug)}`
+const ceoMetaCloudKey = (slug) => `fortress-ceo-meta:${cleanSlug(slug)}`
 
 const slimWebsite = (site) => {
   if (!site || typeof site !== 'object') return null
@@ -34,6 +35,7 @@ const slimWebsite = (site) => {
     fabPlan: site.fabPlan || '',
     paidUntil: Number(site.paidUntil) || 0,
     trialEndsAt: Number(site.trialEndsAt) || 0,
+    watermarkLocked: Boolean(site.watermarkLocked),
     ceo: site.ceo || '',
     brandName: site.brandName || site.name || '',
     cssName: site.cssName || '',
@@ -261,6 +263,10 @@ export const mergeAccountsLocalFirst = (localList, remoteList) => {
         ...localSite,
         paidUntil: Number(localSite.paidUntil) || Number(remoteSite.paidUntil) || 0,
         trialEndsAt: Number(localSite.trialEndsAt) || Number(remoteSite.trialEndsAt) || 0,
+        watermarkLocked:
+          localSite.watermarkLocked != null
+            ? Boolean(localSite.watermarkLocked)
+            : Boolean(remoteSite.watermarkLocked),
         fabPlan: localSite.fabPlan || remoteSite.fabPlan || '',
         drawings: localSite.drawings?.length ? localSite.drawings : remoteSite.drawings || [],
         gallery: localSite.gallery?.length ? localSite.gallery : remoteSite.gallery || [],
@@ -299,4 +305,24 @@ export const pullAccountsFromCloud = async (emails = []) => {
   if (!list.length) return []
   const results = await Promise.all(list.map((item) => fetchAccountFromCloud(item)))
   return results.filter(Boolean)
+}
+
+/** Persist Rodcroft/Prixburg tenant project data so it survives logout and cache clear. */
+export const persistCeoMetadataToCloud = async (slug, metadata) => {
+  const cleaned = cleanSlug(slug)
+  if (!cleaned || cleaned === 'rodcroft' || cleaned === 'prixburg') return false
+  if (!metadata || typeof metadata !== 'object') return false
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+  return upsertRow(ceoMetaCloudKey(cleaned), {
+    ...metadata,
+    slug: cleaned,
+    updatedAt: Date.now(),
+  })
+}
+
+export const fetchCeoMetadataFromCloud = async (slug) => {
+  const cleaned = cleanSlug(slug)
+  if (!cleaned) return null
+  const value = await fetchRow(ceoMetaCloudKey(cleaned))
+  return value && typeof value === 'object' ? value : null
 }

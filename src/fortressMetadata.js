@@ -44,9 +44,9 @@ const fortressAppOrigin = () => {
 }
 
 /**
- * Working live app URL for a tenant. Opens the same fabrication/CEO app in a new tab
- * via fortress-zw (or local) with ?subdomain= so it does not depend on broken
- * nested TLS for *.fortress.vercel.app.
+ * Working live app URL for a tenant. Opens the CEO app in a new tab via fortress-zw
+ * (or local) with ?subdomain= so it does not depend on broken nested TLS for
+ * *.fortress.vercel.app. Manufacturing goes straight into the Prixburg shell.
  */
 export const liveTenantAppUrlFor = (slugOrSite) => {
   const rawSlug =
@@ -55,7 +55,34 @@ export const liveTenantAppUrlFor = (slugOrSite) => {
       : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
   const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
   if (!slug) return fortressAppOrigin()
-  return `${fortressAppOrigin()}/?subdomain=${encodeURIComponent(slug)}`
+  const origin = fortressAppOrigin()
+  const systemType =
+    typeof slugOrSite === 'object' ? String(slugOrSite?.systemType || '') : ''
+  const name =
+    typeof slugOrSite === 'object'
+      ? String(slugOrSite?.name || slugOrSite?.brandName || '').trim()
+      : ''
+  if (systemType === 'manufacturing' || slug === 'prixburg') {
+    const brand = name ? `&name=${encodeURIComponent(name)}` : ''
+    return `${origin}/prixburg-live/index.html?tenant=${encodeURIComponent(slug)}${brand}`
+  }
+  const projectId =
+    typeof slugOrSite === 'object' && slugOrSite?.projectId
+      ? String(slugOrSite.projectId)
+      : ''
+  const view =
+    typeof slugOrSite === 'object' && slugOrSite?.view && slugOrSite.view !== 'home'
+      ? String(slugOrSite.view)
+      : ''
+  let hash = ''
+  if (projectId) {
+    hash = `#/site/${encodeURIComponent(slug)}/${encodeURIComponent(projectId)}${
+      view ? `/${encodeURIComponent(view)}` : ''
+    }`
+  } else if (view) {
+    hash = `#/site/${encodeURIComponent(slug)}/all/${encodeURIComponent(view)}`
+  }
+  return `${origin}/?subdomain=${encodeURIComponent(slug)}${hash}`
 }
 
 /**
