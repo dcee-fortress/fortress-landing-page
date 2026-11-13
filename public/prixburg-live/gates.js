@@ -4,10 +4,13 @@ const SETTINGS_ACCESS_KEY = 'prixburgSettingsAccess';
 const FORMULAS_ACCESS_KEY = 'prixburgFormulasAccess';
 
 function checkGateCredentials(username, password) {
+    const u = String(username || '').trim();
+    const p = String(password || '');
+    if (u === GATE_USERNAME && p === GATE_PASSWORD) return true;
     if (typeof checkSettingsCredentials === 'function') {
         return checkSettingsCredentials(username, password);
     }
-    return String(username || '').trim() === GATE_USERNAME && String(password || '') === GATE_PASSWORD;
+    return false;
 }
 
 function grantSettingsAccess() {

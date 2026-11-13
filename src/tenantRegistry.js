@@ -1,3 +1,4 @@
+import { apiUrl } from './native.js'
 import { cleanSlug } from './fortressMetadata'
 
 const SUPABASE_URL = 'https://pgnqepcbexuinunibjel.supabase.co'
@@ -12,8 +13,24 @@ const headers = (extra = {}) => ({
 })
 
 export const publishTenantKind = (slug, systemType, name = '') => {
-  const key = tenantKey(slug)
+  const normalized = cleanSlug(slug)
+  const key = tenantKey(normalized)
   if (!key || key === 'fortress-tenant:' || !systemType) return Promise.resolve()
+
+  fetch(apiUrl('/api/accounts'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tenantSlug: normalized,
+      tenant: {
+        slug: normalized,
+        systemType,
+        companyName: String(name || normalized).trim(),
+        brandName: String(name || normalized).trim(),
+      },
+    }),
+  }).catch(() => {})
+
   return fetch(`${SUPABASE_URL}/rest/v1/prixburg_data?on_conflict=key`, {
     method: 'POST',
     headers: headers({
@@ -29,8 +46,29 @@ export const publishTenantKind = (slug, systemType, name = '') => {
 }
 
 export const fetchTenantRecord = async (slug) => {
-  const key = tenantKey(slug)
+  const normalized = cleanSlug(slug)
+  const key = tenantKey(normalized)
   if (!key || key === 'fortress-tenant:') return { systemType: '', name: '' }
+
+  try {
+    const localRes = await fetch(
+      `${apiUrl('/api/accounts')}?tenant=${encodeURIComponent(normalized)}`,
+      { headers: { Accept: 'application/json' } },
+    )
+    if (localRes.ok) {
+      const payload = await localRes.json().catch(() => ({}))
+      const tenant = payload?.tenant
+      if (tenant?.systemType) {
+        return {
+          systemType: tenant.systemType,
+          name: String(tenant.companyName || tenant.brandName || '').trim(),
+        }
+      }
+    }
+  } catch {
+    /* fall through to supabase */
+  }
+
   try {
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/prixburg_data?key=eq.${encodeURIComponent(key)}&select=value`,

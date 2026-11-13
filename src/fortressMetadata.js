@@ -1,4 +1,4 @@
-import { storage } from './storage'
+import { storage } from './storage.js'
 
 export const FORTRESS_SUBDOMAIN_ROOT = 'fortress.vercel.app'
 export const CEO_METADATA_STORAGE_KEY = 'fortress-ceo-metadata-v4'
@@ -655,13 +655,18 @@ export const deleteSiteCeoMetadata = (slugOrSite) => {
   saveAllCeoMetadata(all)
 }
 
-export const saveAllCeoMetadata = (map) => {
+export const saveAllCeoMetadata = (map, { skipRemoteSync = false } = {}) => {
   if (typeof window === 'undefined') return
   try {
     storage.setItem(CEO_METADATA_STORAGE_KEY, JSON.stringify(map))
     window.dispatchEvent(new Event('fortress-ceo-metadata-change'))
   } catch {
     /* ignore quota */
+  }
+  if (!skipRemoteSync) {
+    import('./accountsSync.js')
+      .then(({ syncAccountsAndTenantsToServer }) => syncAccountsAndTenantsToServer([], map))
+      .catch(() => {})
   }
 }
 

@@ -238,7 +238,26 @@ function dbSet(key, value) {
     return prixburgWriteQueue;
 }
 
+var supabasePaused = false;
+
 function dbUpsert(key, value) {
+    var tenant = window.PRIXBURG_TENANT || 'prixburg';
+    var localServerSave = fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'save-prixburg-db',
+            tenant: tenant,
+            data: (function () {
+                var d = {};
+                d[key] = value;
+                return d;
+            })()
+        })
+    }).catch(function () {});
+
+    if (supabasePaused) return localServerSave;
+
     return dbFetch(dbUrl('/rest/v1/prixburg_data?on_conflict=key'), {
         method: 'POST',
         headers: dbHeaders({
@@ -250,12 +269,12 @@ function dbUpsert(key, value) {
             value: value,
             updated_at: new Date().toISOString()
         })
-    }, 12000).then(function (res) {
-        if (!res.ok) {
-            return res.text().then(function (text) {
-                throw new Error(text || ('Supabase HTTP ' + res.status));
-            });
-        }
+    }, 600).then(function (res) {
+        if (!res.ok) return localServerSave;
+        return res;
+    }).catch(function (err) {
+        if (dbIsNetworkError(err)) supabasePaused = true;
+        return localServerSave;
     });
 }
 
@@ -302,54 +321,40 @@ function initPrixburgDb() {
             }
         });
     }
-    return dbFetch(dbUrl('/rest/v1/prixburg_data?select=key,value,updated_at'), {
-        headers: dbHeaders()
-    }, 8000).then(function (res) {
-        if (res.status === 404) {
-            throw new Error('Create table public.prixburg_data in the Supabase SQL editor. Run supabase/schema.sql.');
-        }
-        if (!res.ok) {
-            return res.text().then(function (text) {
-                throw new Error(text || ('Supabase HTTP ' + res.status));
-            });
-        }
+    var tenant = window.PRIXBURG_TENANT || 'prixburg';
+    return fetch('/api/accounts?tenant=' + encodeURIComponent(tenant), {
+        headers: { Accept: 'application/json' }
+    }).then(function (res) {
+        if (!res.ok) throw new Error('local-api-unavailable');
         return res.json();
-    }).then(function (rows) {
-        const remoteMap = {};
-        const remotePrefix = (window.PRIXBURG_TENANT && window.PRIXBURG_TENANT !== 'prixburg')
-            ? 'tenant:' + window.PRIXBURG_TENANT + ':'
-            : '';
-        (rows || []).forEach(function (row) {
-            if (!row || !row.key) return;
-            var logical = row.key;
-            if (remotePrefix) {
-                if (String(row.key).indexOf(remotePrefix) !== 0) return;
-                logical = String(row.key).slice(remotePrefix.length);
-            } else if (String(row.key).indexOf('tenant:') === 0) {
-                return;
-            }
-            if (PRIXBURG_DB_KEYS.indexOf(logical) !== -1) remoteMap[logical] = row;
-        });
+    }).then(function (payload) {
+        var t = payload && payload.tenant;
+        var serverDb = (t && t.prixburgDb) || {};
+        if (!serverDb.rawMaterialsData && t && Array.isArray(t.rawMaterials) && t.rawMaterials.length) {
+            serverDb.rawMaterialsData = t.rawMaterials;
+        }
+        if (!serverDb.prixburgDetergentFormulas && t && Array.isArray(t.detergentFormulas) && t.detergentFormulas.length) {
+            serverDb.prixburgDetergentFormulas = t.detergentFormulas;
+        }
+        if (!serverDb.prixburgPricing && t && Array.isArray(t.pricing) && t.pricing.length) {
+            serverDb.prixburgPricing = t.pricing;
+        }
+        if (!serverDb.prixburgStockMovements && t && Array.isArray(t.stockMovements) && t.stockMovements.length) {
+            serverDb.prixburgStockMovements = t.stockMovements;
+        }
         PRIXBURG_DB_KEYS.forEach(function (key) {
             if ((prixburgWriteGen[key] || 0) > gensAtStart[key]) return;
-            const remoteRow = remoteMap[key];
-            const localValue = prixburgCache[key];
-            if (remoteRow) {
-                const remoteAt = remoteRow.updated_at ? Date.parse(remoteRow.updated_at) : 0;
-                const merged = dbMergeKey(key, remoteRow.value, localValue, remoteRow.updated_at);
+            var remoteVal = serverDb[key];
+            var localValue = prixburgCache[key];
+            if (remoteVal !== undefined) {
+                var merged = dbMergeKey(key, remoteVal, localValue, t && t.updatedAt ? new Date(t.updatedAt).toISOString() : '');
                 prixburgCache[key] = merged;
-                if (!dbIsEmptyValue(key, localValue) && dbLocalAt(key) > remoteAt) {
-                    dbSet(key, merged);
-                } else {
-                    dbWriteLocal(key, merged, remoteAt || Date.now());
-                }
+                dbWriteLocal(key, merged, Date.now());
             } else if (!dbIsEmptyValue(key, localValue)) {
                 dbSet(key, localValue);
             }
         });
-    }).catch(function (err) {
-        console.error('Supabase init failed', err);
-        if (!dbIsNetworkError(err)) dbShowError(err.message || String(err));
+    }).catch(function () {
         PRIXBURG_DB_KEYS.forEach(function (key) {
             if ((prixburgWriteGen[key] || 0) > gensAtStart[key]) return;
             const localValue = dbReadLocal(key, null);
@@ -378,7 +383,7 @@ function waitForDbReady(ms) {
     const ready = window.dbReady || Promise.resolve();
     return Promise.race([
         Promise.resolve(ready).catch(function () {}),
-        new Promise(function (resolve) { setTimeout(resolve, ms == null ? 2500 : ms); })
+        new Promise(function (resolve) { setTimeout(resolve, ms == null ? 600 : ms); })
     ]);
 }
 

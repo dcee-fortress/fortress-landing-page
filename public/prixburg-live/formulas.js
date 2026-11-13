@@ -145,7 +145,7 @@ function addIngredient() {
     renderFormulaDetail();
 }
 
-function deleteIngredient(ingredientId) {
+function deleteIngredientNow(ingredientId) {
     const id = getFormulaIdFromUrl();
     const files = loadFormulas();
     const file = files.find((item) => item.id === id);
@@ -154,6 +154,16 @@ function deleteIngredient(ingredientId) {
     file.ingredients = (file.ingredients || []).filter((row) => row.id !== ingredientId);
     saveFormulas(files);
     renderFormulaDetail();
+}
+
+function deleteIngredient(ingredientId) {
+    if (typeof protectDeleteFile === 'function') {
+        protectDeleteFile(function () {
+            deleteIngredientNow(ingredientId);
+        });
+        return;
+    }
+    deleteIngredientNow(ingredientId);
 }
 
 function updateIngredient(ingredientId, field, value) {
