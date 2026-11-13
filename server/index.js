@@ -10,6 +10,7 @@ import { handleVisionExtract } from './visionHandler.js'
 import { handleFabBrain } from './fabBrain.js'
 import { handleLiveFeedGet, handleLiveFeedPublish } from './liveFeed.js'
 import { handleDeviceOpen } from './deviceSessions.js'
+import { handleAccountsRequest } from './accountsStore.js'
 
 const app = express()
 const port = Number(process.env.VISION_PORT || process.env.PORT || 8787)
@@ -46,6 +47,10 @@ app.post('/api/live/publish', (req, res) => {
 
 app.post('/api/devices/open', (req, res) => {
   handleDeviceOpen(req, res)
+})
+
+app.all('/api/accounts', (req, res) => {
+  handleAccountsRequest(req, res)
 })
 
 app.post('/api/vision-extract', (req, res) => {
