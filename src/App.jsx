@@ -3,8 +3,13 @@ import './App.css'
 import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
 import { hydrateFromDurable, storage } from './storage'
 import {
+  fetchAccountFromCloud,
+  loginAccountFromCloud,
   mergeAccountsLocalFirst,
+  persistAccountToCloud,
   removeAccountFromCloud,
+  restoreAccountBySlugFromCloud,
+  restoreCloudAccount,
   syncAccountsToCloud,
 } from './accountCloud'
 import {
@@ -5922,6 +5927,19 @@ function App() {
   const hostSlug = detectActiveSubdomain()
 
   useEffect(() => {
+    if (!hostSlug || hostSlug === 'rodcroft' || hostSlug === 'prixburg') return undefined
+    let cancelled = false
+    // Pull the owning account from Fortress DB so a wiped browser still has the live subdomain.
+    restoreAccountBySlugFromCloud(hostSlug).then((remote) => {
+      if (cancelled || !remote?.email) return
+      setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hostSlug])
+
+  useEffect(() => {
     if (!hostSlug || hostSlug === 'rodcroft') return undefined
     let cancelled = false
     const openManufacturing = () => {
@@ -6513,7 +6531,7 @@ function App() {
     pushPath(view && view !== 'home' ? `/settings/${view}` : '/settings')
   }
 
-  const handleCreateAccount = (event) => {
+  const handleCreateAccount = async (event) => {
     event.preventDefault()
     const email = authForm.email.trim()
     const password = authForm.password
@@ -6527,8 +6545,28 @@ function App() {
       return
     }
 
+    setBusyLabel('Checking Fortress database…')
+    const remoteAny = await fetchAccountFromCloud(email)
+    setBusyLabel('')
+    if (remoteAny?.email) {
+      if (String(remoteAny.password || '') === password) {
+        const restored = {
+          id: remoteAny.id,
+          email: remoteAny.email,
+          password: remoteAny.password,
+          websites: remoteAny.websites || [],
+        }
+        setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, restored)))
+        finishLogin(restored)
+        return
+      }
+      setAuthError('An account with that email already exists. Use Login.')
+      return
+    }
+
     const nextAccount = makeAccount(email, password, '', { withWebsite: false })
     setAccounts((previous) => [...previous, nextAccount])
+    void persistAccountToCloud(nextAccount)
     setSignedInId(nextAccount.id)
     setActiveProfileId(nextAccount.websites[0]?.id || '')
     setPendingSignup(null)
@@ -6572,7 +6610,7 @@ function App() {
     pushPath('/home')
   }
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
     const email = authForm.email.trim()
     const password = authForm.password
@@ -6580,12 +6618,26 @@ function App() {
       setAuthError('Enter your email and password.')
       return
     }
-    const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
-    if (!existing || existing.password !== password) {
+    const localMatch = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
+    if (localMatch && localMatch.password === password) {
+      finishLogin(localMatch)
+      // Refresh subdomains from Fortress DB in case this device was behind.
+      loginAccountFromCloud(email, password).then((remote) => {
+        if (!remote?.websites?.length) return
+        setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+      })
+      return
+    }
+    setAuthError('')
+    setBusyLabel('Restoring account…')
+    const remote = await loginAccountFromCloud(email, password)
+    setBusyLabel('')
+    if (!remote) {
       setAuthError('That email or password does not match an account.')
       return
     }
-    finishLogin(existing)
+    setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+    finishLogin(remote)
   }
 
   const approvePayment = (event) => {
@@ -6782,16 +6834,22 @@ function App() {
       ceo: ceoName,
     })
 
+    let cloudAccount = null
     if (pendingSignup) {
       const nextAccount = {
         ...makeAccount(pendingSignup.email, pendingSignup.password, '', { withWebsite: false }),
         websites: [site],
       }
+      cloudAccount = nextAccount
       setAccounts((previous) => [...previous, nextAccount])
       setSignedInId(nextAccount.id)
       setActiveProfileId(site.id)
       setPendingSignup(null)
     } else if (signedInAccount) {
+      cloudAccount = {
+        ...signedInAccount,
+        websites: [...(signedInAccount.websites || []), site],
+      }
       setAccounts((previous) =>
         previous.map((account) =>
           account.id === signedInAccount.id ? { ...account, websites: [...account.websites, site] } : account,
@@ -6799,6 +6857,9 @@ function App() {
       )
       setActiveProfileId(site.id)
     }
+
+    // Fortress database keeps this subdomain account even after cache clear / other devices.
+    if (cloudAccount) void persistAccountToCloud(cloudAccount)
 
     setWebsiteName('')
     setWebsiteDomain('')
