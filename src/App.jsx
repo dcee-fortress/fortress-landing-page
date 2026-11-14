@@ -102,6 +102,15 @@ const COMPANY_LOGINS = [
     password: 'Fieldnote2026',
     catalogId: 'fieldnote',
   },
+  {
+    accountId: 'account-ancel',
+    siteId: 'site-ancel',
+    email: 'ancel@fortress.com',
+    password: 'Ancel2026',
+    catalogId: 'ancel',
+    fabPlan: 'month',
+    paidUntil: Date.UTC(2027, 10, 13),
+  },
 ]
 
 const COMPANY_LIVE_SITES = {
@@ -574,6 +583,20 @@ const catalog = [
         testimonial: 'Ndinoona the deck progress from the phone. — Kudzi Ndlovu, CEO',
       },
     ],
+  },
+  {
+    id: 'ancel',
+    name: 'Ancel',
+    category: 'Fabrication',
+    systemType: 'fabrication',
+    shelf: 'Best selling',
+    rating: 4.9,
+    hue: '#3f3f46',
+    showOnGrid: false,
+    location: 'Zimbabwe',
+    ceo: '',
+    about: 'Ancel is a fabrication workshop. The website uses the Zantac fabrication calculator.',
+    slides: [],
   },
 ]
 
@@ -1240,7 +1263,7 @@ const makeWebsite = ({
 
 const makeAccount = (email, password, companyName, { withWebsite = true, id = '' } = {}) => ({
   id: id || makeId('account'),
-  email,
+  email: String(email || '').trim().toLowerCase(),
   password,
   websites: withWebsite ? [makeWebsite({ name: companyName || 'My company', type: 'Business' })] : [],
 })
@@ -1262,6 +1285,9 @@ const websiteFromCatalog = (entry, login) => {
     gallery: slides.map((slide) => slide.photo || slide.video).filter(Boolean),
     photoCaptions: slides.map((slide) => slide.testimonial || ''),
     catalogId: entry.id,
+    fabPlan: login.fabPlan || '',
+    paidUntil: Number(login.paidUntil) || 0,
+    trialEndsAt: 0,
     ceo: entry.ceo || '',
     ceoTestimonial: '',
     seedMediaVersion: CATALOG_MEDIA_SEED,
@@ -1418,6 +1444,8 @@ const withCompanyAccounts = (list) => {
           photoCaptions:
             refreshMedia || !site.photoCaptions?.length ? seededSite.photoCaptions : site.photoCaptions,
           seedMediaVersion: CATALOG_MEDIA_SEED,
+          fabPlan: site.fabPlan || login.fabPlan || '',
+          paidUntil: Number(site.paidUntil) || Number(login.paidUntil) || 0,
         }
       })
     }
@@ -6595,14 +6623,14 @@ function App() {
 
   const handleCreateAccount = async (event) => {
     event.preventDefault()
-    const email = authForm.email.trim()
+    const email = authForm.email.trim().toLowerCase()
     const password = authForm.password
 
     if (!email || !password.trim()) {
       setAuthError('Enter your email and password.')
       return
     }
-    if (accounts.some((account) => account.email.toLowerCase() === email.toLowerCase())) {
+    if (accounts.some((account) => account.email.toLowerCase() === email)) {
       setAuthError('An account with that email already exists. Use Login.')
       return
     }
@@ -6627,8 +6655,14 @@ function App() {
     }
 
     const nextAccount = makeAccount(email, password, '', { withWebsite: false })
+    setBusyLabel('Saving account…')
+    const saved = await persistAccountToCloud(nextAccount)
+    setBusyLabel('')
+    if (!saved) {
+      setAuthError('The account could not be saved. Stay online and try again so it works on every device.')
+      return
+    }
     setAccounts((previous) => [...previous, nextAccount])
-    void persistAccountToCloud(nextAccount)
     setSignedInId(nextAccount.id)
     setActiveProfileId(nextAccount.websites[0]?.id || '')
     setPendingSignup(null)
@@ -6674,13 +6708,13 @@ function App() {
 
   const handleLogin = async (event) => {
     event.preventDefault()
-    const email = authForm.email.trim()
+    const email = authForm.email.trim().toLowerCase()
     const password = authForm.password
     if (!email || !password.trim()) {
       setAuthError('Enter your email and password.')
       return
     }
-    const localMatch = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
+    const localMatch = accounts.find((account) => account.email.toLowerCase() === email)
     if (localMatch && localMatch.password === password) {
       finishLogin(localMatch)
       // Refresh subdomains from Fortress DB in case this device was behind.

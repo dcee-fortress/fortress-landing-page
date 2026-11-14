@@ -12,6 +12,7 @@ const ACCOUNT_INDEX_KEY = 'fortress-account-index'
 
 const headers = (extra = {}) => ({
   apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
   Accept: 'application/json',
   ...extra,
 })
@@ -106,12 +107,6 @@ const fetchRow = async (key) => {
   }
 }
 
-const isLiveAccount = (account) =>
-  Boolean(
-    account?.email &&
-      (account.websites || []).some((site) => cleanSlug(site?.slug || site?.catalogId || site?.name || '')),
-  )
-
 /** Write one account + every subdomain ownership row into the Fortress database. */
 export const persistAccountToCloud = async (account) => {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
@@ -135,7 +130,7 @@ export const persistAccountToCloud = async (account) => {
     ),
   )
 
-  if (isLiveAccount(payload)) {
+  if (payload.email && payload.password) {
     const index = (await fetchRow(ACCOUNT_INDEX_KEY)) || { emails: [] }
     const emails = Array.isArray(index.emails) ? index.emails.map((e) => String(e).toLowerCase()) : []
     if (!emails.includes(payload.email)) {
@@ -155,14 +150,13 @@ export const syncAccountsToCloud = (accounts) => {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return
   const payload = (Array.isArray(accounts) ? accounts : [])
     .map(slimAccount)
-    .filter((account) => account && isLiveAccount(account))
+    .filter((account) => account?.email && account?.password)
   const json = JSON.stringify(payload)
   if (json === lastSyncedJson) return
   if (syncTimer) window.clearTimeout(syncTimer)
   syncTimer = window.setTimeout(() => {
-    lastSyncedJson = json
-    payload.forEach((account) => {
-      void persistAccountToCloud(account)
+    Promise.all(payload.map((account) => persistAccountToCloud(account))).then((results) => {
+      if (results.every(Boolean)) lastSyncedJson = json
     })
   }, 350)
 }
