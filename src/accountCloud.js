@@ -1,21 +1,26 @@
 /**
- * Fortress account database (Supabase prixburg_data).
- * Local UI first, then durable cloud copy so subdomain accounts survive
- * cache clears, logout, and other devices.
+ * Fortress account database.
+ * The browser keeps a local copy for speed. The same-origin account API
+ * writes Postgres so the email and password work on any device.
  */
 
 import { cleanSlug } from './fortressMetadata'
 
-const SUPABASE_URL = 'https://pojvxqjjoupwjchncbro.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_ysojUq8s_bI2AY-CN8jrlw_Jl7GWsZQ'
 const ACCOUNT_INDEX_KEY = 'fortress-account-index'
 
-const headers = (extra = {}) => ({
-  apikey: SUPABASE_KEY,
-  Authorization: `Bearer ${SUPABASE_KEY}`,
-  Accept: 'application/json',
-  ...extra,
-})
+const postApi = async (body) => {
+  try {
+    const response = await fetch('/api/fortress-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await response.json().catch(() => null)
+    return { ok: response.ok, data }
+  } catch {
+    return { ok: false, data: null }
+  }
+}
 
 const accountCloudKey = (email) => `fortress-account:${String(email || '').trim().toLowerCase()}`
 const slugOwnerKey = (slug) => `fortress-slug-owner:${cleanSlug(slug)}`
@@ -63,48 +68,22 @@ const slimAccount = (account) => {
 }
 
 const upsertRow = async (key, value) => {
-  try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/prixburg_data?on_conflict=key`, {
-      method: 'POST',
-      headers: headers({
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates,return=minimal',
-      }),
-      body: JSON.stringify({
-        key,
-        value,
-        updated_at: new Date().toISOString(),
-      }),
-    })
-    return response.ok
-  } catch {
-    return false
+  if (String(key).startsWith('fortress-account:')) {
+    const result = await postApi({ op: 'save', account: value })
+    return Boolean(result.ok && result.data?.ok)
   }
+  const result = await postApi({ op: 'put', key, value })
+  return Boolean(result.ok && result.data?.ok)
 }
 
 const deleteRow = async (key) => {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/prixburg_data?key=eq.${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-      headers: headers({ Prefer: 'return=minimal' }),
-    })
-  } catch {
-    /* ignore */
-  }
+  await postApi({ op: 'delete', key })
 }
 
 const fetchRow = async (key) => {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/prixburg_data?key=eq.${encodeURIComponent(key)}&select=value`,
-      { headers: headers() },
-    )
-    if (!response.ok) return null
-    const rows = await response.json()
-    return rows?.[0]?.value ?? null
-  } catch {
-    return null
-  }
+  const result = await postApi({ op: 'get', key })
+  if (!result.ok) return null
+  return result.data?.value ?? null
 }
 
 /** Write one account + every subdomain ownership row into the Fortress database. */
@@ -161,31 +140,18 @@ export const syncAccountsToCloud = (accounts) => {
   }, 350)
 }
 
-export const removeAccountFromCloud = async (email) => {
+export const removeAccountFromCloud = async (email, password) => {
   const key = accountCloudKey(email)
   if (!email || key === 'fortress-account:') return
-  const remote = await fetchAccountFromCloud(email)
-  await deleteRow(key)
-  if (remote?.websites?.length) {
-    await Promise.all(
-      remote.websites.map((site) => {
-        const slug = cleanSlug(site?.slug || '')
-        return slug ? deleteRow(slugOwnerKey(slug)) : Promise.resolve()
-      }),
-    )
-  }
-  const index = (await fetchRow(ACCOUNT_INDEX_KEY)) || { emails: [] }
-  const emails = (Array.isArray(index.emails) ? index.emails : []).filter(
-    (item) => String(item).toLowerCase() !== String(email).trim().toLowerCase(),
-  )
-  await upsertRow(ACCOUNT_INDEX_KEY, { emails, updatedAt: Date.now() })
+  await postApi({ op: 'remove', email, password })
 }
 
 export const fetchAccountFromCloud = async (email) => {
   const key = accountCloudKey(email)
   if (!email || key === 'fortress-account:') return null
-  const value = await fetchRow(key)
-  return value?.email ? value : null
+  const result = await postApi({ op: 'exists', email })
+  if (!result.ok || !result.data?.exists) return null
+  return { email: String(email).trim().toLowerCase() }
 }
 
 export const fetchSlugOwnerFromCloud = async (slug) => {
@@ -198,9 +164,9 @@ export const fetchSlugOwnerFromCloud = async (slug) => {
 
 /** Login against Fortress database when this device has no local copy (cache cleared / new phone). */
 export const loginAccountFromCloud = async (email, password) => {
-  const remote = await fetchAccountFromCloud(email)
+  const result = await postApi({ op: 'login', email, password })
+  const remote = result.data?.account
   if (!remote?.email) return null
-  if (String(remote.password || '') !== String(password || '')) return null
   return {
     id: remote.id || `account-${String(remote.email).replace(/[^a-z0-9]+/g, '-')}`,
     email: String(remote.email).toLowerCase(),
@@ -211,9 +177,14 @@ export const loginAccountFromCloud = async (email, password) => {
 
 /** Restore full account that owns a subdomain (e.g. rabgraph). */
 export const restoreAccountBySlugFromCloud = async (slug) => {
-  const owner = await fetchSlugOwnerFromCloud(slug)
-  if (!owner?.email) return null
-  return fetchAccountFromCloud(owner.email)
+  const result = await postApi({ op: 'sites', slug })
+  const remote = result.data?.account
+  if (!remote?.email) return null
+  return {
+    id: remote.id,
+    email: String(remote.email).toLowerCase(),
+    websites: (remote.websites || []).map(slimWebsite).filter(Boolean),
+  }
 }
 
 /** Merge remote accounts under local-first rules; fill gaps from cloud. */
@@ -283,14 +254,15 @@ export const mergeAccountsLocalFirst = (localList, remoteList) => {
 export const restoreCloudAccount = (localList, remoteAccount) => {
   if (!remoteAccount?.email) return Array.isArray(localList) ? localList : []
   const email = String(remoteAccount.email).toLowerCase()
+  const local = Array.isArray(localList) ? localList : []
+  const previous = local.find((account) => String(account?.email || '').toLowerCase() === email)
   const restored = {
-    id: remoteAccount.id || `account-${email.replace(/[^a-z0-9]+/g, '-')}`,
+    id: remoteAccount.id || previous?.id || `account-${email.replace(/[^a-z0-9]+/g, '-')}`,
     email,
-    password: remoteAccount.password || '',
+    password: remoteAccount.password || previous?.password || '',
     websites: (remoteAccount.websites || []).map(slimWebsite).filter(Boolean),
   }
-  const local = Array.isArray(localList) ? localList.filter((a) => String(a?.email || '').toLowerCase() !== email) : []
-  return [...local, restored]
+  return [...local.filter((account) => String(account?.email || '').toLowerCase() !== email), restored]
 }
 
 export const pullAccountsFromCloud = async (emails = []) => {

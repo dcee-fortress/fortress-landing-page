@@ -7004,7 +7004,7 @@ function App() {
     const removedId = signedInAccount.id
     const removedEmail = signedInAccount.email
     setAccounts((previous) => previous.filter((account) => account.id !== removedId))
-    removeAccountFromCloud(removedEmail)
+    removeAccountFromCloud(removedEmail, signedInAccount.password)
     setSignedInId('')
     setActiveProfileId('')
     goSettingsView('manage')
