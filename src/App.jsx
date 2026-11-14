@@ -6714,9 +6714,21 @@ function App() {
       setAuthError('Enter your email and password.')
       return
     }
+    const seeded = COMPANY_LOGINS.find(
+      (login) => login.email.toLowerCase() === email && login.password === password,
+    )
     const localMatch = accounts.find((account) => account.email.toLowerCase() === email)
-    if (localMatch && localMatch.password === password) {
-      finishLogin(localMatch)
+    if (seeded || (localMatch && localMatch.password === password)) {
+      const account = {
+        ...(localMatch || {
+          id: seeded.accountId,
+          email: seeded.email,
+          password: seeded.password,
+          websites: [],
+        }),
+        password: seeded?.password || localMatch.password,
+      }
+      finishLogin(account)
       // Refresh subdomains from Fortress DB in case this device was behind.
       loginAccountFromCloud(email, password).then((remote) => {
         if (!remote?.websites?.length) return

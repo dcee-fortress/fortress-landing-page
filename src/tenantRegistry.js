@@ -1,7 +1,7 @@
 import { cleanSlug } from './fortressMetadata'
 import { storage } from './storage'
 
-const SUPABASE_URL = 'https://pgnqepcbexuinunibjel.supabase.co'
+const SUPABASE_URL = 'https://pojvxqjjoupwjchncbro.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_ysojUq8s_bI2AY-CN8jrlw_Jl7GWsZQ'
 
 const tenantKey = (slug) => `fortress-tenant:${cleanSlug(slug)}`

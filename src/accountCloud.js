@@ -6,7 +6,7 @@
 
 import { cleanSlug } from './fortressMetadata'
 
-const SUPABASE_URL = 'https://pgnqepcbexuinunibjel.supabase.co'
+const SUPABASE_URL = 'https://pojvxqjjoupwjchncbro.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_ysojUq8s_bI2AY-CN8jrlw_Jl7GWsZQ'
 const ACCOUNT_INDEX_KEY = 'fortress-account-index'
 
