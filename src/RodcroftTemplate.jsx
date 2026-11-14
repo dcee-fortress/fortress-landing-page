@@ -34,6 +34,11 @@ const fileListCopy = (menuView, period) => {
       weekly: ['Workers', 'Weekly worker files from the project start.'],
       monthly: ['Workers', 'Monthly worker files from the project start.'],
     },
+    'site-reports': {
+      daily: ['Daily site report', 'Open a day to see that day’s weather, valuations, materials, equipment, fuel, and incidents on one page.'],
+      weekly: ['Weekly site report', 'Weekly files roll the same entries across the 7-day project week.'],
+      monthly: ['Monthly site report', 'Monthly files roll the same entries across the project month.'],
+    },
   }
   const area = areas[menuView]?.[period] || [`${periodWord} files`, 'Files are created from the project start.']
   const materialPlaceholder =
@@ -209,6 +214,227 @@ const numFmt = (value) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })
+
+const rowDate = (row) => {
+  const date = String(row?.date || '')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  const fileId = String(row?.fileId || '')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fileId)) return fileId
+  return ''
+}
+
+const rowInSiteFile = (row, file) => {
+  const date = rowDate(row)
+  if (!date) return Boolean(file?.isToday || file?.inProgress)
+  return entryBelongsToFile({ ...row, date }, file)
+}
+
+const WEATHER_LABELS = {
+  0: 'Sunny',
+  1: 'Mostly sunny',
+  2: 'Partly cloudy',
+  3: 'Cloudy',
+  45: 'Foggy',
+  48: 'Foggy',
+  51: 'Drizzle',
+  61: 'Rainy',
+  80: 'Showers',
+  95: 'Stormy',
+}
+
+function weatherLabel(code) {
+  const value = Number(code)
+  if (WEATHER_LABELS[value]) return WEATHER_LABELS[value]
+  if (value >= 51 && value <= 57) return 'Drizzle'
+  if (value >= 61 && value <= 67) return 'Rainy'
+  if (value >= 80 && value <= 82) return 'Showers'
+  if (value >= 95) return 'Stormy'
+  return 'Cloudy'
+}
+
+function SiteWeather() {
+  const [weather, setWeather] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=-17.8252&longitude=31.0335&current=temperature_2m,weather_code,wind_speed_10m,precipitation&timezone=Africa%2FHarare',
+    )
+      .then((response) => {
+        if (!response.ok) throw new Error('Weather is unavailable.')
+        return response.json()
+      })
+      .then((data) => {
+        if (!cancelled) setWeather(data?.current || null)
+      })
+      .catch(() => {
+        if (!cancelled) setError('Current weather is unavailable.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <section className="rc-report-card" style={{ marginBottom: 16 }}>
+      <div className="rc-report-banner">
+        <p className="rc-eyebrow">Weather</p>
+        <h2>{error ? 'Weather' : weather ? weatherLabel(weather.weather_code) : 'Loading current weather'}</h2>
+        <p className="rc-sub">
+          {error
+            ? error
+            : weather
+              ? `${Number(weather.temperature_2m).toFixed(1)}°C · wind ${Number(weather.wind_speed_10m).toFixed(0)} km/h · Chadcombe, Harare`
+              : 'Reading the current conditions for Chadcombe.'}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function SiteReportSheet({ project, file }) {
+  const valuations = (project?.valuations || []).filter((row) => rowInSiteFile(row, file))
+  const materials = (project?.materialAnalysis || []).filter((row) => rowInSiteFile(row, file))
+  const equipment = (project?.workers || []).filter(
+    (row) => (row.register === 'operators' || row.plant) && rowInSiteFile(row, file),
+  )
+  const fuel = (project?.fuel?.entries || []).filter((row) => rowInSiteFile(row, file))
+  const incidents = (project?.sheqReports || []).filter((row) => rowInSiteFile(row, file))
+  const grouped = groupValuationRows(valuations)
+  const isDaily = /^\d{4}-\d{2}-\d{2}$/.test(file?.id || '') && !String(file?.label || '').startsWith('Week ')
+
+  return (
+    <div>
+      {isDaily ? <SiteWeather /> : null}
+      <article className="rc-report-card">
+        <div className="rc-report-banner">
+          <p className="rc-eyebrow">{project?.name} · Site report</p>
+          <h2>{file?.label}</h2>
+          <p className="rc-sub">Valuations, materials, equipment, fuel, and incidents for this period.</p>
+        </div>
+        <div className="rc-report-body">
+          <h3>Valuations</h3>
+          <ValuationRollupTable rows={grouped.length ? valuations : []} emptyNote="No valuations entry for this period." />
+
+          <h3 style={{ marginTop: 28 }}>Materials on site</h3>
+          {materials.length === 0 ? (
+            <p className="rc-sub">No materials on site for this period.</p>
+          ) : (
+            <div className="tpl-table-wrap">
+              <table className="rc-ev-table">
+                <thead>
+                  <tr>
+                    <th>Description of good</th>
+                    <th className="text-right">Goods on site</th>
+                    <th className="text-right">Goods used on site</th>
+                    <th>Location used</th>
+                    <th className="text-right">Goods left on site</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materials.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.description}</td>
+                      <td className="text-right">{numFmt(row.broughtOnSite ?? row.receivedQuantity)} {row.unit || ''}</td>
+                      <td className="text-right">{numFmt(row.materialUsed)} {row.unit || ''}</td>
+                      <td>{row.location || '—'}</td>
+                      <td className="text-right">{numFmt(row.onSiteLeft)} {row.unit || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 28 }}>Equipment in use</h3>
+          {equipment.length === 0 ? (
+            <p className="rc-sub">No equipment in use for this period.</p>
+          ) : (
+            <div className="tpl-table-wrap">
+              <table className="rc-ev-table">
+                <thead>
+                  <tr>
+                    <th>Equipment</th>
+                    <th>Operator</th>
+                    <th className="text-right">Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equipment.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.plant || 'Equipment'}</td>
+                      <td>{row.name || '—'}</td>
+                      <td className="text-right">
+                        {row.hours ?? row.hoursOperating ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 28 }}>Fuel allocations</h3>
+          <p className="rc-sub">Fuel consumed entered for this period.</p>
+          {fuel.length === 0 ? (
+            <p className="rc-sub">No fuel consumed for this period.</p>
+          ) : (
+            <div className="tpl-table-wrap">
+              <table className="rc-ev-table">
+                <thead>
+                  <tr>
+                    <th>Fuel</th>
+                    <th>Unit</th>
+                    <th className="text-right">Quantity consumed</th>
+                    <th className="text-right">Total cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fuel.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.description || 'Diesel'}</td>
+                      <td>{row.unit || 'L'}</td>
+                      <td className="text-right">{numFmt(row.quantity || row.liters)}</td>
+                      <td className="text-right">{money(row.totalCost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 28 }}>Incidents</h3>
+          <p className="rc-sub">Rolled from the SHEQ incident report.</p>
+          {incidents.length === 0 ? (
+            <p className="rc-sub">No incidents for this period.</p>
+          ) : (
+            <div className="tpl-table-wrap">
+              <table className="rc-ev-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {incidents.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.date || file.label}</td>
+                      <td>{row.type || row.incidentType || 'Incident'}</td>
+                      <td>{row.highlight || row.description || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </article>
+    </div>
+  )
+}
 
 function ChoiceIcon({ name }) {
   if (name === 'hard-hat') {
@@ -625,7 +851,14 @@ export default function RodcroftTemplate({
   }
 
   const openCalendarFile = (file, listView, detailView) => {
-    const nextFile = { id: file.id, label: file.label, listView, detailView }
+    const nextFile = {
+      id: file.id,
+      label: file.label,
+      listView,
+      detailView,
+      isToday: Boolean(file.isToday),
+      inProgress: Boolean(file.inProgress),
+    }
     setEntryFile(nextFile)
     setEntrySlot(null)
     setView(detailView === 'work-valued' && isDailyEntryFile(nextFile) ? 'hourly-dashboards' : detailView)
@@ -1012,7 +1245,7 @@ export default function RodcroftTemplate({
                 </span>
                 <div>
                   <h2>Quantity Survey</h2>
-                  <p>Valuations, QS schedules, plant on site, and rate analysis</p>
+                  <p>Valuations, QS schedules, plant on site, and site reports</p>
                 </div>
               </button>
 
@@ -1122,7 +1355,7 @@ export default function RodcroftTemplate({
               </button>
               <p className="rc-eyebrow">Quantity Survey</p>
               <h1>{currentProject.name}</h1>
-              <p className="rc-sub">Open valuations, QS schedules, plant on site, and rate analysis for this project.</p>
+              <p className="rc-sub">Open valuations, QS schedules, plant on site, and site reports for this project.</p>
             </header>
 
             <div className="rc-choice-grid">
@@ -1147,11 +1380,11 @@ export default function RodcroftTemplate({
                   <p>Register plant operators, record plant hours, and track fuel costs</p>
                 </div>
               </button>
-              <button type="button" className="rc-choice-card" onClick={() => setView('rate-analysis')}>
+              <button type="button" className="rc-choice-card" onClick={() => setView('site-reports')}>
                 <span className="rc-icon-tile"><ChoiceIcon name="chart-bar" /></span>
                 <div>
-                  <h2>Rate Analysis</h2>
-                  <p>Daily, weekly, and monthly plant rates compared against Excel BOQ items</p>
+                  <h2>Site reports</h2>
+                  <p>Daily, weekly, and monthly site reports on one page</p>
                 </div>
               </button>
             </div>
@@ -1187,20 +1420,60 @@ export default function RodcroftTemplate({
           </div>
         )}
 
-        {currentProject && (view === 'plant-on-site' || view === 'rate-analysis') && (
+        {currentProject && view === 'plant-on-site' && (
           <div className="rc-content-shell">
             <header className="rc-section-header">
               <button type="button" className="rc-back-link" onClick={() => setView('qs-engineering')}>
                 ← Back to Quantity Survey
               </button>
-              <p className="rc-eyebrow">{view === 'plant-on-site' ? 'Plant on Site' : 'Rate Analysis'}</p>
+              <p className="rc-eyebrow">Plant on Site</p>
               <h1>{currentProject.name}</h1>
               <p className="rc-sub">
-                {view === 'plant-on-site'
-                  ? 'Register plant operators, record plant hours, and track fuel costs. Files stay empty until you enter them.'
-                  : 'Daily, weekly, and monthly plant rates. This page stays empty until rates are entered.'}
+                Register plant operators, record plant hours, and track fuel costs. Files stay empty until you enter them.
               </p>
             </header>
+          </div>
+        )}
+
+        {currentProject && view === 'site-reports' && (
+          <div className="rc-content-shell">
+            <button type="button" className="rc-back-link" onClick={() => setView('qs-engineering')}>
+              ← Back to Quantity Survey
+            </button>
+            <header className="rc-section-header">
+              <p className="rc-eyebrow">Site reports</p>
+              <h1>{currentProject.name}</h1>
+              <p className="rc-sub">
+                Daily, weekly, and monthly files follow the project calendar. Open a file to see that period on one page.
+              </p>
+            </header>
+            <div className="rc-choice-grid">
+              {[
+                ['daily', 'Daily', 'That day’s weather, valuations, materials, equipment, fuel, and incidents.'],
+                ['weekly', 'Weekly', 'The same site diary rolled across the 7-day project week.'],
+                ['monthly', 'Monthly', 'The same site diary rolled across the project month.'],
+              ].map(([id, label, description]) => (
+                <button key={id} type="button" className="rc-choice-card" onClick={() => setView(`site-reports-${id}`)}>
+                  <div>
+                    <h2>{label}</h2>
+                    <p>{description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentProject && view === 'site-reports-daily' && periodFiles('site-reports', 'daily', 'site-report')}
+        {currentProject && view === 'site-reports-weekly' && periodFiles('site-reports', 'weekly', 'site-report')}
+        {currentProject && view === 'site-reports-monthly' && periodFiles('site-reports', 'monthly', 'site-report')}
+
+        {currentProject && view === 'site-report' && entryFile && (
+          <div className="rc-content-shell">
+            <button type="button" className="rc-back-link" onClick={() => leaveDetail('site-reports')}>
+              ← Back to files
+            </button>
+            <SiteReportSheet project={currentProject} file={entryFile} />
           </div>
         )}
 
