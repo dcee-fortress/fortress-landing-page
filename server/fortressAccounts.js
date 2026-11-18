@@ -37,6 +37,9 @@ const getPool = () => {
       ssl: { rejectUnauthorized: false },
       max: 1,
     })
+    pool.on('error', () => {
+      ready = false
+    })
   }
   return pool
 }

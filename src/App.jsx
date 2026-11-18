@@ -908,6 +908,23 @@ const siteIsLocked = (site) => {
   return billing === 'paused' || billing === 'watermark'
 }
 
+const systemKindLabel = (systemId) =>
+  systemId === 'fabrication'
+    ? 'fabrication'
+    : systemId === 'construction'
+      ? 'construction'
+      : systemId === 'manufacturing'
+        ? 'manufacturing'
+        : 'this system'
+
+/** One trial or purchase per system. A later buy only reopens that same website. */
+const accountOwnsSystem = (account, systemId) =>
+  CEO_SYSTEM_IDS.includes(systemId) &&
+  (account?.websites || []).some((site) => site?.systemType === systemId)
+
+const systemAlreadyHeldMessage = (systemId) =>
+  `This account already has a ${systemKindLabel(systemId)} website. It cannot start another ${systemKindLabel(systemId)} trial or buy a second ${systemKindLabel(systemId)} system.`
+
 const trialDaysLeft = (site) => {
   const ms = Number(site?.trialEndsAt) - Date.now()
   if (!(ms > 0)) return 0
@@ -6645,7 +6662,10 @@ function App() {
       setAuthError('Enter your email and password.')
       return
     }
-    if (accounts.some((account) => account.email.toLowerCase() === email)) {
+    if (
+      accounts.some((account) => account.email.toLowerCase() === email) ||
+      COMPANY_LOGINS.some((login) => login.email.toLowerCase() === email)
+    ) {
       setAuthError('An account with that email already exists. Use Login.')
       return
     }
@@ -6654,17 +6674,6 @@ function App() {
     const remoteAny = await fetchAccountFromCloud(email)
     setBusyLabel('')
     if (remoteAny?.email) {
-      if (String(remoteAny.password || '') === password) {
-        const restored = {
-          id: remoteAny.id,
-          email: remoteAny.email,
-          password: remoteAny.password,
-          websites: remoteAny.websites || [],
-        }
-        setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, restored)))
-        finishLogin(restored)
-        return
-      }
       setAuthError('An account with that email already exists. Use Login.')
       return
     }
@@ -6893,12 +6902,33 @@ function App() {
     }, 900)
   }
 
-  const createGeneratedWebsite = (event) => {
+  const createGeneratedWebsite = async (event) => {
     event.preventDefault()
     const name = websiteName.trim()
     const type = SYSTEM_TYPES.find((item) => item.id === systemType) || SYSTEM_TYPES[1]
     if (!name || !type) return
     if (!signedInAccount && !pendingSignup) return
+    if (accountOwnsSystem(signedInAccount, type.id)) {
+      setPaymentNote(systemAlreadyHeldMessage(type.id))
+      return
+    }
+    if (pendingSignup) {
+      const signupEmail = pendingSignup.email.trim().toLowerCase()
+      if (
+        accounts.some((account) => account.email.toLowerCase() === signupEmail) ||
+        COMPANY_LOGINS.some((login) => login.email.toLowerCase() === signupEmail)
+      ) {
+        setPaymentNote('An account with that email already exists. Use Login.')
+        return
+      }
+      setBusyLabel('Checking Fortress database…')
+      const remoteSignup = await fetchAccountFromCloud(signupEmail)
+      setBusyLabel('')
+      if (remoteSignup?.email) {
+        setPaymentNote('An account with that email already exists. Use Login.')
+        return
+      }
+    }
 
     const isFabrication = type.id === 'fabrication'
     const trial = tailorMode === 'trial'
@@ -7507,11 +7537,19 @@ function App() {
   }
 
   const continuePreview = () => {
+    if (accountOwnsSystem(signedInAccount, systemType)) {
+      setPaymentNote(systemAlreadyHeldMessage(systemType))
+      return
+    }
     showSubscriptionsSoon()
   }
 
   const startFreeTrial = () => {
     if (!CEO_SYSTEM_IDS.includes(systemType)) return
+    if (accountOwnsSystem(signedInAccount, systemType)) {
+      setPaymentNote(systemAlreadyHeldMessage(systemType))
+      return
+    }
     clearReactivate()
     setTailorMode('trial')
     setPaymentNote('')
@@ -8901,16 +8939,20 @@ function App() {
                   Edit the templates, insert material prices, and the quotation is given. $100 a month with EcoCash.
                 </p>
               ) : null}
-              <div className="preview-pay-actions">
-                <button type="button" className="primary-button" onClick={continuePreview}>
-                  Continue to EcoCash
-                </button>
-                {CEO_SYSTEM_IDS.includes(chosenSystem.id) ? (
-                  <button type="button" className="trial-button trial-button-light" onClick={startFreeTrial}>
-                    14 day free trial
+              {accountOwnsSystem(signedInAccount, chosenSystem.id) ? (
+                <p className="form-error">{systemAlreadyHeldMessage(chosenSystem.id)}</p>
+              ) : (
+                <div className="preview-pay-actions">
+                  <button type="button" className="primary-button" onClick={continuePreview}>
+                    Continue to EcoCash
                   </button>
-                ) : null}
-              </div>
+                  {CEO_SYSTEM_IDS.includes(chosenSystem.id) ? (
+                    <button type="button" className="trial-button trial-button-light" onClick={startFreeTrial}>
+                      14 day free trial
+                    </button>
+                  ) : null}
+                </div>
+              )}
             </section>
           )}
 
@@ -9014,7 +9056,7 @@ function App() {
                 <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
                   Approve payment
                 </button>
-                {!reactivateSiteId && CEO_SYSTEM_IDS.includes(systemType) ? (
+                {!reactivateSiteId && CEO_SYSTEM_IDS.includes(systemType) && !accountOwnsSystem(signedInAccount, systemType) ? (
                   <button type="button" className="trial-button" onClick={startFreeTrial}>
                     14 day free trial
                   </button>
@@ -9089,6 +9131,7 @@ function App() {
                     onChange={(event) => setWebsiteCeo(event.target.value)}
                   />
                 </label>
+                {paymentNote ? <p className="form-error">{paymentNote}</p> : null}
                 <button type="submit" className="primary-button">
                   {tailorMode === 'trial' ? 'Start 14 day trial' : 'Create website'}
                 </button>
