@@ -10,6 +10,7 @@ import { handleVisionExtract } from './visionHandler.js'
 import { handleFabBrain } from './fabBrain.js'
 import { handleLiveFeedGet, handleLiveFeedPublish } from './liveFeed.js'
 import { handleDeviceOpen } from './deviceSessions.js'
+import { handleFortressAccounts } from './fortressAccounts.js'
 
 const app = express()
 const port = Number(process.env.VISION_PORT || process.env.PORT || 8787)
@@ -25,7 +26,7 @@ app.use((req, res, next) => {
   next()
 })
 
-app.use(express.json({ limit: '16mb' }))
+app.use(express.json({ limit: '24mb' }))
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -54,6 +55,10 @@ app.post('/api/vision-extract', (req, res) => {
 
 app.post('/api/fab-brain', (req, res) => {
   handleFabBrain(req, res)
+})
+
+app.post('/api/fortress-accounts', (req, res) => {
+  handleFortressAccounts(req, res)
 })
 
 app.listen(port, () => {

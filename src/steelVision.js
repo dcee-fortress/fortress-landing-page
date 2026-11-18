@@ -575,18 +575,23 @@ const visionExtractUrl = () => {
 }
 
 /** Calls Fortress backend — Gemini API key never leaves the server. Limit: 10 drawings / min. */
-export const extractSteelScheduleWithGemini = async (dataUrl, { corrections = '' } = {}) => {
+export const extractSteelScheduleWithGemini = async (dataUrl, { corrections = '', dataUrls } = {}) => {
   if (!readOnline()) {
     throw new Error(offlineActionMessage(NETWORK_ACTIONS.vision))
   }
-  splitDataUrl(dataUrl) // validate early
+  const urls = (Array.isArray(dataUrls) && dataUrls.length ? dataUrls : [dataUrl]).filter(Boolean)
+  urls.forEach((item) => splitDataUrl(item))
   const url = visionExtractUrl()
   let response
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl, corrections: String(corrections || '').trim() || undefined }),
+      body: JSON.stringify({
+        dataUrl: urls[0],
+        dataUrls: urls,
+        corrections: String(corrections || '').trim() || undefined,
+      }),
     })
   } catch {
     throw new Error(
@@ -804,8 +809,9 @@ export const extractSteelScheduleWithTesseract = async (dataUrl) => {
   }
 }
 
-export const extractSteelSchedule = async (dataUrl, { provider = 'tesseract', corrections = '' } = {}) => {
+export const extractSteelSchedule = async (dataUrl, { provider = 'tesseract', corrections = '', dataUrls } = {}) => {
   const mode = provider === 'openai' ? 'gemini' : provider || 'tesseract'
-  if (mode === 'tesseract') return extractSteelScheduleWithTesseract(dataUrl)
-  return extractSteelScheduleWithGemini(dataUrl, { corrections })
+  const urls = Array.isArray(dataUrls) && dataUrls.length ? dataUrls : [dataUrl]
+  if (mode === 'tesseract') return extractSteelScheduleWithTesseract(urls[0])
+  return extractSteelScheduleWithGemini(urls[0], { corrections, dataUrls: urls })
 }

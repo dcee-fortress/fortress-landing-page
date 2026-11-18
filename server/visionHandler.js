@@ -58,25 +58,29 @@ export const takeDrawingSlot = (ip) => {
   }
 }
 
-export const callGeminiVision = async (dataUrl, apiKey, corrections = '') => {
-  const { mime, base64 } = splitDataUrl(dataUrl)
+export const callGeminiVision = async (dataUrls, apiKey, corrections = '') => {
+  const sheets = (Array.isArray(dataUrls) ? dataUrls : [dataUrls]).filter(Boolean)
   const model = GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite'
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const correctionBlock = String(corrections || '').trim()
     ? `\n\nFabricator objections / corrections about a previous read of THIS drawing:\n${String(corrections).trim()}\nRevise the JSON to fix those mistakes. Prefer these corrections over the previous guess. Do not keep wrong materials from another drawing type.`
     : ''
+  const multiBlock =
+    sheets.length > 1
+      ? `\n\n${sheets.length} sheets are attached in order (sheet 1 first). They belong to ONE structure even if the member is drawn on two different sheets. Read every sheet, then produce one quotation take-off.`
+      : ''
+  const parts = [
+    { text: `${STEEL_VISION_PROMPT}${multiBlock}${correctionBlock}` },
+    ...sheets.map((dataUrl) => {
+      const { mime, base64 } = splitDataUrl(dataUrl)
+      return { inline_data: { mime_type: mime, data: base64 } }
+    }),
+  ]
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: `${STEEL_VISION_PROMPT}${correctionBlock}` },
-            { inline_data: { mime_type: mime, data: base64 } },
-          ],
-        },
-      ],
+      contents: [{ parts }],
       generationConfig: { temperature: 0.1 },
     }),
   })
@@ -114,15 +118,20 @@ export const handleVisionExtract = async (req, res) => {
     return
   }
 
-  const dataUrl = req.body?.dataUrl
-  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
-    res.status(400).json({ error: 'Send { dataUrl: "data:...;base64,..." }' })
+  const fromList = Array.isArray(req.body?.dataUrls) ? req.body.dataUrls : []
+  const dataUrls = (fromList.length ? fromList : [req.body?.dataUrl]).filter(Boolean)
+  if (
+    !dataUrls.length ||
+    dataUrls.length > 8 ||
+    dataUrls.some((item) => typeof item !== 'string' || !item.startsWith('data:'))
+  ) {
+    res.status(400).json({ error: 'Send 1 to 8 drawings as data URLs (photo or PDF).' })
     return
   }
 
-  // Cap payload ~12MB base64 to protect the server
-  if (dataUrl.length > 16_000_000) {
-    res.status(413).json({ error: 'Drawing file is too large. Use a smaller photo or compress the PDF page.' })
+  const totalSize = dataUrls.reduce((sum, item) => sum + item.length, 0)
+  if (totalSize > 18_000_000 || dataUrls.some((item) => item.length > 12_000_000)) {
+    res.status(413).json({ error: 'Drawings are too large. Use smaller photos or fewer PDF pages.' })
     return
   }
 
@@ -138,7 +147,7 @@ export const handleVisionExtract = async (req, res) => {
 
   try {
     const corrections = typeof req.body?.corrections === 'string' ? req.body.corrections : ''
-    const schedule = await callGeminiVision(dataUrl, apiKey, corrections)
+    const schedule = await callGeminiVision(dataUrls, apiKey, corrections)
     res.status(200).json({
       schedule,
       rateLimit: { limit: DRAWING_RATE_LIMIT, remaining: slot.remaining, windowSeconds: 60 },

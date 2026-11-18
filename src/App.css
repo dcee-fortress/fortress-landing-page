@@ -4671,6 +4671,19 @@
   border-radius: 18px;
 }
 
+.trial-glass.trial-glass-subscribe {
+  align-content: start;
+  overflow: auto;
+  padding: 20px 16px 28px;
+  background: rgba(248, 244, 238, 0.92);
+}
+
+.trial-glass .trial-ecocash {
+  width: min(100%, 420px);
+  text-align: left;
+  margin: 0 auto;
+}
+
 .trial-glass .subscription-watermark {
   min-height: 0;
   margin: 0;

@@ -55,6 +55,7 @@ Return ONLY valid JSON (no markdown, no commentary) with this shape:
   "concrete": { "grade": string, "volume_m3": number|null },
   "formwork": { "area_m2": number|null },
   "floor_height_m": number|null,
+  "takeoff_trace": [{ "item": string, "total": number, "unit": "m"|"kg"|"qty", "how": string, "where": string }],
   "notes": string
 }
 
@@ -72,4 +73,6 @@ Rules:
 - If the same section size appears on more than one mark/grid (e.g. columns on grid A and grid B), return a SEPARATE array item for each mark with its own qty / length_m / total_m. Put the grid or member mark in "mark".
 - When estimating from knowledge, still return useful qty/total_m and explain assumptions in notes
 - Empty arrays when a category is missing — never pad with materials from a different drawing type
-- Set gate to null when the drawing is not a gate/burglar`
+- Set gate to null when the drawing is not a gate/burglar
+- takeoff_trace is required for every material total you return. "how" is the arithmetic (which members were added). "where" names the sheet and the dimension or table cell (for example "sheet 2 elevation, column height 3.2m at grid B").
+- If several sheets are attached, they are one structure in upload order. Read all of them before quantities. Do not count the same member twice when plan and elevation both show it. Use the sheet that dimensions it. Quotation order: identify the structure, read each sheet, take off each member once, then lengths, then weights.`

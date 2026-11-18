@@ -29,10 +29,23 @@ export const callGeminiFabBrain = async ({
   const lineBlurb = lines
     .map((row) => `- ${row.material}: ${row.quantity} ${row.unitLabel || ''} · formula: ${row.formula || '—'}`)
     .join('\n')
+  const trace = Array.isArray(context.takeoffTrace) ? context.takeoffTrace : []
+  const traceBlurb = trace
+    .map(
+      (row) =>
+        `- ${row.item}: ${row.total} ${row.unit || ''} — ${row.how || ''} — read at ${row.where || 'the drawing'}`,
+    )
+    .join('\n')
+  const drawingJob = context.kind === 'drawing'
 
   const system = `You are Fortress fabrication brain (Zimbabwe steel / gate QS), speaking like a careful ChatGPT / Perplexity / Gemini fabricator tutor.
-Always explain WHY a formula term exists (e.g. why 3×height middle verticals appear in a 50×50 frame).
+Always explain WHY a number exists. For a drawing question such as "how did u-tube become 85m" or "where did the column height come from":
+- Name each member that was added and its length.
+- Show the addition that produced the total.
+- Say which uploaded sheet and which dimension, table cell, or grid mark the length or height was read from.
+- Use takeoff_trace when it is present. If a location was not recorded, say the total is the sum of the listed members and the sheet mark was not printed on the read.
 Be concrete with the user's numbers. Prefer short paragraphs + bullet steps.
+Do not change the quotation step. The user stays on the current step after an explanation.
 If assessing a correction, judge whether the user's formula is a valid alternate take-off method for a gate frame (not just "wrong"), and propose how Fortress should calculate next time.
 
 Return ONLY JSON:
@@ -66,15 +79,31 @@ Assess the correction. If it should become the new default for 50×50 frame (or 
 User question:
 ${question}
 
-Current gate: width=${gate.width}m height=${gate.height}m type=${gate.gateType} design=${gate.design} spacing=${gate.spacing}
-Current materials:
+${
+  drawingJob
+    ? `This is a fabrication drawing take-off, not only a gate.
+Job: ${context.jobType || 'structure'}
+Sheets: ${(context.drawingNames || []).join(', ') || 'uploaded drawing'}
+Building: length=${context.building?.length || '—'}m width=${context.building?.width || '—'}m
+Materials currently on the take-off:
 ${lineBlurb || '(none)'}
+Recorded trace (item, total, how it was added, where it was read):
+${traceBlurb || '(no trace recorded — explain from the material list)'}
+Answer from THIS take-off. If they ask about 85m of tube, list the pieces that add to that total and where each length was read.`
+    : `Current gate: width=${gate.width}m height=${gate.height}m type=${gate.gateType} design=${gate.design} spacing=${gate.spacing}
+Current materials:
+${lineBlurb || '(none)'}`
+}
 
-Default Fortress 50×50 frame method (one leaf):
+${
+  drawingJob
+    ? 'Stay on the drawing take-off. Do not switch the user to the next quotation step.'
+    : `Default Fortress 50×50 frame method (one leaf):
 leafL×2 (top + bottom rails) + height×2 (two end posts) + 3×height (three intermediate verticals for stiffness) + leafL (one extra mid/lock rail).
 Sliding adds 0.4m overlap to opening length. Swing-double doubles leaf quantities.
 
 Answer the question with that method, using THIS gate's numbers. If they propose an alternate, explain the difference clearly.`
+}`
 
   const response = await fetch(url, {
     method: 'POST',

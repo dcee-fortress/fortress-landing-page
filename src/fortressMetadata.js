@@ -23,7 +23,67 @@ export const subdomainLabelFor = (slugOrSite) => {
   return `${slug}.${FORTRESS_SUBDOMAIN_ROOT}`
 }
 
+/** Pretty subdomain host label URL (may not have TLS until wildcard is attached on Vercel). */
 export const subdomainUrlFor = (slugOrSite) => `https://${subdomainLabelFor(slugOrSite)}`
+
+const fortressAppOrigin = () => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FORTRESS_ORIGIN) {
+      return String(import.meta.env.VITE_FORTRESS_ORIGIN).replace(/\/$/, '')
+    }
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined') {
+    const host = String(window.location.hostname || '').toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) {
+      return window.location.origin
+    }
+  }
+  return 'https://fortress-zw.vercel.app'
+}
+
+/**
+ * Working live app URL for a tenant. Opens the CEO app in a new tab via fortress-zw
+ * (or local) with ?subdomain= so it does not depend on broken nested TLS for
+ * *.fortress.vercel.app. Manufacturing goes straight into the Prixburg shell.
+ */
+export const liveTenantAppUrlFor = (slugOrSite) => {
+  const rawSlug =
+    typeof slugOrSite === 'string'
+      ? slugOrSite
+      : slugOrSite?.slug || slugOrSite?.catalogId || slugOrSite?.name || ''
+  const slug = cleanSlug(String(rawSlug).replace(/^site-/, ''))
+  if (!slug) return fortressAppOrigin()
+  const origin = fortressAppOrigin()
+  const systemType =
+    typeof slugOrSite === 'object' ? String(slugOrSite?.systemType || '') : ''
+  const name =
+    typeof slugOrSite === 'object'
+      ? String(slugOrSite?.name || slugOrSite?.brandName || '').trim()
+      : ''
+  if (systemType === 'manufacturing' || slug === 'prixburg') {
+    const brand = name ? `&name=${encodeURIComponent(name)}` : ''
+    return `${origin}/prixburg-live/index.html?tenant=${encodeURIComponent(slug)}${brand}`
+  }
+  const projectId =
+    typeof slugOrSite === 'object' && slugOrSite?.projectId
+      ? String(slugOrSite.projectId)
+      : ''
+  const view =
+    typeof slugOrSite === 'object' && slugOrSite?.view && slugOrSite.view !== 'home'
+      ? String(slugOrSite.view)
+      : ''
+  let hash = ''
+  if (projectId) {
+    hash = `#/site/${encodeURIComponent(slug)}/${encodeURIComponent(projectId)}${
+      view ? `/${encodeURIComponent(view)}` : ''
+    }`
+  } else if (view) {
+    hash = `#/site/${encodeURIComponent(slug)}/all/${encodeURIComponent(view)}`
+  }
+  return `${origin}/?subdomain=${encodeURIComponent(slug)}${hash}`
+}
 
 /**
  * Detects if the current browser request is on a tenant subdomain of Fortress
@@ -674,10 +734,19 @@ export const readSavedTenantKind = (slugOrSite) => {
   if (!slug || isDeletedSlug(slug)) return ''
   if (slug === 'prixburg') return 'manufacturing'
   if (slug === 'rodcroft') return 'construction'
+  try {
+    const mirrored = storage.getItem(`fortress-tenant-local:${slug}`)
+    if (mirrored) {
+      const kind = JSON.parse(mirrored)?.systemType
+      if (kind === 'manufacturing' || kind === 'construction' || kind === 'fabrication') return kind
+    }
+  } catch {
+    /* ignore */
+  }
   const saved = loadAllCeoMetadata()[slug]
   if (!saved) return ''
   if (saved.systemType === 'manufacturing' || saved.template === 'prixburg') return 'manufacturing'
-  if (saved.systemType === 'fabrication') return 'fabrication'
+  if (saved.systemType === 'fabrication' || saved.template === 'fabrication') return 'fabrication'
   if (saved.systemType === 'construction' || saved.template === 'rodcroft') return 'construction'
   return ''
 }

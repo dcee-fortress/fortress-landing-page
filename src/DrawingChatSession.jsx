@@ -22,6 +22,7 @@ import {
 } from './drawingSession'
 import { safeEvalFormula } from './gateSession'
 import { extractSteelSchedule } from './steelVision'
+import { askFabBrain, looksLikeCalculationQuestion, looksLikeFormulaCorrection } from './fabBrain'
 
 const makeMsg = (role, text) => ({
   id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -136,16 +137,19 @@ export default function DrawingChatSession({
     }
   }
 
-  const runExtract = async (dataUrl, { corrections = '', drawingName = '', fingerprint = '' } = {}) => {
+  const runExtract = async (dataUrl, { corrections = '', drawingName = '', fingerprint = '', dataUrls } = {}) => {
     if (onNeedOnline?.('vision')) return null
     patchSession({ busy: true, error: '' })
     try {
-      const extracted = await extractSteelSchedule(dataUrl, {
+      const urls = Array.isArray(dataUrls) && dataUrls.length ? dataUrls : [dataUrl]
+      const extracted = await extractSteelSchedule(urls[0], {
         provider: online ? 'gemini' : 'tesseract',
         corrections,
+        dataUrls: urls,
       })
       const nextProject = onApplyExtraction?.(extracted, {
-        dataUrl,
+        dataUrl: urls[0],
+        dataUrls: urls,
         drawingName,
         fingerprint,
         corrections,
@@ -162,7 +166,8 @@ export default function DrawingChatSession({
   }
 
   const onFileChange = async (event) => {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || []).slice(0, 8)
+    const file = files[0]
     if (!file) return
     if (!canUploadDrawing || onGuardUpload?.() === false) {
       event.target.value = ''
@@ -186,20 +191,32 @@ export default function DrawingChatSession({
     }
     const leftAfter = consumed && typeof consumed.left === 'number' ? consumed.left : null
     patchSession({ busy: true, error: '' })
-    pushMessages(makeMsg('user', `Uploaded ${file.name}`))
+    pushMessages(
+      makeMsg(
+        'user',
+        files.length > 1 ? `Uploaded ${files.length} drawings: ${files.map((item) => item.name).join(', ')}` : `Uploaded ${file.name}`,
+      ),
+    )
     try {
-      const dataUrl = await readFileAsDataUrl(file)
+      const sheets = []
+      for (const item of files) {
+        const dataUrl = await readFileAsDataUrl(item)
+        const kind = item.type.includes('pdf') || /\.pdf$/i.test(item.name) ? 'pdf' : 'image'
+        sheets.push({ name: item.name, kind, dataUrl })
+      }
       const fingerprint = await fingerprintFile(file)
-      const kind = file.type.includes('pdf') || /\.pdf$/i.test(file.name) ? 'pdf' : 'image'
+      const names = sheets.map((item) => item.name).join(', ')
       onUpdateProject?.({
-        drawing: dataUrl,
-        drawingName: file.name,
+        drawing: sheets[0].dataUrl,
+        drawingName: names,
         drawingFingerprint: fingerprint,
-        drawingKind: kind,
+        drawingKind: sheets[0].kind,
+        drawings: sheets.map(({ name, kind, dataUrl }) => ({ name, kind, dataUrl })),
       })
-      const nextProject = await runExtract(dataUrl, {
-        drawingName: file.name,
+      const nextProject = await runExtract(sheets[0].dataUrl, {
+        drawingName: names,
         fingerprint,
+        dataUrls: sheets.map((item) => item.dataUrl),
       })
       if (!nextProject) return
       const explanation = buildDrawingExplanation(nextProject)
@@ -426,6 +443,7 @@ export default function DrawingChatSession({
       corrections: text,
       drawingName: project.drawingName,
       fingerprint: project.drawingFingerprint,
+      dataUrls: (project.drawings || []).map((sheet) => sheet.dataUrl).filter(Boolean),
     })
     if (!nextProject) return
     const explanation = buildDrawingExplanation(nextProject)
@@ -438,10 +456,55 @@ export default function DrawingChatSession({
     )
   }
 
+  const explainTakeoff = async (text) => {
+    pushMessages(makeMsg('user', text))
+    if (!project.drawing) {
+      pushMessages(makeMsg('assistant', 'Upload the drawings first, then ask how a total was worked out.'))
+      return
+    }
+    if (onNeedOnline?.('chat')) return
+    patchSession({ busy: true, error: '' })
+    try {
+      const derived = deriveSessionViews(session, project, pricing)
+      const result = await askFabBrain({
+        mode: 'explain',
+        question: text,
+        context: {
+          kind: 'drawing',
+          jobType: project.jobType,
+          drawingNames: (project.drawings || []).map((sheet) => sheet.name).filter(Boolean).concat(project.drawingName || []),
+          building: { length: project.roofLength, width: project.roofWidth },
+          gate: project.gate,
+          takeoffTrace: project.takeoffTrace || [],
+          lines: (derived.lines || []).map((line) => ({
+            material: line.material,
+            quantity: line.lengthM,
+            unitLabel: line.unit || 'm',
+            formula: line.description || '',
+          })),
+        },
+      })
+      pushMessages(
+        makeMsg(
+          'assistant',
+          `${result?.reply || 'I could not explain that total from the drawings.'}\n\nYou are still on this step. Type next to continue, or ask about another figure.`,
+        ),
+      )
+    } catch (err) {
+      pushMessages(makeMsg('assistant', err?.message || 'I could not explain that figure.'))
+    } finally {
+      patchSession({ busy: false })
+    }
+  }
+
   const onSend = async (text) => {
     if (isNextCommand(text)) {
       pushMessages(makeMsg('user', text))
       advancePhase()
+      return
+    }
+    if (looksLikeCalculationQuestion(text) && !looksLikeFormulaCorrection(text)) {
+      await explainTakeoff(text)
       return
     }
     await handleCorrection(text)
@@ -504,15 +567,15 @@ export default function DrawingChatSession({
     setTimeout(runPrint, 250)
   }
 
-  const openDrawing = () => {
-    if (!project.drawing) return
+  const openDrawing = (sheet) => {
+    const src = sheet?.dataUrl || project.drawing
+    if (!src) return
     if (onOpenDrawing) {
-      onOpenDrawing()
+      onOpenDrawing(sheet?.dataUrl ? sheet : null)
       return
     }
     // Fallback: blob/object URL works better than window.open(dataUrl) for large PDFs.
     try {
-      const src = project.drawing
       if (src.startsWith('data:')) {
         const a = document.createElement('a')
         a.href = src
@@ -574,10 +637,19 @@ export default function DrawingChatSession({
   return (
     <div className={`drawing-chat-session${project.drawing ? ' has-open-drawing' : ''}`}>
       {project.drawing ? (
-        <div className="drawing-open-sticky" role="region" aria-label="Open uploaded drawing">
-          <button type="button" className="drawing-open-sticky-btn" onClick={openDrawing}>
-            {pdfDrawing ? 'Open drawing PDF' : 'Open drawing'}
-          </button>
+        <div className="drawing-open-sticky" role="region" aria-label="Open uploaded drawings">
+          {(project.drawings?.length ? project.drawings : [{ name: project.drawingName, kind: project.drawingKind, dataUrl: project.drawing }]).map(
+            (sheet, index) => (
+              <button
+                type="button"
+                className="drawing-open-sticky-btn"
+                key={`${sheet.name || 'sheet'}-${index}`}
+                onClick={() => openDrawing(sheet)}
+              >
+                Open {sheet.kind === 'pdf' || /\.pdf$/i.test(sheet.name || '') ? 'PDF' : 'drawing'} {index + 1}
+              </button>
+            ),
+          )}
           <span className="drawing-open-sticky-name" title={project.drawingName || ''}>
             {project.drawingName || (pdfDrawing ? 'Drawing.pdf' : 'Drawing')}
           </span>
@@ -613,17 +685,18 @@ export default function DrawingChatSession({
           {canUploadDrawing ? (
             <>
               <label className="fab-field">
-                Upload photo / PDF (CAD, scan, or hand-drawn sketch)
+                Upload photos / PDFs of this structure (up to 8)
                 <input
                   ref={fileRef}
                   type="file"
                   accept="image/*,application/pdf"
+                  multiple
                   onChange={onFileChange}
                   disabled={session.busy}
                 />
               </label>
               <p className="fab-note">
-                Hand-drawn plans on paper or whiteboard photos work too — the vision reader will take off what it can see.
+                Add every sheet of the same structure — plan, elevation, and details. They are read together, in the order you select them, and each member is counted once. Hand-drawn plans work too.
               </p>
             </>
           ) : (

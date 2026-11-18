@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { NETWORK_ACTIONS, offlineActionMessage, readOnline } from './offline'
-import { storage } from './storage'
+import { hydrateFromDurable, storage } from './storage'
+import {
+  fetchAccountFromCloud,
+  fetchCeoMetadataFromCloud,
+  loginAccountFromCloud,
+  mergeAccountsLocalFirst,
+  persistAccountToCloud,
+  persistCeoMetadataToCloud,
+  removeAccountFromCloud,
+  restoreAccountBySlugFromCloud,
+  listAccountsFromCloud,
+  restoreCloudAccount,
+  syncAccountsToCloud,
+} from './accountCloud'
 import {
   fetchLiveFeed,
   loadLiveFeedCache,
@@ -34,14 +47,16 @@ import {
   deleteSiteCeoMetadata,
   getSiteCeoMetadata,
   isDeletedSlug,
+  loadAllCeoMetadata,
   purgeStoredLemonSite,
   rememberDeletedSlug,
   readSavedTenantKind,
   saveSiteCeoMetadata,
+  liveTenantAppUrlFor,
   subdomainLabelFor,
   subdomainUrlFor,
 } from './fortressMetadata'
-import { fetchTenantKind, publishTenantKind } from './tenantRegistry'
+import { fetchTenantRecord, publishTenantKind, readLocalTenant } from './tenantRegistry'
 import {
   BURGLAR_TYPES,
   emptyBurglarDraft,
@@ -87,6 +102,15 @@ const COMPANY_LOGINS = [
     email: 'fieldnote@fortress.com',
     password: 'Fieldnote2026',
     catalogId: 'fieldnote',
+  },
+  {
+    accountId: 'account-ancel',
+    siteId: 'site-ancel',
+    email: 'ancel@fortress.com',
+    password: 'Ancel2026',
+    catalogId: 'ancel',
+    fabPlan: 'month',
+    paidUntil: Date.UTC(2027, 10, 13),
   },
 ]
 
@@ -561,6 +585,20 @@ const catalog = [
       },
     ],
   },
+  {
+    id: 'ancel',
+    name: 'Ancel',
+    category: 'Fabrication',
+    systemType: 'fabrication',
+    shelf: 'Best selling',
+    rating: 4.9,
+    hue: '#3f3f46',
+    showOnGrid: false,
+    location: 'Zimbabwe',
+    ceo: '',
+    about: 'Ancel is a fabrication workshop. The website uses the Zantac fabrication calculator.',
+    slides: [],
+  },
 ]
 
 const seedNote = (id, author, text, replies = []) => ({
@@ -860,7 +898,14 @@ const siteBilling = (site) => {
   if (Number(site.paidUntil) > now) return 'paid'
   if (Number(site.trialEndsAt) > now) return 'trial'
   if (Number(site.trialEndsAt) > 0) return 'paused'
+  // Buy-created sites stay watermark-locked until EcoCash subscribe unlocks them.
+  if (site.watermarkLocked) return 'watermark'
   return 'open'
+}
+
+const siteIsLocked = (site) => {
+  const billing = siteBilling(site)
+  return billing === 'paused' || billing === 'watermark'
 }
 
 const trialDaysLeft = (site) => {
@@ -1184,6 +1229,7 @@ const makeWebsite = ({
   fabPlan = '',
   paidUntil = 0,
   trialEndsAt = 0,
+  watermarkLocked = false,
   drawings = [],
   catalogId = '',
   ceo = '',
@@ -1208,6 +1254,7 @@ const makeWebsite = ({
   fabPlan,
   paidUntil,
   trialEndsAt,
+  watermarkLocked: Boolean(watermarkLocked),
   drawings,
   catalogId,
   ceo,
@@ -1217,7 +1264,7 @@ const makeWebsite = ({
 
 const makeAccount = (email, password, companyName, { withWebsite = true, id = '' } = {}) => ({
   id: id || makeId('account'),
-  email,
+  email: String(email || '').trim().toLowerCase(),
   password,
   websites: withWebsite ? [makeWebsite({ name: companyName || 'My company', type: 'Business' })] : [],
 })
@@ -1239,6 +1286,9 @@ const websiteFromCatalog = (entry, login) => {
     gallery: slides.map((slide) => slide.photo || slide.video).filter(Boolean),
     photoCaptions: slides.map((slide) => slide.testimonial || ''),
     catalogId: entry.id,
+    fabPlan: login.fabPlan || '',
+    paidUntil: Number(login.paidUntil) || 0,
+    trialEndsAt: 0,
     ceo: entry.ceo || '',
     ceoTestimonial: '',
     seedMediaVersion: CATALOG_MEDIA_SEED,
@@ -1395,6 +1445,8 @@ const withCompanyAccounts = (list) => {
           photoCaptions:
             refreshMedia || !site.photoCaptions?.length ? seededSite.photoCaptions : site.photoCaptions,
           seedMediaVersion: CATALOG_MEDIA_SEED,
+          fabPlan: site.fabPlan || login.fabPlan || '',
+          paidUntil: Number(site.paidUntil) || Number(login.paidUntil) || 0,
         }
       })
     }
@@ -1517,7 +1569,7 @@ const uniqueSlug = (name, accounts) => {
   return `${base}-${count}`
 }
 
-const siteHref = (slug) => subdomainUrlFor(slug)
+const siteHref = (slug) => liveTenantAppUrlFor(slug)
 
 const slidesForSite = (site) => {
   const slides = [...(site?.slides || [])]
@@ -1635,19 +1687,39 @@ const liveDomain = (site) => {
   return subdomainLabelFor(site)
 }
 
-function TrialGlassLock({ locked, onContinue, children }) {
+function TrialGlassLock({
+  locked,
+  onContinue,
+  children,
+  autoSubscribe = false,
+  subscribeForm = null,
+  mode = 'paused',
+}) {
   if (!locked) return children
+  const watermarkMode = mode === 'watermark'
   return (
     <div className="trial-glass-wrap">
       <div className="trial-glass-demo" aria-hidden="true">
         {children}
       </div>
-      <div className="trial-glass">
-        <p className="subscription-watermark">Your free trial has ended</p>
-        <p>Your records are still on this website.</p>
-        <button type="button" className="primary-button" onClick={onContinue}>
-          Continue to EcoCash
-        </button>
+      <div className={`trial-glass${autoSubscribe ? ' trial-glass-subscribe' : ''}`}>
+        {autoSubscribe && subscribeForm ? (
+          subscribeForm
+        ) : (
+          <>
+            <p className="subscription-watermark">
+              {watermarkMode ? 'Subscriptions are opening soon' : 'Your free trial has ended'}
+            </p>
+            <p>
+              {watermarkMode
+                ? 'Your subdomain is created and saved. The app stays watermarked until you unlock with EcoCash.'
+                : 'Your records are still on this website.'}
+            </p>
+            <button type="button" className="primary-button" onClick={onContinue}>
+              {watermarkMode ? 'Unlock with EcoCash' : 'Continue to EcoCash'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -3767,12 +3839,13 @@ function FabricationCalculator({
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
-  const openDrawing = () => {
-    if (!project.drawing) return
+  const openDrawing = (sheet) => {
+    const src = sheet?.dataUrl || project.drawing
+    if (!src) return
     setDrawingViewer({
-      src: project.drawing,
-      name: project.drawingName || 'Drawing',
-      kind: project.drawingKind || (project.drawing.startsWith('data:application/pdf') ? 'pdf' : 'image'),
+      src,
+      name: sheet?.name || project.drawingName || 'Drawing',
+      kind: sheet?.kind || project.drawingKind || (String(src).startsWith('data:application/pdf') ? 'pdf' : 'image'),
     })
   }
 
@@ -3841,6 +3914,7 @@ function FabricationCalculator({
           ? merged.schedule
           : [],
       rcStoreys: jobType === 'rc_columns' ? merged.rcMeta?.storeys || [] : [],
+      takeoffTrace: Array.isArray(extracted?.takeoff_trace) ? extracted.takeoff_trace : [],
       roofLength:
         jobType === 'structure' && building.length_m
           ? String(building.length_m)
@@ -5874,6 +5948,12 @@ function App() {
   const reactivateSiteRef = useRef('')
   const publishedTenantsRef = useRef(new Set())
   const [hostTenantKind, setHostTenantKind] = useState('')
+  const [hostTenantBilling, setHostTenantBilling] = useState({
+    fabPlan: '',
+    paidUntil: 0,
+    trialEndsAt: 0,
+    watermarkLocked: false,
+  })
 
   useEffect(() => {
     setAccounts((previous) => withCompanyAccounts(previous))
@@ -5884,14 +5964,33 @@ function App() {
       ;(account.websites || []).forEach((site) => {
         const slug = cleanSlug(site.slug || site.catalogId || site.name)
         const kind = site.systemType
-        if (!slug || !kind || publishedTenantsRef.current.has(slug)) return
-        publishedTenantsRef.current.add(slug)
-        publishTenantKind(slug, kind, site.name || site.brandName || '')
+        if (!slug || !kind) return
+        const stamp = `${slug}:${kind}:${Number(site.paidUntil) || 0}:${Number(site.trialEndsAt) || 0}:${site.fabPlan || ''}`
+        if (publishedTenantsRef.current.has(stamp)) return
+        publishedTenantsRef.current.add(stamp)
+        publishTenantKind(slug, kind, site.name || site.brandName || '', {
+          fabPlan: site.fabPlan || '',
+          paidUntil: site.paidUntil || 0,
+          trialEndsAt: site.trialEndsAt || 0,
+        })
       })
     })
   }, [accounts])
 
   const hostSlug = detectActiveSubdomain()
+
+  useEffect(() => {
+    if (!hostSlug || hostSlug === 'rodcroft' || hostSlug === 'prixburg') return undefined
+    let cancelled = false
+    // Pull the owning account from Fortress DB so a wiped browser still has the live subdomain.
+    restoreAccountBySlugFromCloud(hostSlug).then((remote) => {
+      if (cancelled || !remote?.email) return
+      setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hostSlug])
 
   useEffect(() => {
     if (!hostSlug || hostSlug === 'rodcroft') return undefined
@@ -5915,19 +6014,52 @@ function App() {
     const owned = accounts
       .flatMap((account) => account.websites || [])
       .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)
-    const localKind = owned?.systemType || readSavedTenantKind(hostSlug)
+    const mirrored = readLocalTenant(hostSlug)
+    const localKind =
+      owned?.systemType || readSavedTenantKind(hostSlug) || mirrored.systemType || ''
     if (localKind === 'manufacturing') {
       openManufacturing()
       return undefined
     }
     if (localKind === 'construction' || localKind === 'fabrication') {
       setHostTenantKind(localKind)
-      return undefined
+      if (mirrored.systemType === localKind) {
+        setHostTenantBilling({
+          fabPlan: owned?.fabPlan || mirrored.fabPlan || '',
+          paidUntil: Number(owned?.paidUntil) || Number(mirrored.paidUntil) || 0,
+          trialEndsAt: Number(owned?.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
+          watermarkLocked: Boolean(owned?.watermarkLocked ?? mirrored.watermarkLocked),
+        })
+      }
+      // Still refresh cloud billing, but never bounce fabrication to Prixburg.
+      fetchTenantRecord(hostSlug).then((record) => {
+        if (cancelled || !record.systemType) return
+        if (record.systemType === 'manufacturing') return
+        setHostTenantKind(record.systemType)
+        setHostTenantBilling({
+          fabPlan: record.fabPlan || '',
+          paidUntil: Number(record.paidUntil) || 0,
+          trialEndsAt: Number(record.trialEndsAt) || 0,
+          watermarkLocked: Boolean(record.watermarkLocked),
+        })
+      })
+      return () => {
+        cancelled = true
+      }
     }
-    fetchTenantKind(hostSlug).then((kind) => {
+    fetchTenantRecord(hostSlug).then((record) => {
       if (cancelled) return
-      if (kind === 'manufacturing') openManufacturing()
-      else setHostTenantKind(kind || 'unknown')
+      if (record.systemType === 'manufacturing') {
+        openManufacturing()
+        return
+      }
+      setHostTenantKind(record.systemType || 'unknown')
+      setHostTenantBilling({
+        fabPlan: record.fabPlan || '',
+        paidUntil: Number(record.paidUntil) || 0,
+        trialEndsAt: Number(record.trialEndsAt) || 0,
+        watermarkLocked: Boolean(record.watermarkLocked),
+      })
     })
     return () => {
       cancelled = true
@@ -5940,12 +6072,83 @@ function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    let cancelled = false
+    ;(async () => {
+      const restored = await hydrateFromDurable([STORE_KEY])
+      if (cancelled || !restored[STORE_KEY]) return
+      try {
+        const parsed = JSON.parse(restored[STORE_KEY])
+        if (!Array.isArray(parsed) || !parsed.length) return
+        setAccounts((previous) => mergeAccountsLocalFirst(withCompanyAccounts(previous), parsed))
+      } catch {
+        /* ignore bad durable payload */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    let cancelled = false
+    listAccountsFromCloud(OWNER_LOGIN.email, OWNER_LOGIN.password).then((remote) => {
+      if (cancelled || !remote?.length) return
+      setAccounts((previous) => mergeAccountsLocalFirst(withCompanyAccounts(previous), remote))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const localPayload = stripLemonWebsite(accounts)
     try {
-      storage.setItem(STORE_KEY, JSON.stringify(stripLemonWebsite(accounts)))
+      storage.setItem(STORE_KEY, JSON.stringify(localPayload))
     } catch {
       /* Photos stay on this session if the phone storage is full. */
     }
+    // Local data is already on screen — sync account + billing shells to Supabase after.
+    syncAccountsToCloud(localPayload)
   }, [accounts])
+
+  // Construction/manufacturing project data: local first, then Fortress DB (survives logout/cache).
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const syncMeta = () => {
+      const all = loadAllCeoMetadata()
+      Object.entries(all).forEach(([slug, meta]) => {
+        if (!slug || slug === 'rodcroft' || slug === 'prixburg') return
+        if (!meta || typeof meta !== 'object') return
+        void persistCeoMetadataToCloud(slug, meta)
+      })
+    }
+    const timer = window.setTimeout(syncMeta, 600)
+    window.addEventListener('fortress-ceo-metadata-change', syncMeta)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('fortress-ceo-metadata-change', syncMeta)
+    }
+  }, [accounts])
+
+  useEffect(() => {
+    if (!hostSlug || hostSlug === 'rodcroft' || hostSlug === 'prixburg') return undefined
+    let cancelled = false
+    fetchCeoMetadataFromCloud(hostSlug).then((remote) => {
+      if (cancelled || !remote?.slug) return
+      const local = getSiteCeoMetadata(hostSlug)
+      const localProjects = Array.isArray(local?.projects) ? local.projects.length : 0
+      const remoteProjects = Array.isArray(remote.projects) ? remote.projects.length : 0
+      // Local-first: only fill when this device has no project rows yet.
+      if (localProjects > 0) return
+      if (remoteProjects === 0 && !remote.companyName) return
+      saveSiteCeoMetadata(hostSlug, { ...remote, slug: hostSlug })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hostSlug])
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -6433,21 +6636,47 @@ function App() {
     pushPath(view && view !== 'home' ? `/settings/${view}` : '/settings')
   }
 
-  const handleCreateAccount = (event) => {
+  const handleCreateAccount = async (event) => {
     event.preventDefault()
-    const email = authForm.email.trim()
+    const email = authForm.email.trim().toLowerCase()
     const password = authForm.password
 
     if (!email || !password.trim()) {
       setAuthError('Enter your email and password.')
       return
     }
-    if (accounts.some((account) => account.email.toLowerCase() === email.toLowerCase())) {
+    if (accounts.some((account) => account.email.toLowerCase() === email)) {
+      setAuthError('An account with that email already exists. Use Login.')
+      return
+    }
+
+    setBusyLabel('Checking Fortress database…')
+    const remoteAny = await fetchAccountFromCloud(email)
+    setBusyLabel('')
+    if (remoteAny?.email) {
+      if (String(remoteAny.password || '') === password) {
+        const restored = {
+          id: remoteAny.id,
+          email: remoteAny.email,
+          password: remoteAny.password,
+          websites: remoteAny.websites || [],
+        }
+        setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, restored)))
+        finishLogin(restored)
+        return
+      }
       setAuthError('An account with that email already exists. Use Login.')
       return
     }
 
     const nextAccount = makeAccount(email, password, '', { withWebsite: false })
+    setBusyLabel('Saving account…')
+    const saved = await persistAccountToCloud(nextAccount)
+    setBusyLabel('')
+    if (!saved) {
+      setAuthError('The account could not be saved. Stay online and try again so it works on every device.')
+      return
+    }
     setAccounts((previous) => [...previous, nextAccount])
     setSignedInId(nextAccount.id)
     setActiveProfileId(nextAccount.websites[0]?.id || '')
@@ -6492,20 +6721,46 @@ function App() {
     pushPath('/home')
   }
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
-    const email = authForm.email.trim()
+    const email = authForm.email.trim().toLowerCase()
     const password = authForm.password
     if (!email || !password.trim()) {
       setAuthError('Enter your email and password.')
       return
     }
-    const existing = accounts.find((account) => account.email.toLowerCase() === email.toLowerCase())
-    if (!existing || existing.password !== password) {
+    const seeded = COMPANY_LOGINS.find(
+      (login) => login.email.toLowerCase() === email && login.password === password,
+    )
+    const localMatch = accounts.find((account) => account.email.toLowerCase() === email)
+    if (seeded || (localMatch && localMatch.password === password)) {
+      const account = {
+        ...(localMatch || {
+          id: seeded.accountId,
+          email: seeded.email,
+          password: seeded.password,
+          websites: [],
+        }),
+        password: seeded?.password || localMatch.password,
+      }
+      finishLogin(account)
+      // Refresh subdomains from Fortress DB in case this device was behind.
+      loginAccountFromCloud(email, password).then((remote) => {
+        if (!remote?.websites?.length) return
+        setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+      })
+      return
+    }
+    setAuthError('')
+    setBusyLabel('Restoring account…')
+    const remote = await loginAccountFromCloud(email, password)
+    setBusyLabel('')
+    if (!remote) {
       setAuthError('That email or password does not match an account.')
       return
     }
-    finishLogin(existing)
+    setAccounts((previous) => withCompanyAccounts(restoreCloudAccount(previous, remote)))
+    finishLogin(remote)
   }
 
   const approvePayment = (event) => {
@@ -6541,40 +6796,85 @@ function App() {
 
     const token = flowToken.current + 1
     flowToken.current = token
-    const accountId = signedInAccount?.id || ''
     const reactivateId = reactivateSiteRef.current
+    const reactivateSlug = cleanSlug(
+      accounts
+        .flatMap((account) => account.websites || [])
+        .find((site) => site.id === reactivateId)?.slug ||
+        publishedSite?.slug ||
+        appRoute.slug ||
+        '',
+    )
+    const ownerAccount =
+      accounts.find((account) =>
+        (account.websites || []).some(
+          (site) =>
+            site.id === reactivateId ||
+            (reactivateSlug && cleanSlug(site.slug || site.catalogId || site.name) === reactivateSlug),
+        ),
+      ) || null
+    const accountId = signedInAccount?.id || ownerAccount?.id || ''
+    const onLiveTenant = Boolean(detectActiveSubdomain())
     setEcocash({ number: '', password: '', name: '' })
     setPaymentNote('')
     setBusyLabel('Approving payment…')
-    goSettingsView('loading', { replace: true })
+    if (!onLiveTenant) goSettingsView('loading', { replace: true })
 
     window.setTimeout(() => {
       if (flowToken.current !== token) return
       setBusyLabel('')
-      if (reactivateId && accountId) {
+      if (reactivateId) {
         const plan = FAB_PLANS[0]
+        const paidUntil = Date.now() + plan.days * 86400000
         reactivateSiteRef.current = ''
         setReactivateSiteId('')
-        setAccounts((previous) =>
-          previous.map((account) => {
-            if (account.id !== accountId) return account
-            return {
-              ...account,
-              websites: account.websites.map((site) =>
-                site.id === reactivateId
-                  ? {
-                      ...site,
-                      paidUntil: Date.now() + plan.days * 86400000,
-                      trialEndsAt: 0,
-                      fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
-                    }
-                  : site,
-              ),
-            }
-          }),
-        )
+        if (accountId) {
+          setAccounts((previous) =>
+            previous.map((account) => {
+              if (account.id !== accountId) return account
+              return {
+                ...account,
+                websites: account.websites.map((site) => {
+                  const sameSite =
+                    site.id === reactivateId ||
+                    (reactivateSlug &&
+                      cleanSlug(site.slug || site.catalogId || site.name) === reactivateSlug)
+                  if (!sameSite) return site
+                  const next = {
+                    ...site,
+                    paidUntil,
+                    trialEndsAt: 0,
+                    watermarkLocked: false,
+                    fabPlan: site.systemType === 'fabrication' ? plan.id : site.fabPlan,
+                  }
+                  publishTenantKind(site.slug || site.catalogId || site.name, site.systemType, site.name, {
+                    fabPlan: next.fabPlan,
+                    paidUntil: next.paidUntil,
+                    trialEndsAt: 0,
+                    watermarkLocked: false,
+                  })
+                  return next
+                }),
+              }
+            }),
+          )
+        } else if (reactivateSlug) {
+          publishTenantKind(reactivateSlug, publishedSite?.systemType || 'fabrication', publishedSite?.name || reactivateSlug, {
+            fabPlan: plan.id,
+            paidUntil,
+            trialEndsAt: 0,
+            watermarkLocked: false,
+          })
+        }
+        setHostTenantBilling({ fabPlan: plan.id, paidUntil, trialEndsAt: 0, watermarkLocked: false })
         setPaymentNote('')
         setTailorMode('paid')
+        if (onLiveTenant) {
+          setSettingsView('home')
+          setMenuOpen(false)
+          setOverlay(null)
+          return
+        }
         setActiveProfileId(reactivateId)
         setProfileTab('dash')
         setTab('profile')
@@ -6608,7 +6908,19 @@ function App() {
     const locName = websiteLocation.trim() || 'Harare, Zimbabwe'
     const aboutText = websiteAbout.trim()
 
-    if (!isFabrication) {
+    // Construction = empty Rodcroft clone; manufacturing = empty Prixburg clone; name = brand only.
+    if (isFabrication) {
+      saveSiteCeoMetadata(slug, {
+        slug,
+        companyName: name,
+        brandName: name,
+        ceo: ceoName,
+        location: locName,
+        about: aboutText,
+        systemType: 'fabrication',
+        template: 'fabrication',
+      })
+    } else {
       const initialMeta = buildDefaultTemplateMetadata({
         slug,
         name,
@@ -6620,7 +6932,16 @@ function App() {
       })
       saveSiteCeoMetadata(slug, initialMeta)
     }
-    publishTenantKind(slug, type.id, name)
+    // Trial: live for 14 days on this subdomain. Buy: subdomain is created but stays watermark-locked.
+    const paidUntil = 0
+    const trialEndsAt = trial ? Date.now() + TRIAL_MS : 0
+    const watermarkLocked = !trial
+    publishTenantKind(slug, type.id, name, {
+      fabPlan: isFabrication ? plan.id : '',
+      paidUntil,
+      trialEndsAt,
+      watermarkLocked,
+    })
 
     const site = makeWebsite({
       name,
@@ -6638,22 +6959,29 @@ function App() {
       brandName: name,
       cssName: slugify(name).replace(/-/g, ''),
       fabPlan: isFabrication ? plan.id : '',
-      paidUntil: trial ? 0 : isFabrication ? Date.now() + plan.days * 86400000 : 0,
-      trialEndsAt: trial ? Date.now() + TRIAL_MS : 0,
+      paidUntil,
+      trialEndsAt,
+      watermarkLocked,
       drawings: [],
       ceo: ceoName,
     })
 
+    let cloudAccount = null
     if (pendingSignup) {
       const nextAccount = {
         ...makeAccount(pendingSignup.email, pendingSignup.password, '', { withWebsite: false }),
         websites: [site],
       }
+      cloudAccount = nextAccount
       setAccounts((previous) => [...previous, nextAccount])
       setSignedInId(nextAccount.id)
       setActiveProfileId(site.id)
       setPendingSignup(null)
     } else if (signedInAccount) {
+      cloudAccount = {
+        ...signedInAccount,
+        websites: [...(signedInAccount.websites || []), site],
+      }
       setAccounts((previous) =>
         previous.map((account) =>
           account.id === signedInAccount.id ? { ...account, websites: [...account.websites, site] } : account,
@@ -6661,6 +6989,9 @@ function App() {
       )
       setActiveProfileId(site.id)
     }
+
+    // Fortress database keeps this subdomain account even after cache clear / other devices.
+    if (cloudAccount) void persistAccountToCloud(cloudAccount)
 
     setWebsiteName('')
     setWebsiteDomain('')
@@ -6686,7 +7017,9 @@ function App() {
     if (!signedInAccount) return
     if (!confirmDeleteTwice(`${signedInAccount.email} and the websites on this account`)) return
     const removedId = signedInAccount.id
+    const removedEmail = signedInAccount.email
     setAccounts((previous) => previous.filter((account) => account.id !== removedId))
+    removeAccountFromCloud(removedEmail, signedInAccount.password)
     setSignedInId('')
     setActiveProfileId('')
     goSettingsView('manage')
@@ -7205,13 +7538,18 @@ function App() {
 
   const openGeneratedSite = (site, projectId = '', view = 'home') => {
     if (!site) return
-    if (siteBilling(site) === 'paused') {
+    if (siteIsLocked(site)) {
       setOverlay(null)
       setActiveProfileId(site.id)
       setProfileTab('dash')
       setTab('profile')
       setAppRoute({ kind: '', slug: '' })
       pushPath('/profile')
+      return
+    }
+    // Live tenant apps open as their own address (not inside main Fortress chrome).
+    if (CEO_SYSTEM_IDS.includes(site.systemType)) {
+      openLiveTenantApp(site, projectId, view)
       return
     }
     const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
@@ -7289,10 +7627,32 @@ function App() {
     )
   }
 
+  const openLiveTenantApp = (site, projectId = '', view = 'home') => {
+    if (!site) return
+    const slug = cleanSlug(site.slug || site.catalogId || site.name || '')
+    if (!slug) return
+    publishTenantKind(slug, site.systemType || 'fabrication', site.name || site.brandName || slug, {
+      fabPlan: site.fabPlan || '',
+      paidUntil: site.paidUntil || 0,
+      trialEndsAt: site.trialEndsAt || 0,
+      watermarkLocked: Boolean(site.watermarkLocked),
+    })
+    const live = liveTenantAppUrlFor({
+      slug,
+      name: site.name || site.brandName || slug,
+      systemType: site.systemType,
+      projectId,
+      view,
+    })
+    if (typeof window !== 'undefined') {
+      window.open(live, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   const openPrivateSystem = (site, projectId = '', view = 'home') => {
     if (!site) return
     setOverlay(null)
-    if (siteBilling(site) === 'paused') {
+    if (siteIsLocked(site)) {
       setActiveProfileId(site.id)
       setProfileTab('dash')
       setTab('profile')
@@ -7300,8 +7660,9 @@ function App() {
       pushPath('/profile')
       return
     }
-    if (site.systemType === 'fabrication') {
-      openOwnedCalculator(site)
+    // CEO websites open as standalone live apps on their tenant address.
+    if (CEO_SYSTEM_IDS.includes(site.systemType)) {
+      openLiveTenantApp(site, projectId, view)
       return
     }
     openGeneratedSite(site, projectId, view)
@@ -7479,27 +7840,61 @@ function App() {
           ) ||
         (() => {
           if (isDeletedSlug(appRoute.slug)) return null
+          const mirrored = readLocalTenant(appRoute.slug)
           const knownKind =
             readSavedTenantKind(appRoute.slug) ||
+            mirrored.systemType ||
             (hostSlug === appRoute.slug ? hostTenantKind : '')
           if (!knownKind || knownKind === 'unknown') return null
           const meta = getSiteCeoMetadata({
             slug: appRoute.slug,
             systemType: knownKind,
-            name: appRoute.slug,
+            name: mirrored.name || appRoute.slug,
           })
           if (!meta || isDeletedSlug(meta.slug)) return null
+          const billing =
+            hostSlug === appRoute.slug
+              ? hostTenantBilling
+              : {
+                  fabPlan: mirrored.fabPlan || '',
+                  paidUntil: Number(mirrored.paidUntil) || 0,
+                  trialEndsAt: Number(mirrored.trialEndsAt) || 0,
+                  watermarkLocked: Boolean(mirrored.watermarkLocked),
+                }
           return makeWebsite({
             id: `site-${meta.slug}`,
-            name: meta.companyName || meta.slug,
-            type: knownKind === 'manufacturing' ? 'Manufacturing' : 'Construction',
+            name: meta.companyName || mirrored.name || meta.slug,
+            type:
+              knownKind === 'manufacturing'
+                ? 'Manufacturing'
+                : knownKind === 'fabrication'
+                  ? 'Fabrication'
+                  : 'Construction',
             systemType: knownKind === 'fabrication' ? 'fabrication' : knownKind,
             slug: meta.slug,
-            link: subdomainUrlFor(meta.slug),
+            link: siteHref(meta.slug),
             ceo: meta.ceo || '',
+            brandName: meta.brandName || meta.companyName || mirrored.name || meta.slug,
+            fabPlan: billing.fabPlan || mirrored.fabPlan || (knownKind === 'fabrication' ? 'month' : ''),
+            paidUntil: Number(billing.paidUntil) || Number(mirrored.paidUntil) || 0,
+            trialEndsAt: Number(billing.trialEndsAt) || Number(mirrored.trialEndsAt) || 0,
+            watermarkLocked: Boolean(billing.watermarkLocked ?? mirrored.watermarkLocked),
           })
         })()
       : null
+
+  const fabLocked =
+    publishedSite?.systemType === 'fabrication' && siteIsLocked(publishedSite)
+  const fabLockMode = siteBilling(publishedSite) === 'watermark' ? 'watermark' : 'paused'
+
+  useEffect(() => {
+    if (!fabLocked || !publishedSite?.id) return
+    // After trial / watermark: automatically arm the EcoCash subscribe tier ($100 / month).
+    reactivateSiteRef.current = publishedSite.id
+    setReactivateSiteId(publishedSite.id)
+    setFabPlan('month')
+    setSystemType('fabrication')
+  }, [fabLocked, publishedSite?.id])
 
   const openFabPay = (planId) => {
     if (!requireOnline(NETWORK_ACTIONS.buy)) return
@@ -7538,15 +7933,70 @@ function App() {
     }
   }
 
-  const fabricationCalculator = (site, onBack) => (
+  const fabEcoCashSubscribeForm = (site) => {
+    const plan = FAB_PLANS[0]
+    return (
+      <form className={`ecocash-card trial-ecocash${!PHASE1_COMPLETE ? ' is-sealed' : ''}`} onSubmit={approvePayment}>
+        {!PHASE1_COMPLETE ? (
+          <PhaseSeal kicker="Waterproof lock" title="Phase 2 is locked" message={PHASE1_ECOCASH_NOTE} />
+        ) : null}
+        <p className="ecocash-kicker">Subscribe with EcoCash</p>
+        <h3>{site?.name || 'Fabrication'} · {plan.label}</h3>
+        <p className="shop-copy">
+          Your free trial has ended. {formatPrice(plan.price)} · {plan.label}. Photos, drawings, and records stay on
+          this website.
+        </p>
+        <label>
+          EcoCash number
+          <input
+            type="tel"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="07xxxxxxxx"
+            value={ecocash.number}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, number: event.target.value }))}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Password"
+            value={ecocash.password}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, password: event.target.value }))}
+          />
+        </label>
+        <label>
+          Name on EcoCash
+          <input
+            type="text"
+            autoComplete="name"
+            placeholder="Name on EcoCash"
+            value={ecocash.name}
+            disabled={!PHASE1_COMPLETE}
+            onChange={(event) => setEcocash((value) => ({ ...value, name: event.target.value }))}
+          />
+        </label>
+        {paymentNote ? <p className="form-error">{paymentNote}</p> : null}
+        <button type="submit" className="primary-button" disabled={!PHASE1_COMPLETE}>
+          Pay {formatPrice(plan.price)} with EcoCash
+        </button>
+      </form>
+    )
+  }
+
+  const fabricationCalculator = (site, onBack, { standalone = false } = {}) => (
     <FabricationCalculator
-      embedded
+      embedded={!standalone}
       site={site}
       draft={drawingDraft}
       onChange={setDrawingDraft}
       onSave={site?.id ? () => saveDrawing(site) : undefined}
       onRenew={openFabPay}
-      onBack={onBack}
+      onBack={standalone ? undefined : onBack}
       pricing={fabPricing}
       onSavePricing={saveFabPricing}
       {...historyNavProps}
@@ -7594,10 +8044,15 @@ function App() {
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
     return (
       <TrialGlassLock
-        locked={siteBilling(publishedSite) === 'paused'}
+        locked={fabLocked}
+        mode={fabLockMode}
+        autoSubscribe={fabLocked && fabLockMode === 'paused'}
+        subscribeForm={
+          fabLocked && fabLockMode === 'paused' ? fabEcoCashSubscribeForm(publishedSite) : null
+        }
         onContinue={() => beginReactivate(publishedSite)}
       >
-        {fabricationCalculator(publishedSite, leavePublished)}
+        {fabricationCalculator(publishedSite, undefined, { standalone: true })}
       </TrialGlassLock>
     )
   }
@@ -7607,16 +8062,53 @@ function App() {
       accounts
         .flatMap((account) => account.websites || [])
         .find((site) => cleanSlug(site.slug || site.catalogId || site.name) === hostSlug)?.systemType ||
-      readSavedTenantKind(hostSlug)
+      readSavedTenantKind(hostSlug) ||
+      readLocalTenant(hostSlug).systemType
     const kind = hostSlug === 'prixburg' ? 'manufacturing' : ownedKind || hostTenantKind
-    if (!kind || kind === 'manufacturing') {
+    if (kind === 'manufacturing') {
       return <section className="prixburg-live-shell" aria-label="Opening website" />
+    }
+    if (!kind) {
+      return (
+        <section className="paused-tenant" aria-busy="true">
+          <h1>Opening {subdomainLabelFor(hostSlug)}…</h1>
+        </section>
+      )
     }
     if (kind === 'unknown') {
       return (
         <section className="paused-tenant">
           <h1>This website is not available.</h1>
         </section>
+      )
+    }
+    if (kind === 'fabrication' && !publishedSite) {
+      const mirrored = readLocalTenant(hostSlug)
+      const liveFabSite = makeWebsite({
+        id: `site-${hostSlug}`,
+        name: mirrored.name || hostSlug,
+        type: 'Fabrication',
+        systemType: 'fabrication',
+        slug: hostSlug,
+        link: subdomainUrlFor(hostSlug),
+        fabPlan: mirrored.fabPlan || hostTenantBilling.fabPlan || 'month',
+        paidUntil: Number(mirrored.paidUntil) || Number(hostTenantBilling.paidUntil) || 0,
+        trialEndsAt: Number(mirrored.trialEndsAt) || Number(hostTenantBilling.trialEndsAt) || 0,
+      })
+      const liveLocked = siteIsLocked(liveFabSite)
+      const liveMode = siteBilling(liveFabSite) === 'watermark' ? 'watermark' : 'paused'
+      return (
+        <TrialGlassLock
+          locked={liveLocked}
+          mode={liveMode}
+          autoSubscribe={liveLocked && liveMode === 'paused'}
+          subscribeForm={
+            liveLocked && liveMode === 'paused' ? fabEcoCashSubscribeForm(liveFabSite) : null
+          }
+          onContinue={() => beginReactivate(liveFabSite)}
+        >
+          {fabricationCalculator(liveFabSite, undefined, { standalone: true })}
+        </TrialGlassLock>
       )
     }
   }
@@ -7643,9 +8135,16 @@ function App() {
     const requestedProjectId =
       appRoute.projectId && appRoute.projectId !== 'all' ? appRoute.projectId : ''
     const requestedView = appRoute.view || 'home'
+    const siteLocked = siteIsLocked(publishedSite)
+    const lockMode = siteBilling(publishedSite) === 'watermark' ? 'watermark' : 'paused'
+    const autoFabSubscribe =
+      publishedSite?.systemType === 'fabrication' && siteLocked && lockMode === 'paused'
     return (
       <TrialGlassLock
-        locked={siteBilling(publishedSite) === 'paused'}
+        locked={siteLocked}
+        mode={lockMode}
+        autoSubscribe={autoFabSubscribe}
+        subscribeForm={autoFabSubscribe ? fabEcoCashSubscribeForm(publishedSite) : null}
         onContinue={() => beginReactivate(publishedSite)}
       >
         <CeoDashboard
@@ -7920,6 +8419,7 @@ function App() {
                     {index + 1}) {liveDomain(site)}
                     {siteBilling(site) === 'trial' ? ` · Trial ${trialDaysLeft(site)}d` : ''}
                     {siteBilling(site) === 'paused' ? ' · Paused' : ''}
+                    {siteBilling(site) === 'watermark' ? ' · Watermark' : ''}
                   </button>
                 ))
               ) : (
@@ -8051,7 +8551,12 @@ function App() {
               {profileTab === 'dash' && dashSite?.systemType === 'fabrication' ? (
                 <div className="profile-tab-panel profile-calc-panel">
                   <TrialGlassLock
-                    locked={siteBilling(dashSite) === 'paused'}
+                    locked={siteIsLocked(dashSite)}
+                    mode={siteBilling(dashSite) === 'watermark' ? 'watermark' : 'paused'}
+                    autoSubscribe={siteBilling(dashSite) === 'paused'}
+                    subscribeForm={
+                      siteBilling(dashSite) === 'paused' ? fabEcoCashSubscribeForm(dashSite) : null
+                    }
                     onContinue={() => beginReactivate(dashSite)}
                   >
                     {fabricationCalculator(dashSite, () => setProfileTab('gallery'))}
@@ -8060,7 +8565,8 @@ function App() {
               ) : profileTab === 'dash' ? (
                 <div className="profile-tab-panel">
                   <TrialGlassLock
-                    locked={siteBilling(dashSite) === 'paused'}
+                    locked={siteIsLocked(dashSite)}
+                    mode={siteBilling(dashSite) === 'watermark' ? 'watermark' : 'paused'}
                     onContinue={() => beginReactivate(dashSite)}
                   >
                     <CeoProjectsOverview
@@ -8537,12 +9043,12 @@ function App() {
                 <h3>Tailor making details</h3>
                 <p className="shop-copy">
                   {tailorMode === 'trial'
-                    ? 'Write a domain. Fortress creates a free temporary subdomain from it. You can edit the domain before you start. The website works fully for 14 days and stays next to your profile. When the trial ends it is paused, not deleted. Paying later unlocks this same website.'
+                    ? 'Write a domain. Fortress creates that subdomain now. It works fully for 14 days and stays on your profile. When the trial ends it is paused, not deleted. Buying later unlocks this same subdomain.'
                     : systemType === 'manufacturing'
-                      ? 'Creates an exact Prixburg manufacturing website (with empty data) as a tenant subdomain of Fortress.'
+                      ? 'Creates an exact Prixburg manufacturing website (empty data) as a Fortress subdomain. For now it stays watermarked until EcoCash unlock — the subdomain address is reserved.'
                       : systemType === 'construction'
-                        ? 'Creates an exact Rodcroft construction website (with empty data) as a tenant subdomain of Fortress.'
-                        : 'Creates your fabrication calculator as a tenant subdomain of Fortress. $100 a month, paid with EcoCash.'}
+                        ? 'Creates an exact Rodcroft construction website (empty data) as a Fortress subdomain. For now it stays watermarked until EcoCash unlock — the subdomain address is reserved.'
+                        : 'Creates your fabrication calculator subdomain. For now it stays watermarked until EcoCash unlock. A 14 day trial unlocks it immediately.'}
                 </p>
                 <label>
                   Name of website
