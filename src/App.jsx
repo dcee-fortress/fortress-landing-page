@@ -11,6 +11,7 @@ import {
   persistCeoMetadataToCloud,
   removeAccountFromCloud,
   restoreAccountBySlugFromCloud,
+  listAccountsFromCloud,
   restoreCloudAccount,
   syncAccountsToCloud,
 } from './accountCloud'
@@ -3838,12 +3839,13 @@ function FabricationCalculator({
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
-  const openDrawing = () => {
-    if (!project.drawing) return
+  const openDrawing = (sheet) => {
+    const src = sheet?.dataUrl || project.drawing
+    if (!src) return
     setDrawingViewer({
-      src: project.drawing,
-      name: project.drawingName || 'Drawing',
-      kind: project.drawingKind || (project.drawing.startsWith('data:application/pdf') ? 'pdf' : 'image'),
+      src,
+      name: sheet?.name || project.drawingName || 'Drawing',
+      kind: sheet?.kind || project.drawingKind || (String(src).startsWith('data:application/pdf') ? 'pdf' : 'image'),
     })
   }
 
@@ -3912,6 +3914,7 @@ function FabricationCalculator({
           ? merged.schedule
           : [],
       rcStoreys: jobType === 'rc_columns' ? merged.rcMeta?.storeys || [] : [],
+      takeoffTrace: Array.isArray(extracted?.takeoff_trace) ? extracted.takeoff_trace : [],
       roofLength:
         jobType === 'structure' && building.length_m
           ? String(building.length_m)
@@ -6081,6 +6084,18 @@ function App() {
         /* ignore bad durable payload */
       }
     })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    let cancelled = false
+    listAccountsFromCloud(OWNER_LOGIN.email, OWNER_LOGIN.password).then((remote) => {
+      if (cancelled || !remote?.length) return
+      setAccounts((previous) => mergeAccountsLocalFirst(withCompanyAccounts(previous), remote))
+    })
     return () => {
       cancelled = true
     }

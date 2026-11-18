@@ -27,7 +27,7 @@ export const askFabBrain = async ({ mode = 'explain', question = '', context = {
 export const looksLikeCalculationQuestion = (text = '') => {
   const t = String(text).toLowerCase()
   return (
-    /\bwhy\b|\breason\b|\bexplain\b|\bhow (did|do|does)\b|\bwhere (did|does)\b|\bisn'?t it|\bshould(n'?t)? it\b|\b3\s*[x×]\s*|middle vertical|formula|calculation|calc\b/.test(
+    /\bwhy\b|\breason\b|\bexplain\b|\bhow\b|\bwhere\b|\bgot\b|\btotal\b|\bcome from\b|\bu[\s-]?tube\b|\bheight\b|\bwhich (material|drawing|sheet|member)\b|\bisn'?t it|\bshould(n'?t)? it\b|\b3\s*[x×]\s*|middle vertical|formula|calculation|calc\b/.test(
       t,
     )
   )

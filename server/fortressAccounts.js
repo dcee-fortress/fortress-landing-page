@@ -102,6 +102,25 @@ export const handleFortressAccounts = async (req, res) => {
     client = await db.connect()
     await ensure(client)
 
+    if (op === 'list') {
+      const email = emailOf(body.email)
+      const password = String(body.password || '')
+      const ownerEmail = emailOf(process.env.FORTRESS_OWNER_EMAIL || '')
+      const ownerPassword = String(process.env.FORTRESS_OWNER_PASSWORD || '')
+      if (!ownerEmail || !ownerPassword || email !== ownerEmail || password !== ownerPassword) {
+        res.status(403).json({ ok: false })
+        return
+      }
+      const found = await client.query(
+        'select account from fortress_accounts order by updated_at desc',
+      )
+      res.json({
+        ok: true,
+        accounts: found.rows.map((row) => row.account).filter((account) => account?.email),
+      })
+      return
+    }
+
     if (op === 'exists') {
       const email = emailOf(body.email)
       const found = await client.query('select 1 from fortress_accounts where email = $1', [email])

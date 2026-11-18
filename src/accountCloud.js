@@ -146,6 +146,19 @@ export const removeAccountFromCloud = async (email, password) => {
   await postApi({ op: 'remove', email, password })
 }
 
+/** Every Fortress account stored in the database, for this device. */
+export const listAccountsFromCloud = async (email, password) => {
+  const result = await postApi({ op: 'list', email, password })
+  if (!result.ok || !Array.isArray(result.data?.accounts)) return []
+  return result.data.accounts
+    .filter((account) => account?.email)
+    .map((account) => ({
+      ...account,
+      email: String(account.email).trim().toLowerCase(),
+      websites: (account.websites || []).map(slimWebsite).filter(Boolean),
+    }))
+}
+
 export const fetchAccountFromCloud = async (email) => {
   const key = accountCloudKey(email)
   if (!email || key === 'fortress-account:') return null
