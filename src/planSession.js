@@ -14,14 +14,20 @@ export { isNextCommand, DEFAULT_BOQ_PERCENTS, computeBoq }
 
 export const PLAN_PHASES = Object.freeze([
   'explain',
-  'materials_summary',
-  'edit_materials',
-  'totals_summary',
-  'edit_totals',
+  'material_lengths',
   'unit_prices',
   'cost_summary',
   'boq',
 ])
+
+const PLAN_PHASE_ALIAS = {
+  materials_summary: 'material_lengths',
+  edit_materials: 'material_lengths',
+  totals_summary: 'material_lengths',
+  edit_totals: 'material_lengths',
+}
+
+export const normalizePlanPhase = (phase) => PLAN_PHASE_ALIAS[phase] || phase || 'explain'
 
 const PLAN_FORMULA_MEMORY_KEY = 'fortress-fab-plan-formulas-v1'
 
@@ -115,9 +121,15 @@ export const createEmptyPlanSession = (pricing = {}) => ({
 })
 
 export const getNextPlanPhase = (phase) => {
-  const idx = PLAN_PHASES.indexOf(phase)
+  const idx = PLAN_PHASES.indexOf(normalizePlanPhase(phase))
   if (idx < 0) return 'explain'
-  return PLAN_PHASES[idx + 1] || phase
+  return PLAN_PHASES[idx + 1] || normalizePlanPhase(phase)
+}
+
+export const getPrevPlanPhase = (phase) => {
+  const idx = PLAN_PHASES.indexOf(normalizePlanPhase(phase))
+  if (idx <= 0) return 'explain'
+  return PLAN_PHASES[idx - 1]
 }
 
 export const safeEvalFormula = (expr = '') => {

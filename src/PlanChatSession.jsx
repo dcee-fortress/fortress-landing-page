@@ -17,6 +17,7 @@ import {
   formatPlanMaterialsSummary,
   formatPlanTotalsSummary,
   getNextPlanPhase,
+  getPrevPlanPhase,
   isNextCommand,
   pricingPatchFromPlanPrices,
   rememberPlanFormula,
@@ -47,6 +48,25 @@ export default function PlanChatSession({
     const base = createEmptyPlanSession(
       pricing?.transportPercent != null && pricing.transportPercent !== '' ? pricing : {},
     )
+    const snap = project.fabSnapshot
+    if (project.resumePhase === 'boq') {
+      const lines = snap?.lines?.length
+        ? snap.lines
+        : applyRememberedPlanFormulas(buildPlanMaterialLines(kind, draft))
+      return {
+        ...base,
+        phase: 'boq',
+        lines,
+        unitPrices: snap?.unitPrices || {},
+        labourPercent: snap?.labourPercent ?? base.labourPercent,
+        consumablesPercent: snap?.consumablesPercent ?? base.consumablesPercent,
+        transportPercent: snap?.transportPercent ?? base.transportPercent,
+        explanation: buildPlanExplanation(kind, draft, project.name, project.client),
+        messages: [
+          makeMsg('assistant', 'Saved quotation — ready to export PDF. Press Back to walk the earlier steps.'),
+        ],
+      }
+    }
     const lines = applyRememberedPlanFormulas(buildPlanMaterialLines(kind, draft))
     const explanation = buildPlanExplanation(kind, draft, project.name, project.client)
     return {
@@ -87,7 +107,7 @@ export default function PlanChatSession({
     }
 
     let nextSession = { ...session, phase: to }
-    if (from === 'edit_materials' || from === 'edit_totals') {
+    if (from === 'material_lengths' || from === 'edit_materials' || from === 'edit_totals') {
       const derived = derivePlanViews(session, kind, draft, pricing)
       nextSession = { ...nextSession, lines: derived.lines }
       syncQtyToProject(derived.lines)
@@ -104,29 +124,11 @@ export default function PlanChatSession({
     }
 
     const msgs = []
-    if (to === 'materials_summary') {
-      const derived = derivePlanViews(nextSession, kind, draft, pricing)
+    if (to === 'material_lengths' || to === 'edit_totals') {
       msgs.push(
         makeMsg(
           'assistant',
-          `Material take-off:\n\n${formatPlanMaterialsSummary(derived.lines)}`,
-        ),
-      )
-    } else if (to === 'edit_materials') {
-      msgs.push(makeMsg('assistant', 'Edit any length if needed, then type next.'))
-    } else if (to === 'totals_summary') {
-      const derived = derivePlanViews(nextSession, kind, draft, pricing)
-      msgs.push(
-        makeMsg(
-          'assistant',
-          `Total length of each material:\n\n${formatPlanTotalsSummary(derived.lines)}`,
-        ),
-      )
-    } else if (to === 'edit_totals') {
-      msgs.push(
-        makeMsg(
-          'assistant',
-          'Click a figure to see its formula. Edit it, Apply & remember, then type next.',
+          'Material total length — once. Click a cell to open its formula, then Apply & remember.',
         ),
       )
     } else if (to === 'unit_prices') {
@@ -293,6 +295,13 @@ export default function PlanChatSession({
       labourPercent: derived.boq.labourPercent,
       consumablesPercent: derived.boq.consumablesPercent,
       transportPercent: derived.boq.transportPercent,
+      snapshot: {
+        lines: derived.lines,
+        unitPrices: session.unitPrices,
+        labourPercent: session.labourPercent,
+        consumablesPercent: session.consumablesPercent,
+        transportPercent: session.transportPercent,
+      },
       lines: derived.priceRows.map((row) => ({
         name: row.material,
         detail: row.quantityLabel,
@@ -302,9 +311,15 @@ export default function PlanChatSession({
     pushMessages(makeMsg('assistant', `Quote saved at $${derived.boq.total.toFixed(2)}.`))
   }
 
+  const retreatPhase = () => {
+    const prev = getPrevPlanPhase(session.phase)
+    if (prev === session.phase) return
+    pushMessages(makeMsg('assistant', 'Back one step.'))
+    patchSession({ phase: prev })
+  }
+
   const phase = session.phase
-  const showEditMaterials = phase === 'edit_materials'
-  const showEditTotals = phase === 'edit_totals'
+  const showEditTotals = phase === 'material_lengths' || phase === 'edit_totals' || phase === 'edit_materials'
   const showPrices = phase === 'unit_prices'
   const showBoq = phase === 'boq'
 
@@ -324,16 +339,6 @@ export default function PlanChatSession({
       </header>
 
       <DrawingExplainPane messages={session.messages} busy={session.busy}>
-        {showEditMaterials ? (
-          <EditableMaterialTable
-            mode="gate-qty"
-            title="Editable material lengths"
-            rows={views.lines}
-            onChangeLength={(id, value) =>
-              patchSession({ quantityOverrides: { ...session.quantityOverrides, [id]: value } })
-            }
-          />
-        ) : null}
         {showEditTotals ? (
           <EditableMaterialTable
             mode="gate-totals"
@@ -442,6 +447,8 @@ export default function PlanChatSession({
         busy={session.busy}
         placeholder="Ask why a formula…, correct it, or type next…"
         onSend={onSend}
+        showBack={session.phase !== 'explain'}
+        onBack={retreatPhase}
         onNext={() => {
           pushMessages(makeMsg('user', 'next'))
           advancePhase()

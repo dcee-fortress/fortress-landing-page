@@ -6,7 +6,9 @@ export default function DrawingChatBar({
   placeholder = 'Type next, or describe a correction…',
   onSend,
   onNext,
+  onBack,
   showNext = true,
+  showBack = false,
 }) {
   const [value, setValue] = useState('')
 
@@ -31,6 +33,11 @@ export default function DrawingChatBar({
       <button type="submit" className="drawing-chat-send" disabled={disabled || busy || !value.trim()}>
         Send
       </button>
+      {showBack ? (
+        <button type="button" className="drawing-chat-next" disabled={disabled || busy} onClick={() => onBack?.()}>
+          Back
+        </button>
+      ) : null}
       {showNext ? (
         <button
           type="button"

@@ -19,6 +19,7 @@ import {
   gateDesignLabel,
   gateTypeLabel,
   getNextGatePhase,
+  getPrevGatePhase,
   isNextCommand,
   pricingPatchFromGatePrices,
   rememberGateFormula,
@@ -50,6 +51,28 @@ export default function GateChatSession({
         ? pricing
         : {},
     )
+    const snap = project.fabSnapshot
+    if (project.resumePhase === 'boq') {
+      const lines = snap?.lines?.length
+        ? snap.lines
+        : applyRememberedGateFormulas(buildGateMaterialLines(gate))
+      return {
+        ...base,
+        phase: 'boq',
+        lines,
+        unitPrices: snap?.unitPrices || {},
+        labourPercent: snap?.labourPercent ?? base.labourPercent,
+        consumablesPercent: snap?.consumablesPercent ?? base.consumablesPercent,
+        transportPercent: snap?.transportPercent ?? base.transportPercent,
+        explanation: buildGateExplanation(gate, project.name, project.client),
+        messages: [
+          makeMsg(
+            'assistant',
+            'Saved quotation — ready to export PDF. Press Back to walk the earlier steps.',
+          ),
+        ],
+      }
+    }
     const lines = applyRememberedGateFormulas(buildGateMaterialLines(gate))
     const explanation = buildGateExplanation(gate, project.name, project.client)
     return {
@@ -100,7 +123,7 @@ export default function GateChatSession({
     }
 
     let nextSession = { ...session, phase: to }
-    if (from === 'edit_materials' || from === 'edit_totals') {
+    if (from === 'material_lengths' || from === 'edit_totals' || from === 'edit_materials') {
       const derived = deriveGateViews(session, gate, pricing)
       nextSession = { ...nextSession, lines: derived.lines }
       syncGateQtyToProject(derived.lines)
@@ -117,31 +140,11 @@ export default function GateChatSession({
     }
 
     const msgs = []
-    if (to === 'materials_summary') {
-      const derived = deriveGateViews(nextSession, gate, pricing)
+    if (to === 'material_lengths' || to === 'edit_totals') {
       msgs.push(
         makeMsg(
           'assistant',
-          `Materials for this gate (lengths in m, IBR sheet in m²):\n\n${formatGateMaterialsSummary(derived.lines)}`,
-        ),
-      )
-    } else if (to === 'edit_materials') {
-      msgs.push(
-        makeMsg('assistant', 'Edit any material length or area below. Type next when it looks right.'),
-      )
-    } else if (to === 'totals_summary') {
-      const derived = deriveGateViews(nextSession, gate, pricing)
-      msgs.push(
-        makeMsg(
-          'assistant',
-          `Total length / area of each material:\n\n${formatGateTotalsSummary(derived.lines)}`,
-        ),
-      )
-    } else if (to === 'edit_totals') {
-      msgs.push(
-        makeMsg(
-          'assistant',
-          'Click a figure to see its formula (IBR uses area). You can edit the formula or the answer, then type next.',
+          'Material total length — once. Click a cell to open its formula, edit it, then Apply & remember.',
         ),
       )
     } else if (to === 'unit_prices') {
@@ -279,6 +282,13 @@ export default function GateChatSession({
     }))
   }
 
+  const retreatPhase = () => {
+    const prev = getPrevGatePhase(session.phase)
+    if (prev === session.phase) return
+    pushMessages(makeMsg('assistant', 'Back one step.'))
+    patchSession({ phase: prev })
+  }
+
   const onSend = async (text) => {
     if (isNextCommand(text)) {
       pushMessages(makeMsg('user', text))
@@ -341,6 +351,13 @@ export default function GateChatSession({
       title: project.name || 'Gate quote',
       client: project.client,
       total: derived.boq.total,
+      snapshot: {
+        lines: derived.lines,
+        unitPrices: session.unitPrices,
+        labourPercent: session.labourPercent,
+        consumablesPercent: session.consumablesPercent,
+        transportPercent: session.transportPercent,
+      },
       materials: derived.boq.materials,
       labour: derived.boq.labour,
       consumables: derived.boq.consumables,
@@ -358,8 +375,7 @@ export default function GateChatSession({
   }
 
   const phase = session.phase
-  const showEditMaterials = phase === 'edit_materials'
-  const showEditTotals = phase === 'edit_totals'
+  const showEditTotals = phase === 'material_lengths' || phase === 'edit_totals' || phase === 'edit_materials'
   const showPrices = phase === 'unit_prices'
   const showBoq = phase === 'boq'
 
@@ -377,16 +393,6 @@ export default function GateChatSession({
       </header>
 
       <DrawingExplainPane messages={session.messages} busy={session.busy}>
-        {showEditMaterials ? (
-          <EditableMaterialTable
-            mode="gate-qty"
-            title="Editable material lengths / areas"
-            rows={views.lines}
-            onChangeLength={(id, value) =>
-              patchSession({ quantityOverrides: { ...session.quantityOverrides, [id]: value } })
-            }
-          />
-        ) : null}
         {showEditTotals ? (
           <EditableMaterialTable
             mode="gate-totals"
@@ -495,6 +501,8 @@ export default function GateChatSession({
         busy={session.busy}
         placeholder="Ask why a formula…, correct it, or type next…"
         onSend={onSend}
+        showBack={session.phase !== 'explain'}
+        onBack={retreatPhase}
         onNext={() => {
           pushMessages(makeMsg('user', 'next'))
           advancePhase()

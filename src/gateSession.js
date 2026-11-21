@@ -47,14 +47,21 @@ export const tube50MiddleVerticals = () => {
 
 export const GATE_PHASES = Object.freeze([
   'explain',
-  'materials_summary',
-  'edit_materials',
-  'totals_summary',
-  'edit_totals',
+  'material_lengths',
   'unit_prices',
   'cost_summary',
   'boq',
 ])
+
+/** Older chats had length shown twice (summary then table). Fold those into one formula table. */
+const GATE_PHASE_ALIAS = {
+  materials_summary: 'material_lengths',
+  edit_materials: 'material_lengths',
+  totals_summary: 'material_lengths',
+  edit_totals: 'material_lengths',
+}
+
+export const normalizeGatePhase = (phase) => GATE_PHASE_ALIAS[phase] || phase || 'explain'
 
 const OVERLAP = 0.4
 const DEFAULT_SPACING = 0.12
@@ -89,9 +96,15 @@ export const createEmptyGateSession = (pricing = {}) => ({
 })
 
 export const getNextGatePhase = (phase) => {
-  const idx = GATE_PHASES.indexOf(phase)
+  const idx = GATE_PHASES.indexOf(normalizeGatePhase(phase))
   if (idx < 0) return 'explain'
-  return GATE_PHASES[idx + 1] || phase
+  return GATE_PHASES[idx + 1] || normalizeGatePhase(phase)
+}
+
+export const getPrevGatePhase = (phase) => {
+  const idx = GATE_PHASES.indexOf(normalizeGatePhase(phase))
+  if (idx <= 0) return 'explain'
+  return GATE_PHASES[idx - 1]
 }
 
 export const gateTypeLabel = (gateType) => {

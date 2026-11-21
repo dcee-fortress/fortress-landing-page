@@ -435,19 +435,28 @@ export const computeBoq = ({
   }
 }
 
+/** Length was listed as a summary and again as a formula table. Keep only the click-to-formula table. */
+const SKIP_LENGTH_DUPES = ['materials_lengths', 'edit_lengths', 'length_totals']
+
+const skipHiddenPhases = (phase, jobType, dir) => {
+  const order = DRAWING_PHASES
+  let cursor = phase
+  const hidden = (name) =>
+    SKIP_LENGTH_DUPES.includes(name) ||
+    (!usesWeightPath(jobType) && ['weight_schedule', 'edit_weights', 'weight_products'].includes(name))
+  while (cursor && hidden(cursor)) {
+    const i = order.indexOf(cursor)
+    cursor = order[i + dir]
+  }
+  return cursor
+}
+
 /** Advance phase; RC gets weight steps, structure/gate skip them. */
 export const getNextPhase = (phase, jobType) => {
   const order = DRAWING_PHASES
   const idx = order.indexOf(phase)
   if (idx < 0) return 'upload'
-  let next = order[idx + 1]
-  if (!next) return phase
-  if (!usesWeightPath(jobType)) {
-    while (next && ['weight_schedule', 'edit_weights', 'weight_products'].includes(next)) {
-      const i = order.indexOf(next)
-      next = order[i + 1]
-    }
-  }
+  const next = skipHiddenPhases(order[idx + 1], jobType, 1)
   return next || phase
 }
 
@@ -455,13 +464,7 @@ export const getPrevPhase = (phase, jobType) => {
   const order = DRAWING_PHASES
   const idx = order.indexOf(phase)
   if (idx <= 0) return 'upload'
-  let prev = order[idx - 1]
-  if (!usesWeightPath(jobType)) {
-    while (prev && ['weight_schedule', 'edit_weights', 'weight_products'].includes(prev)) {
-      const i = order.indexOf(prev)
-      prev = order[i - 1]
-    }
-  }
+  const prev = skipHiddenPhases(order[idx - 1], jobType, -1)
   return prev || 'upload'
 }
 

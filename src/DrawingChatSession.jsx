@@ -13,6 +13,7 @@ import {
   formatWeightProductsSummary,
   formatWeightScheduleSummary,
   getNextPhase,
+  getPrevPhase,
   isNextCommand,
   linesFromSchedule,
   pricingPatchFromUnitPrices,
@@ -70,6 +71,26 @@ export default function DrawingChatSession({
             transportPercent: String(pricing.transportPercent),
           }
         : base
+    if (project?.resumePhase === 'boq' && project?.jobType) {
+      const lines = project.fabSnapshot?.lines?.length
+        ? project.fabSnapshot.lines
+        : linesFromSchedule(project.schedule || [], project.jobType, project.gate)
+      return {
+        ...withPercents,
+        phase: 'boq',
+        lines,
+        unitPrices: project.fabSnapshot?.unitPrices || {},
+        labourPercent: project.fabSnapshot?.labourPercent ?? withPercents.labourPercent,
+        consumablesPercent: project.fabSnapshot?.consumablesPercent ?? withPercents.consumablesPercent,
+        transportPercent: project.fabSnapshot?.transportPercent ?? withPercents.transportPercent,
+        messages: [
+          makeMsg(
+            'assistant',
+            'Saved quotation — ready to export PDF. Press Back to walk the earlier steps.',
+          ),
+        ],
+      }
+    }
     // Resume an already-read drawing (e.g. opened from recent projects).
     if (project?.drawing && project?.jobType) {
       const lines = linesFromSchedule(project.schedule || [], project.jobType, project.gate)
@@ -607,6 +628,13 @@ export default function DrawingChatSession({
       title: project.name || 'Drawing quote',
       client: project.client,
       total: derived.boq.total,
+      snapshot: {
+        lines: derived.lines,
+        unitPrices: session.unitPrices,
+        labourPercent: session.labourPercent,
+        consumablesPercent: session.consumablesPercent,
+        transportPercent: session.transportPercent,
+      },
       materials: derived.boq.materials,
       labour: derived.boq.labour,
       consumables: derived.boq.consumables,
@@ -623,6 +651,13 @@ export default function DrawingChatSession({
     pushMessages(
       makeMsg('assistant', `Quote saved at $${derived.boq.total.toFixed(2)}.`),
     )
+  }
+
+  const retreatPhase = () => {
+    const prev = getPrevPhase(session.phase, project.jobType)
+    if (prev === session.phase) return
+    pushMessages(makeMsg('assistant', 'Back one step.'))
+    patchSession({ phase: prev })
   }
 
   const phase = session.phase
@@ -835,6 +870,8 @@ export default function DrawingChatSession({
         busy={session.busy}
         disabled={false}
         onSend={onSend}
+        showBack={phase !== 'upload' && phase !== 'explain'}
+        onBack={retreatPhase}
         onNext={() => {
           pushMessages(makeMsg('user', 'next'))
           advancePhase()

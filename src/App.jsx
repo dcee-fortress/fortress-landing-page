@@ -3310,6 +3310,7 @@ function FabricationCalculator({
   canHistoryForward = false,
   onHistoryBack,
   onHistoryForward,
+  frozen = false,
 }) {
   const initial = calcStateFromPanel(routePanel)
   const [view, setView] = useState(initial.view)
@@ -3352,6 +3353,7 @@ function FabricationCalculator({
   const canUseFreemiumJob = subActive || freeLeft > 0
   const canUploadDrawing = canUseFreemiumJob
   const canStartGateQuote = canUseFreemiumJob
+  const workFrozen = Boolean(frozen) || (!subActive && freeLeft <= 0)
 
   const refreshDrawingScript = (proj) =>
     formatDrawingScript({
@@ -3550,7 +3552,10 @@ function FabricationCalculator({
     const entry = {
       ...project,
       id: project.id || makeId('proj'),
-      quoteTotal: finalQuote?.total || 0,
+      quoteTotal: finalQuote?.total || project.quoteTotal || 0,
+      fabSnapshot: finalQuote?.snapshot || project.fabSnapshot || null,
+      resumePhase: 'boq',
+      quotePdfReady: true,
       at: Date.now(),
       gate: project.jobType === 'gate' ? { ...(project.gate || {}), name: finalQuote?.title || project.name } : project.gate,
     }
@@ -3563,6 +3568,11 @@ function FabricationCalculator({
   }
 
   const startNewProject = () => {
+    if (workFrozen) {
+      setNote('This fabrication app is paused. Open a saved quotation, or subscribe to start new work.')
+      goView('documents')
+      return
+    }
     setProject(emptyProject())
     onChange(emptyDrawingDraft())
     setNote('')
@@ -3585,6 +3595,7 @@ function FabricationCalculator({
       ...emptyProject(),
       ...item,
       planKind,
+      resumePhase: 'boq',
       palisade: { ...emptyPalisadeDraft(), ...(item.palisade || {}) },
       burglar: { ...emptyBurglarDraft(), ...(item.burglar || {}) },
       schedule: item.schedule?.length ? item.schedule : [],
@@ -3594,21 +3605,21 @@ function FabricationCalculator({
     setObjections(item.confirmNotes || '')
     setGateStep(1)
     setPlanStep(1)
-    if (item.drawing) {
+    if (item.drawing || (!planKind && (item.jobType === 'structure' || item.jobType === 'rc_columns'))) {
       setPathMode('drawing')
       goStep(2)
       return
     }
-    if (planKind) {
-      setPathMode('plan_manual')
-      goStep(5)
-      return
-    }
-    setPathMode(item.drawing ? 'drawing' : 'plan_manual')
-    goStep(5)
+    setPathMode('plan_manual')
+    goStep(3)
   }
 
   const nextFromProject = (mode) => {
+    if (workFrozen) {
+      setNote('This fabrication app is paused. Saved quotations still open from Documents.')
+      goView('documents')
+      return
+    }
     if (!project.name.trim()) {
       setNote('Enter a project name.')
       return
@@ -4340,9 +4351,20 @@ function FabricationCalculator({
               </p>
             )}
             {freemiumNote ? <p className="fab-freemium-alert">{freemiumNote}</p> : null}
-            <button type="button" className="fab-hero-btn" onClick={startNewProject}>
+            {workFrozen ? (
+              <p className="fab-freemium-alert" role="status">
+                This fabrication app is paused — the free trial or the monthly plan has ended. Saved quotations still
+                open offline, including PDF export. Subscribe to start new work.
+              </p>
+            ) : null}
+            <button type="button" className="fab-hero-btn" onClick={startNewProject} disabled={workFrozen}>
               CREATE PROJECT
             </button>
+            {workFrozen && onRenew ? (
+              <button type="button" className="fab-next-btn" onClick={() => onRenew('month')}>
+                Subscribe to continue
+              </button>
+            ) : null}
             <p className="fab-note">
               Upload a CAD plan, scan, or hand-drawn sketch, or price a gate with no drawing.
               {subActive ? '' : ' A $100 monthly subscription is required after the free jobs.'}
@@ -4441,6 +4463,7 @@ function FabricationCalculator({
 
       {wizard && pathMode === 'drawing' && step >= 2 ? (
         <DrawingChatSession
+          key={project.id || project.name || 'drawing'}
           project={project}
           companyName={site?.name || ''}
           pricing={quoteRates}
@@ -4907,6 +4930,7 @@ function FabricationCalculator({
 
       {wizard && pathMode === 'plan_manual' && step >= 3 && project.planKind === 'gate' ? (
         <GateChatSession
+          key={`gate-${project.id || project.name || 'new'}-${project.resumePhase || ''}`}
           project={project}
           companyName={site?.name || ''}
           pricing={quoteRates}
@@ -4925,7 +4949,7 @@ function FabricationCalculator({
       step >= 3 &&
       (project.planKind === 'palisade' || project.planKind === 'burglar') ? (
         <PlanChatSession
-          key={`${project.planKind}-${project.id || project.name}`}
+          key={`${project.planKind}-${project.id || project.name}-${project.resumePhase || ''}`}
           kind={project.planKind}
           project={project}
           companyName={site?.name || ''}
@@ -5668,7 +5692,10 @@ function FabricationCalculator({
         <main className="fab-home">
           <section className="fab-section">
             <h1>Documents</h1>
-            <p className="fab-note">Finished quotations open offline. Uploading a new drawing still needs data.</p>
+            <p className="fab-note">
+              Open a saved quotation to land on the PDF-ready page. Press Back inside the quote to revisit earlier steps.
+              A new drawing upload still needs data.
+            </p>
             {projects.length ? (
               <div className="fab-saved">
                 {projects.map((item) => (
@@ -7923,7 +7950,6 @@ function App() {
 
   const fabLocked =
     publishedSite?.systemType === 'fabrication' && siteIsLocked(publishedSite)
-  const fabLockMode = siteBilling(publishedSite) === 'watermark' ? 'watermark' : 'paused'
 
   useEffect(() => {
     if (!fabLocked || !publishedSite?.id) return
@@ -8026,9 +8052,10 @@ function App() {
     )
   }
 
-  const fabricationCalculator = (site, onBack, { standalone = false } = {}) => (
+  const fabricationCalculator = (site, onBack, { standalone = false, frozen: frozenCalc = false } = {}) => (
     <FabricationCalculator
       embedded={!standalone}
+      frozen={frozenCalc}
       site={site}
       draft={drawingDraft}
       onChange={setDrawingDraft}
@@ -8080,19 +8107,7 @@ function App() {
   }, [appRoute.kind, appRoute.slug, publishedSite?.systemType, signedInAccount])
 
   if (detectActiveSubdomain() && publishedSite?.systemType === 'fabrication') {
-    return (
-      <TrialGlassLock
-        locked={fabLocked}
-        mode={fabLockMode}
-        autoSubscribe={fabLocked && fabLockMode === 'paused'}
-        subscribeForm={
-          fabLocked && fabLockMode === 'paused' ? fabEcoCashSubscribeForm(publishedSite) : null
-        }
-        onContinue={() => beginReactivate(publishedSite)}
-      >
-        {fabricationCalculator(publishedSite, undefined, { standalone: true })}
-      </TrialGlassLock>
-    )
+    return fabricationCalculator(publishedSite, undefined, { standalone: true, frozen: fabLocked })
   }
 
   if (hostSlug && hostSlug !== 'rodcroft') {
@@ -8134,20 +8149,7 @@ function App() {
         trialEndsAt: Number(mirrored.trialEndsAt) || Number(hostTenantBilling.trialEndsAt) || 0,
       })
       const liveLocked = siteIsLocked(liveFabSite)
-      const liveMode = siteBilling(liveFabSite) === 'watermark' ? 'watermark' : 'paused'
-      return (
-        <TrialGlassLock
-          locked={liveLocked}
-          mode={liveMode}
-          autoSubscribe={liveLocked && liveMode === 'paused'}
-          subscribeForm={
-            liveLocked && liveMode === 'paused' ? fabEcoCashSubscribeForm(liveFabSite) : null
-          }
-          onContinue={() => beginReactivate(liveFabSite)}
-        >
-          {fabricationCalculator(liveFabSite, undefined, { standalone: true })}
-        </TrialGlassLock>
-      )
+      return fabricationCalculator(liveFabSite, undefined, { standalone: true, frozen: liveLocked })
     }
   }
 
